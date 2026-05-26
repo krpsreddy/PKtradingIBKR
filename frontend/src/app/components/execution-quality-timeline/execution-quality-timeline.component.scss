@@ -1,0 +1,60 @@
+.eq-timeline {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+
+  h4 {
+    margin: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #8b949e;
+    text-transform: uppercase;
+  }
+
+  .sym { font-size: 0.65rem; color: #58a6ff; }
+}
+
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow: visible;
+}
+
+li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.58rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #21262d;
+  animation: fadeIn 0.25s ease-out both;
+}
+
+.arrow { color: #388bfd; opacity: 0.6; }
+.time { color: #6e7681; }
+.label { font-weight: 700; color: #e6edf3; }
+.score { color: #e3b341; }
+
+.phase-building .label { color: #58a6ff; }
+.phase-strong .label, .phase-peaking .label { color: #3fb950; }
+.phase-extended .label { color: #bc8cff; }
+.phase-weakening .label { color: #d29922; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty { margin: 0; font-size: 0.62rem; color: #484f58; }

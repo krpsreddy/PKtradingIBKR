@@ -1,0 +1,16 @@
+<section class="bottom-tabs" [class.collapsed]="!expanded">
+  <div class="tab-bar">
+    @for (t of visibleTabs(); track t.id) {
+      <button type="button" class="tab" [class.active]="activeTab === t.id" (click)="selectTab(t.id)">
+        {{ label(t) }}
+      </button>
+    }
+    <span class="spacer"></span>
+    <button type="button" class="tab icon" (click)="toggleExpand.emit()">{{ expanded ? '▼' : '▲' }}</button>
+  </div>
+  @if (expanded && activeTab) {
+    <div class="tab-body">
+      <ng-content></ng-content>
+    </div>
+  }
+</section>

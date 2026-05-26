@@ -1,0 +1,179 @@
+@if (analytics) {
+  <section class="intel-panel" [class.compact]="compact">
+    <header class="intel-header">
+      <span class="title">{{ analytics.lookbackDays }}D EXECUTION PERFORMANCE</span>
+      <span class="meta conf" [class]="confidenceClass(analytics.globalConfidence.level)">
+        {{ analytics.globalConfidence.label }} ({{ analytics.globalConfidence.sampleCount }})
+      </span>
+    </header>
+
+    @if (analytics.totalSignals === 0) {
+      <p class="empty-hint">No execution opportunities recorded yet. Snapshots capture when regimes reach DEVELOPING / CONFIRMING / CONFIRMED maturity.</p>
+    }
+
+    <div class="metric-grid">
+      <div class="metric"><span class="k">Opportunities</span><span class="v">{{ analytics.totalSignals }}</span></div>
+      <div class="metric"><span class="k">Win Rate</span><span class="v" [class.pos]="analytics.winRate >= 55" [class.neg]="analytics.winRate < 45">{{ analytics.winRate | number:'1.0-0' }}%</span></div>
+      <div class="metric"><span class="k">Expectancy</span><span class="v" [class.pos]="analytics.expectancyR > 0" [class.neg]="analytics.expectancyR < 0">{{ signedR(analytics.expectancyR) }}</span></div>
+      <div class="metric"><span class="k">Hit 1R</span><span class="v">{{ analytics.hit1RRate | number:'1.0-0' }}%</span></div>
+      <div class="metric"><span class="k">Hit 2R</span><span class="v">{{ analytics.hit2RRate | number:'1.0-0' }}%</span></div>
+      <div class="metric"><span class="k">Avg MFE</span><span class="v pos">{{ signedR(analytics.avgMfeR) }}</span></div>
+      <div class="metric"><span class="k">Avg MAE</span><span class="v neg">{{ signedR(-absR(analytics.avgMaeR)) }}</span></div>
+      <div class="metric"><span class="k">Features</span><span class="v muted">{{ analytics.trainingFeatureCount }}</span></div>
+    </div>
+
+    <div class="insight-rows">
+      <div class="insight">
+        <span class="label">BEST REGIME</span>
+        <span class="value pos">
+          {{ formatRegime(analytics.bestRegime?.regime) }}
+          ({{ signedR(analytics.regimeExpectancy[0]?.expectancyR ?? 0) }})
+        </span>
+      </div>
+      <div class="insight">
+        <span class="label">WORST REGIME</span>
+        <span class="value neg">
+          {{ formatRegime(analytics.worstRegime?.regime) }}
+          ({{ signedR(analytics.regimeExpectancy[analytics.regimeExpectancy.length - 1]?.expectancyR ?? 0) }})
+        </span>
+      </div>
+      <div class="insight">
+        <span class="label">BEST REGIME OPPORTUNITY</span>
+        <span class="value">{{ formatSetup(analytics.bestSignalType?.signalType) }}</span>
+      </div>
+      <div class="insight">
+        <span class="label">FASTEST FAILURES</span>
+        <span class="value neg">{{ analytics.fastestFailuresLabel ?? '—' }}</span>
+      </div>
+    </div>
+
+    @if (analytics.setupExpectancy.length) {
+      <div class="section-block">
+        <div class="section-title">REGIME EXPECTANCY</div>
+        @for (row of analytics.setupExpectancy.slice(0, 4); track row.key) {
+          <div class="row-line">
+            <span class="row-label">{{ row.label }}</span>
+            <span class="row-value" [class.pos]="row.expectancyR > 0" [class.neg]="row.expectancyR < 0">{{ signedR(row.expectancyR) }}</span>
+            <span class="row-meta" [class]="confidenceClass(row.confidence.level)">{{ row.confidence.level }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (analytics.setupRatings.length) {
+      <div class="section-block">
+        <div class="section-title">REGIME CONFIDENCE</div>
+        @for (s of analytics.setupRatings.slice(0, 4); track s.signalType) {
+          <div class="row-line">
+            <span class="row-label">{{ formatSetup(s.signalType) }}</span>
+            <span class="row-value">{{ s.winRate | number:'1.0-0' }}%</span>
+            <span class="row-meta" [class]="confidenceClass(s.confidence.level)">{{ s.confidence.label }} ({{ s.confidence.sampleCount }})</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (analytics.aging.summaryInsight || analytics.aging.bySetup.length) {
+      <div class="section-block">
+        <div class="section-title">OPPORTUNITY AGING</div>
+        @if (analytics.aging.summaryInsight) {
+          <div class="aging-note">{{ analytics.aging.summaryInsight }}</div>
+        }
+        @for (p of analytics.aging.bySetup.slice(0, 3); track p.signalType) {
+          @if (p.decayNote) {
+            <div class="row-line compact">
+              <span class="row-label muted">{{ formatSetup(p.signalType) }}</span>
+              <span class="row-value muted">{{ p.decayNote }}</span>
+            </div>
+          }
+        }
+      </div>
+    }
+
+    @if (analytics.failureFactors.length) {
+      <div class="section-block">
+        <div class="section-title">FAILURE FACTORS</div>
+        @for (f of analytics.failureFactors.slice(0, 4); track f.id) {
+          <div class="row-line">
+            <span class="row-label">{{ f.label }}</span>
+            <span class="row-value neg">{{ f.lossCount }} losses</span>
+            <span class="row-meta">{{ f.lossRate | number:'1.0-0' }}% of sample</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (analytics.factorCorrelations.length) {
+      <div class="section-block">
+        <div class="section-title">FACTOR CORRELATION</div>
+        @for (c of analytics.factorCorrelations.slice(0, 4); track c.factor + c.bucket) {
+          <div class="row-line">
+            <span class="row-label">{{ c.factor }} {{ c.bucket }}</span>
+            <span class="row-value" [class.pos]="c.winRate >= 55">{{ c.winRate | number:'1.0-0' }}% WR</span>
+            <span class="row-meta" [class.pos]="c.expectancyR > 0" [class.neg]="c.expectancyR < 0">{{ signedR(c.expectancyR) }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (analytics.executionInsights.length) {
+      <div class="section-block insights">
+        <div class="section-title">EXECUTION INSIGHTS</div>
+        @for (line of analytics.executionInsights; track line) {
+          <div class="insight-line">→ {{ line }}</div>
+        }
+      </div>
+    }
+
+    @if (analytics.falseBreakout.breakoutSampleCount > 0) {
+      <div class="section-block">
+        <div class="section-title">FALSE BREAKOUT ANALYTICS</div>
+        <div class="row-line">
+          <span class="row-label">{{ analytics.falseBreakout.label }}</span>
+          <span class="row-value" [class.neg]="analytics.falseBreakout.trapRisk === 'HIGH'">{{ analytics.falseBreakout.falseBreakoutRate | number:'1.0-0' }}% fakeout</span>
+          <span class="row-meta">cont {{ analytics.falseBreakout.continuationQuality }}%</span>
+        </div>
+        @if (analytics.falseBreakout.byRegime[0]; as topRegime) {
+          <div class="row-line compact">
+            <span class="row-label muted">Highest fakeout regime</span>
+            <span class="row-value neg">{{ topRegime.regime }} {{ topRegime.falseBreakoutRate | number:'1.0-0' }}%</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (analytics.edgeGate) {
+      <div class="section-block">
+        <div class="section-title">EDGE ACTIVATION GATE</div>
+        <div class="row-line">
+          <span class="row-label">{{ analytics.edgeGate.label }}</span>
+          <span class="row-value" [class.pos]="analytics.edgeGate.state === 'EDGE_ACTIVE'" [class.neg]="analytics.edgeGate.state === 'NO_EDGE'">{{ signedR(analytics.edgeGate.expectancyR) }}</span>
+          <span class="row-meta">n={{ analytics.edgeGate.sampleCount }}</span>
+        </div>
+        @for (r of analytics.edgeGate.reasons.slice(0, 2); track r) {
+          <div class="insight-line muted">→ {{ r }}</div>
+        }
+      </div>
+    }
+
+    @if (analytics.openingDrive.sampleCount > 0) {
+      <div class="section-block">
+        <div class="section-title">OPENING DRIVE</div>
+        <div class="row-line">
+          <span class="row-label">{{ analytics.openingDrive.label }}</span>
+          <span class="row-value">Cont {{ analytics.openingDrive.continuationProbability | number:'1.0-0' }}%</span>
+          <span class="row-meta">Fade {{ analytics.openingDrive.fadeProbability | number:'1.0-0' }}%</span>
+        </div>
+      </div>
+    }
+
+    @if (analytics.openSignals > 0) {
+      <footer class="intel-footer">{{ analytics.openSignals }} developing — awaiting structural confirmation (not counted as wins)</footer>
+    }
+  </section>
+} @else {
+  <section class="intel-panel empty">
+    <span class="title">EXECUTION INTELLIGENCE</span>
+    <span class="hint">Recording autonomous regimes — edge metrics populate as outcomes resolve.</span>
+  </section>
+}

@@ -1,0 +1,6 @@
+@if (hasConcerns()) {
+  <div class="why-strip" [class.no-edge]="snapshot?.noEdge">
+    <span class="icon">⚠</span>
+    <span class="text">{{ stripText() }}</span>
+  </div>
+}

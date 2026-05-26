@@ -1,0 +1,172 @@
+<section class="signal-explorer" [class.compact]="compact" [class.docked]="docked" [class.full-height]="fullHeight">
+  <header class="explorer-header">
+    <div class="title-row">
+      <h3>Opportunity Explorer</h3>
+      <span class="symbol-badge">{{ symbol }}</span>
+      <span class="window-badge">Last {{ filters.timeWindow === '60D' ? '60D' : filters.timeWindow }}</span>
+      @if (totalSignals > 0) {
+        <span class="count-badge">{{ totalSignals }} Opportunities</span>
+      }
+      @if (loading) {
+        <span class="loading">Loading…</span>
+      }
+      <button type="button" class="btn subtle" (click)="refresh()">Refresh</button>
+    </div>
+    <p class="subtitle">Autonomous execution review · click any opportunity to jump replay to exact session &amp; candle</p>
+  </header>
+
+  <div class="shortcuts">
+    @for (s of shortcuts; track s.id) {
+      <button type="button" class="btn chip" (click)="onShortcut(s.id)">{{ s.label }}</button>
+    }
+  </div>
+
+  <div class="filters">
+    <label>
+      <span>Decision</span>
+      <select [(ngModel)]="filters.decision" (ngModelChange)="onFilterChange()">
+        @for (o of decisionOptions; track o) {
+          <option [ngValue]="o">{{ formatFilterLabel(o) }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Narrative</span>
+      <select [(ngModel)]="filters.narrative" (ngModelChange)="onFilterChange()">
+        @for (o of narrativeOptions; track o) {
+          <option [ngValue]="o">{{ formatFilterLabel(o) }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Quality</span>
+      <select [(ngModel)]="filters.quality" (ngModelChange)="onFilterChange()">
+        @for (o of qualityOptions; track o) {
+          <option [ngValue]="o">{{ formatFilterLabel(o) }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Result</span>
+      <select [(ngModel)]="filters.result" (ngModelChange)="onFilterChange()">
+        @for (o of resultOptions; track o) {
+          <option [ngValue]="o">{{ formatFilterLabel(o) }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Conviction</span>
+      <select (ngModelChange)="onConvictionChange($event)" [ngModel]="filters.highConvictionOnly ? 'HIGH' : 'ALL'">
+        @for (o of convictionOptions; track o) {
+          <option [ngValue]="o">{{ o }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Window</span>
+      <select [(ngModel)]="filters.timeWindow" (ngModelChange)="refresh()">
+        @for (o of timeOptions; track o) {
+          <option [ngValue]="o">{{ o === '60D' ? 'Last 60D' : o }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      <span>Sort</span>
+      <select [(ngModel)]="filters.sort" (ngModelChange)="onFilterChange()">
+        @for (o of sortOptions; track o.id) {
+          <option [ngValue]="o.id">{{ o.label }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  <div class="search-row">
+    <input
+      type="search"
+      placeholder="Search e.g. TSLA reclaim second leg"
+      [(ngModel)]="filters.searchText"
+      (input)="onSearchInput()" />
+  </div>
+
+  @if (journeySteps.length && selectedSignalId) {
+    <div class="signal-journey">
+      @for (step of journeySteps; track step; let last = $last) {
+        <span class="journey-step">{{ step }}</span>
+        @if (!last) {
+          <span class="journey-arrow">→</span>
+        }
+      }
+    </div>
+  }
+
+  @if (heatmap.length && !compact) {
+    <div class="heatmap" title="Signal density by day">
+      @for (day of heatmap.slice(-30); track day.sessionDate) {
+        <span class="heat-cell" [class]="heatToneClass(day.tone)" [title]="day.label"></span>
+      }
+    </div>
+  }
+
+  @if (error) {
+    <div class="error-panel" [class.network]="errorKind === 'network'">
+      @if (errorKind === 'network') {
+        <p>⚠ Replay signal index unavailable.</p>
+        <button type="button" class="btn primary" (click)="refresh()">Retry</button>
+      } @else {
+        <p>{{ error }}</p>
+        <button type="button" class="btn subtle" (click)="refresh()">Retry</button>
+      }
+    </div>
+  }
+
+  @if (loading && !rows.length) {
+    <ul class="signal-list skeleton">
+      @for (i of [1,2,3,4,5]; track i) {
+        <li><span class="sk-line"></span><span class="sk-line wide"></span><span class="sk-line short"></span></li>
+      }
+    </ul>
+  }
+
+  <div class="table-head global">
+    <span>Date</span>
+    <span>Time</span>
+    <span>Regime</span>
+    <span>Action</span>
+    <span>Conv</span>
+    <span>Vel</span>
+    <span>Result</span>
+    <span>Actions</span>
+  </div>
+
+  <cdk-virtual-scroll-viewport itemSize="44" class="signal-list-viewport">
+    <div *cdkVirtualFor="let row of rows; trackBy: trackRow"
+         class="signal-row global-table-row"
+         [class.selected]="row.signalId === selectedSignalId"
+         [ngClass]="toneClass(row)"
+         (click)="onRowClick(row)">
+      <span class="col date">{{ row.dateLabel }}</span>
+      <span class="col time">{{ row.timeLabel }}</span>
+      <span class="col signal" [title]="row.signalLabel">
+        <strong>{{ row.signalLabel }}</strong>
+      </span>
+      <span class="col quality" [title]="row.action ?? ''">{{ row.action ?? '—' }}</span>
+      <span class="col conv">{{ row.conviction != null ? row.conviction + '%' : '—' }}</span>
+      <span class="col velocity">{{ row.velocityLabel ?? '—' }}</span>
+      <span class="col result" [class]="row.resultClass">{{ row.resultLabel }}</span>
+      <span class="col actions">
+        <button type="button" class="btn open" (click)="onOpenReplay(row, $event)">Replay</button>
+        <button type="button" class="btn train" (click)="onTrainClick(row, $event)">Train</button>
+      </span>
+    </div>
+  </cdk-virtual-scroll-viewport>
+  @if (!loading && !rows.length && !error) {
+    <p class="empty-hint">No opportunities match filters</p>
+  }
+
+  <footer class="explorer-footer">
+    <button type="button" class="btn primary" (click)="onBulkReviewNext()" [disabled]="!rows.length">
+      Next Opportunity Review
+    </button>
+    <span class="hint">Click row → replay · Train → 10 bars before signal · N/P navigate in replay</span>
+  </footer>
+</section>

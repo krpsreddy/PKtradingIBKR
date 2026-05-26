@@ -1,0 +1,20 @@
+{
+  "strategyId": "SHALLOW_PULLBACK_CONTINUATION",
+  "strategyName": "Shallow Pullback Continuation",
+  "category": "CONTINUATION",
+  "conditions": ["shallow PB efficiency", "VWAP hold", "continuation integrity"],
+  "thresholds": {
+    "maxPullbackPct": 0.6,
+    "minContinuationPersistence": 60
+  },
+  "winRate": 0.68,
+  "avgR": 1.6,
+  "robustness": 0.78,
+  "active": true,
+  "deprecated": false,
+  "replayExamples": ["QCOM", "ARM"],
+  "discoveredFromPhase": 165,
+  "notes": "Healthy shallow pullback hold with institutional persistence",
+  "version": 1,
+  "governanceTags": ["AUTONOMOUS", "CONFIRMED"]
+}

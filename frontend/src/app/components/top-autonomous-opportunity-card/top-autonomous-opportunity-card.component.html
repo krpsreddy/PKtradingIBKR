@@ -1,0 +1,22 @@
+<section class="top-opportunity">
+  <header class="top-head">
+    <span class="top-title">Top Autonomous Opportunity</span>
+    @if (enriched?.percentileLabel) {
+      <span class="top-rank">{{ enriched!.percentileLabel }}</span>
+    }
+  </header>
+  @if (displayCard(); as c) {
+    <app-autonomous-execution-card
+      [card]="c"
+      [enriched]="enriched"
+      [hero]="true"
+      [selected]="selected"
+      (symbolSelect)="onSelect($event)">
+    </app-autonomous-execution-card>
+  } @else {
+    <div class="empty-card" role="status">
+      <span class="empty-title">Scanning autonomous regimes…</span>
+      <span class="empty-detail">Nano scanner · conviction calibration · dominant actions</span>
+    </div>
+  }
+</section>

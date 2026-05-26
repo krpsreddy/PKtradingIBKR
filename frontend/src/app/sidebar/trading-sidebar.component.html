@@ -1,0 +1,230 @@
+<aside class="sidebar" [class.collapsed]="collapsed" [class.mobile-open]="mobileOpen"
+       [class.radar-compact]="radarCompact" [class.silence-radar]="silenceActive"
+       [class.mode-chop]="intensityMode === 'CHOP'"
+       [class.peripheral-lift]="sidebarLift > 0.15">
+  <div class="sidebar-header">
+    <span>Autonomous Scanner</span>
+    <button
+      type="button"
+      class="scan-toggle"
+      [class.scan-on]="scanTone === 'active'"
+      [class.scan-off]="scanTone === 'paused'"
+      [class.scan-degraded]="scanTone === 'degraded'"
+      (click)="toggleScan()"
+      [title]="scanTone === 'paused' ? 'Resume scanning' : 'Pause scanning'">
+      {{ scanLabel }}
+    </button>
+    <div class="header-links">
+      <a routerLink="/symbols" class="manage-link" title="Symbol management">⚙</a>
+      <button type="button" class="icon-btn" (click)="toggleCollapse.emit()" title="Collapse sidebar">◀</button>
+    </div>
+  </div>
+
+  @if (!collapsed) {
+    <section class="scanner-priority">
+      <app-dominant-opportunity-hero
+        [snapshot]="dominantSnapshot"
+        [selectedSymbol]="selectedSymbol"
+        (symbolSelect)="selectRegimeSymbol($event)">
+      </app-dominant-opportunity-hero>
+
+      <section class="panel-section priority-panel">
+        <button type="button" class="section-toggle" (click)="signalsPanelOpen = togglePanel('liveOpportunities', signalsPanelOpen)">
+          <h4>Live Opportunities</h4><span>{{ signalsPanelOpen ? '▼' : '▶' }}</span>
+        </button>
+        @if (signalsPanelOpen) {
+          <div class="opportunity-list">
+            @if (activeSignals.length === 0) {
+              @if (marketModeActive && marketModeRows.length) {
+                <div class="market-mode-panel">
+                  <span class="mm-title">AUTONOMOUS MARKET MODE</span>
+                  @for (row of marketModeRows; track row.symbol + row.label) {
+                    @let resolved = resolveMarketRow(row);
+                    <button type="button" class="market-mode-row" [class.high]="row.priority === 'high'" (click)="selectRegimeSymbol(row.symbol)">
+                      <span class="mm-left">
+                        <span class="mm-label">{{ resolved.leftLabel }}</span>
+                        <span class="mm-sym">{{ resolved.symbol }}</span>
+                      </span>
+                      @if (resolved.edgeText) {
+                        <span class="mm-right"
+                              [class.mm-edge]="resolved.edgeSentiment"
+                              [class.mm-detail]="!resolved.edgeSentiment"
+                              [class.bullish]="resolved.edgeSentiment === 'bullish'"
+                              [class.bearish]="resolved.edgeSentiment === 'bearish'"
+                              [class.neutral]="resolved.edgeSentiment === 'neutral'"
+                              [title]="resolved.fullTitle">{{ resolved.edgeText }}</span>
+                      } @else if (resolved.plainDetail) {
+                        <span class="mm-right mm-detail" [title]="resolved.fullTitle">{{ resolved.plainDetail }}</span>
+                      }
+                    </button>
+                  }
+                </div>
+              } @else {
+                <div class="watch-candidates">
+                  @for (c of watchCandidates; track c.symbol + c.label) {
+                    <button type="button" class="watch-candidate-row" (click)="selectSymbol(c.symbol)">
+                      <span class="wc-label">{{ c.label }}</span>
+                      <span class="wc-sym">{{ c.symbol }}</span>
+                      <span class="wc-type">{{ c.signalType }}</span>
+                    </button>
+                  }
+                </div>
+              }
+            }
+            @for (sig of visibleOpportunities; track trackSignal($index, sig)) {
+              <app-live-opportunity-card
+                [signal]="sig"
+                [autonomousCard]="autonomousCard(sig.symbol)"
+                [rankIndex]="$index"
+                [marketTrend]="marketTrend"
+                [triggerDistancePct]="triggerDistance(sig.symbol)"
+                [actionVerb]="opportunityVerb(sig.symbol)"
+                [compactRadar]="radarCompact"
+                [radarEmphasis]="radarEmphasis(sig.symbol)"
+                [isActive]="sig.symbol === selectedSymbol"
+                [decayOpacity]="rowDecay(sig.symbol, $index)"
+                (selected)="selectActiveSignal($event)">
+              </app-live-opportunity-card>
+            }
+            @if (activeSignals.length > visibleOpportunities.length) {
+              <span class="more-opps">+{{ activeSignals.length - visibleOpportunities.length }} suppressed</span>
+            }
+          </div>
+        }
+      </section>
+
+      @if (emergingSetups.length > 0) {
+      <section class="panel-section emerging-section">
+        <button type="button" class="section-toggle" (click)="emergingPanelOpen = togglePanel('emerging', emergingPanelOpen)">
+          <h4>Compression Watch</h4><span>{{ emergingPanelOpen ? '▼' : '▶' }}</span>
+        </button>
+        @if (emergingPanelOpen) {
+          <div class="emerging-list">
+            @for (e of emergingSetups; track e.symbol + e.setupType) {
+              <button type="button" class="emerging-row" [class]="'state-' + e.state.toLowerCase()" (click)="selectRegimeSymbol(e.symbol)">
+                <span class="sym">{{ e.symbol }}</span>
+                <span class="state">{{ e.state.replace('_', ' ') }}</span>
+                <span class="type">{{ e.setupType }}</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+      }
+    </section>
+
+    @if (!focusMode) {
+    <div class="sidebar-scroll">
+      <section class="panel-section feed-section">
+        <app-live-execution-feed
+          [selectedSymbol]="selectedSymbol"
+          [executionMode]="executionMode"
+          (symbolSelect)="onFeedSymbolSelect($event)"
+          (executionModeChange)="onExecutionModeChange($event)">
+        </app-live-execution-feed>
+      </section>
+
+      <section class="panel-section watchlist-section">
+        <button type="button" class="section-toggle" (click)="watchlistPanelOpen = togglePanel('watchlist', watchlistPanelOpen)">
+          <h4>Watchlist</h4><span>{{ watchlistPanelOpen ? '▼' : '▶' }}</span>
+        </button>
+        @if (watchlistPanelOpen) {
+          <div class="search-wrap">
+            <input #searchInput type="text" class="search-box" placeholder="Search or add symbol (AAPL)"
+                   [ngModel]="watchlistSearch" (ngModelChange)="onSearchInput($event)"
+                   (keydown)="onSearchKeydown($event)" autocomplete="off" spellcheck="false" />
+            @if (watchlistSearch) {
+              <button type="button" class="search-clear" (click)="clearSearch()" title="Clear">×</button>
+            }
+          </div>
+          @if (canLoadNewSymbol()) {
+            <button type="button" class="add-symbol-btn" (click)="loadSearchedSymbol()">
+              + Add {{ watchlistSearch.trim().toUpperCase() }}
+            </button>
+          }
+          <div #watchlistContainer class="watchlist">
+            @for (group of symbolGroups; track group.name; let gi = $index) {
+              <button type="button" class="group-header" [class.regime-group]="group.regimeGroup" (click)="toggleGroup(group.name)">
+                <span>{{ group.name }} ({{ group.items.length }})</span>
+                <span>{{ group.collapsed ? '▶' : '▼' }}</span>
+              </button>
+              @if (!group.collapsed) {
+                @for (item of group.items; track item.symbol; let i = $index) {
+                  <div class="watch-row-wrap" [id]="'watch-row-' + item.symbol">
+                    <div class="watch-row" role="button" tabindex="0" [class]="rowClass(item, flatIndex(gi, i))"
+                         (click)="selectSymbol(item.symbol)">
+                      @let priority = watchPriority(item, flatIndex(gi, i));
+                      @let autoAction = autonomousActionLabel(item.symbol);
+                      @let liveState = liveStateLabel(item.symbol);
+                      <div class="row-primary">
+                        @if (autoAction) {
+                          <span class="signal-badge action-badge" [class]="'act-' + autoAction.toLowerCase()">{{ autoAction }}</span>
+                        }
+                        <span class="sym">{{ item.symbol }}</span>
+                        @if (liveState) {
+                          <span class="regime-chip" [title]="liveState">{{ liveState }}</span>
+                        }
+                        @if (item.extended) { <span class="signal-badge ext">EXT</span> }
+                        @if (item.freshnessLabel) {
+                          <span class="fresh-chip" [class]="freshnessClass(item.freshness)">{{ item.freshnessLabel }}</span>
+                        }
+                        @if (autonomousCard(item.symbol)?.convictionScore; as conv) {
+                          @if (conv >= 55) {
+                            <span class="rank-chip">{{ conv }}</span>
+                          }
+                        }
+                        <span class="health-dot" [class]="watchHealth(item).cssClass" [title]="watchHealth(item).label"></span>
+                      </div>
+                      <div class="row-secondary">
+                        @if (item.mtfSummary) {
+                          @let mtf = resolveWatchMtf(item);
+                          <span class="watch-mtf" [title]="item.mtfSummary">{{ mtf?.plain ?? mtfCompact(item) }}</span>
+                        }
+                        @if (item.relativeVolume != null && item.relativeVolume > 0) {
+                          <span class="rvol" [class.high]="item.highRvol">{{ item.relativeVolume | number:'1.1-1' }}x</span>
+                        }
+                        <span class="price-muted">{{ item.price != null ? ('$' + (item.price | number:'1.2-2')) : '' }}</span>
+                        <span class="spark-wrap" [class.faded]="priority.muted">
+                          <app-sparkline [data]="item.sparkline || []" [trend]="sparklineTrend(item)"
+                                         [width]="48" [height]="14"></app-sparkline>
+                        </span>
+                        <button type="button" class="remove-btn" title="Remove" (click)="removeSymbol(item.symbol, $event)">×</button>
+                      </div>
+                    </div>
+                  </div>
+                }
+              }
+            }
+          </div>
+        }
+      </section>
+
+      <section class="panel-section">
+        <button type="button" class="section-toggle" (click)="marketPanelOpen = togglePanel('marketInternals', marketPanelOpen)">
+          <h4>Market Internals</h4><span>{{ marketPanelOpen ? '▼' : '▶' }}</span>
+        </button>
+        @if (marketPanelOpen) {
+          <app-market-internals
+            [marketTrend]="marketTrend"
+            [status]="status"
+            [personality]="marketPersonality">
+          </app-market-internals>
+        }
+      </section>
+
+      <section class="panel-section compact status-section">
+        <button type="button" class="section-toggle" (click)="statusPanelOpen = togglePanel('marketStatus', statusPanelOpen)">
+          <h4>Market Status</h4><span>{{ statusPanelOpen ? '▼' : '▶' }}</span>
+        </button>
+        @if (statusPanelOpen && status) {
+          <div class="status-grid">
+            <div class="s-row"><span>Market</span><span [class]="status.marketOpen ? 'online' : 'offline'">{{ status.marketStatus }}</span></div>
+            <div class="s-row"><span>IBKR</span><span [class]="status.ibkrConnected ? 'online' : 'offline'">{{ status.ibkrConnected ? 'ON' : 'OFF' }}</span></div>
+            <div class="s-row"><span>Stream</span><span [class]="status.liveStreaming ? 'online' : 'offline'">{{ status.liveStreaming ? 'ON' : 'OFF' }}</span></div>
+          </div>
+        }
+      </section>
+    </div>
+    }
+  }
+</aside>

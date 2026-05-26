@@ -1,0 +1,99 @@
+<div class="table-wrap" [class.collapsed]="collapsed">
+  <div class="table-header">
+    <h3>Execution History</h3>
+    <span class="count">{{ signals.length }} opportunities</span>
+    <button type="button" class="collapse-btn" (click)="toggleCollapse.emit()">
+      {{ collapsed ? 'Expand ▲' : 'Collapse ▼' }}
+    </button>
+  </div>
+  @if (!collapsed) {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="visibleSignals" class="signal-table">
+        <ng-container matColumnDef="timestamp">
+          <th mat-header-cell *matHeaderCellDef>Time</th>
+          <td mat-cell *matCellDef="let row" [class]="freshnessClass(row.freshness)">
+            {{ row.timestamp | date:'H:mm':'America/New_York' }}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="symbol">
+          <th mat-header-cell *matHeaderCellDef>Sym</th>
+          <td mat-cell *matCellDef="let row">{{ row.symbol || '—' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="signalType">
+          <th mat-header-cell *matHeaderCellDef>Regime</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="badgeClass(row.signalType)">
+              {{ signalIcon(row.signalType) }} {{ displayType(row.signalType) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="entry">
+          <th mat-header-cell *matHeaderCellDef>Entry</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="entry-badge" [ngClass]="entryClass(row)">{{ entryQuality(row) }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="prob">
+          <th mat-header-cell *matHeaderCellDef>Prob</th>
+          <td mat-cell *matCellDef="let row">
+            @if (winRate(row) != null) {
+              <app-confidence-badge [percent]="winRate(row)!" [label]="marketTrend?.regime ?? ''"></app-confidence-badge>
+            } @else { <span class="muted">—</span> }
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="attention">
+          <th mat-header-cell *matHeaderCellDef>Focus</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="cell-bar">
+              <app-confidence-bar [value]="attention(row).score" [label]="attention(row).priority" size="sm"></app-confidence-bar>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="health">
+          <th mat-header-cell *matHeaderCellDef>Health</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="health-badge" [ngClass]="health(row).cssClass">{{ health(row).label }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="confidence">
+          <th mat-header-cell *matHeaderCellDef>Rank</th>
+          <td mat-cell *matCellDef="let row">
+            <app-confidence-bar [value]="confidenceValue(row)" size="sm"></app-confidence-bar>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="freshness">
+          <th mat-header-cell *matHeaderCellDef>Age</th>
+          <td mat-cell *matCellDef="let row">
+            <span [ngClass]="freshnessClass(row.freshness)">{{ row.freshnessLabel || '—' }}</span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+            class="signal-row"
+            [class]="priorityCls(row)"
+            [class.row-stale]="row.freshness === 'STALE'"
+            [class.row-expanded]="isExpanded(row)"
+            (click)="onRowClick(row)">
+        </tr>
+      </table>
+    </div>
+    @if (hasMore) {
+      <button type="button" class="load-more" (click)="loadMore()">Load more ({{ signals.length - displayLimit }} remaining)</button>
+    }
+    @if (signals.length === 0) {
+      <div class="empty-state">
+        <p class="empty-title">{{ emptyTitle || 'No signals yet' }}</p>
+        @if (emptyDetail) { <p class="empty-detail">{{ emptyDetail }}</p> }
+      </div>
+    }
+  }
+</div>

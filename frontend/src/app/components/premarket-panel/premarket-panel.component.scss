@@ -1,0 +1,56 @@
+.premarket-panel {
+  background: linear-gradient(180deg, rgba(56, 139, 253, 0.08), #161b22);
+  border: 1px solid #388bfd44;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.65rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #58a6ff;
+}
+
+.regime {
+  color: #8b949e;
+  font-size: 0.62rem;
+}
+
+.cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.col h5 {
+  margin: 0 0 4px;
+  font-size: 0.58rem;
+  color: #484f58;
+  text-transform: uppercase;
+}
+
+.chip {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 2px 6px;
+  background: #21262d;
+  border-radius: 3px;
+  color: #c9d1d9;
+
+  &.hot { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+}
+
+.note {
+  margin: 6px 0 0;
+  color: #8b949e;
+  font-size: 0.62rem;
+}

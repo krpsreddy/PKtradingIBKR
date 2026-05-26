@@ -1,0 +1,11 @@
+<div class="conf-bar" [class]="'size-' + size" [title]="tooltip || label">
+  @if (label) {
+    <span class="lbl">{{ label }}</span>
+  }
+  <span class="blocks" aria-hidden="true">
+    @for (i of [0,1,2,3,4,5,6,7,8,9]; track i) {
+      <span class="block" [class.on]="i < filledBlocks()"></span>
+    }
+  </span>
+  <span class="val">{{ value }}</span>
+</div>

@@ -1,0 +1,29 @@
+# Copy to application.properties or set as environment variables
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/trading_signals
+spring.datasource.username=pk
+spring.datasource.password=
+
+ibkr.host=127.0.0.1
+ibkr.port=7497
+ibkr.clientId=1
+ibkr.symbol=NVDA
+ibkr.market-data-type=3
+
+# From @BotFather and your chat
+telegram.bot-token=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+telegram.chat-id=123456789
+
+# Or export:
+# export TELEGRAM_BOT_TOKEN=...
+# export TELEGRAM_CHAT_ID=...
+
+# --- AI reasoning layer (Phase 131) ---
+ai.enabled=true
+ai.provider=ollama
+ai.ollama.base-url=http://localhost:11434
+ai.ollama.model=qwen2.5:7b
+ai.openai.enabled=false
+ai.openai.api-key=
+ai.openai.model=gpt-5-nano
+ai.openai.base-url=https://api.openai.com/v1

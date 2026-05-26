@@ -1,0 +1,43 @@
+<div class="panel">
+  <h3>Indicators</h3>
+  @if (indicators) {
+    <mat-card class="indicator-card">
+      <div class="label">EMA9</div>
+      <div class="value" [class]="trendClass(indicators.ema9, indicators.ema20)">{{ indicators.ema9 | number:'1.2-2' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">EMA20</div>
+      <div class="value" [class]="trendClass(indicators.ema20, indicators.ema50)">{{ indicators.ema20 | number:'1.2-2' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">EMA50</div>
+      <div class="value neutral">{{ indicators.ema50 | number:'1.2-2' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">RSI</div>
+      <div class="value" [class]="rsiClass()">{{ indicators.rsi | number:'1.1-1' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">MACD</div>
+      <div class="value" [class]="macdClass()">{{ indicators.macd | number:'1.3-3' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">Signal Line</div>
+      <div class="value neutral">{{ indicators.signalLine | number:'1.3-3' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">VWAP</div>
+      <div class="value neutral">{{ indicators.vwap | number:'1.2-2' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">Avg Volume</div>
+      <div class="value neutral">{{ indicators.avgVolume | number:'1.0-0' }}</div>
+    </mat-card>
+    <mat-card class="indicator-card">
+      <div class="label">Rel Vol</div>
+      <div class="value" [class]="relVolClass()">{{ indicators.relativeVolume | number:'1.1-1' }}x</div>
+    </mat-card>
+  } @else {
+    <p class="empty">Waiting for indicator data…</p>
+  }
+</div>

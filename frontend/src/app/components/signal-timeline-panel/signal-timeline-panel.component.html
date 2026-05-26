@@ -1,0 +1,36 @@
+<section class="timeline-panel">
+  <header class="timeline-header">
+    <h4>Signal Timeline</h4>
+    <span class="sym">{{ symbol }}</span>
+  </header>
+  @if (entries.length === 0) {
+    <p class="empty">No signals for this symbol today</p>
+  } @else {
+    <div class="lifecycle-track">
+      @for (stage of lifecycleStages; track stage) {
+        <span class="stage" [class.active]="isStageActive(stage)" [class.passed]="isStagePassed(stage)">
+          {{ stageLabel(stage) }}
+        </span>
+        @if (!$last) {
+          <span class="arrow" [class.lit]="isStagePassed(stage)">→</span>
+        }
+      }
+    </div>
+    <ol class="timeline">
+      @for (e of entries; track trackEntry($index, e); let i = $index) {
+        <li class="timeline-item" [class.selected]="selectedTimestamp === e.timestamp"
+            [class.inactive]="e.lifecycleState === 'EXITED' || e.lifecycleState === 'INVALIDATED'"
+            [style.animation-delay.ms]="i * 40"
+            (click)="entrySelected.emit(e.signal)">
+          @if (i > 0) {
+            <span class="transition-arrow">→</span>
+          }
+          <span class="dot" [class]="e.healthClass"></span>
+          <span class="time">{{ e.timestamp | date:'H:mm':'America/New_York' }}</span>
+          <span class="type">{{ displayType(e.signalType) }}</span>
+          <span class="health" [class]="e.healthClass">{{ e.healthLabel }}</span>
+        </li>
+      }
+    </ol>
+  }
+</section>

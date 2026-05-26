@@ -1,0 +1,16 @@
+@if (items.length) {
+  <div class="coaching-feed" [class.collapsed]="collapsed">
+    <button type="button" class="feed-toggle" (click)="toggle()">
+      <span class="title">Live AI Coaching</span>
+      <span class="count">{{ items.length }}</span>
+      <span class="chev">{{ collapsed ? '▶' : '▼' }}</span>
+    </button>
+    @if (!collapsed) {
+      <ul class="feed-list">
+        @for (item of items; track item.message) {
+          <li [class]="item.severity">{{ item.message }}</li>
+        }
+      </ul>
+    }
+  </div>
+}

@@ -1,0 +1,11 @@
+<div class="filter-bar">
+  <span class="filter-label">Filters</span>
+  @for (chip of chips; track chip.key) {
+    <button type="button" class="filter-chip" [class.active]="filters[chip.key]" (click)="toggle(chip.key)">
+      {{ chip.label }}
+    </button>
+  }
+  @if (anyActive()) {
+    <button type="button" class="clear-btn" (click)="clear()">Clear</button>
+  }
+</div>

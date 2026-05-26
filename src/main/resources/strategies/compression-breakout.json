@@ -1,0 +1,20 @@
+{
+  "strategyId": "COMPRESSION_BREAKOUT",
+  "strategyName": "Compression Breakout",
+  "category": "BREAKOUT",
+  "conditions": ["compression tightening", "micro breakout pressure", "range expansion trigger"],
+  "thresholds": {
+    "maxBodyStrength": 0.35,
+    "minBreakoutPressure": 50
+  },
+  "winRate": 0.58,
+  "avgR": 1.8,
+  "robustness": 0.65,
+  "active": true,
+  "deprecated": false,
+  "replayExamples": ["CRWV", "SMCI"],
+  "discoveredFromPhase": 165,
+  "notes": "Compression release with micro anomaly escalation",
+  "version": 1,
+  "governanceTags": ["AUTONOMOUS", "EARLY"]
+}

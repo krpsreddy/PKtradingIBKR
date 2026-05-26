@@ -1,0 +1,49 @@
+<div class="internals">
+  <div class="row">
+    <span class="lbl">SPY</span>
+    <span class="val" [class]="marketTrend?.spyTrend ?? 'neutral'">{{ trendLabel(marketTrend?.spyTrend ?? '') }}</span>
+    @if (marketTrend?.spyPersistence != null) {
+      <span class="persist">{{ marketTrend!.spyPersistence | number:'1.0-0' }}%</span>
+    }
+  </div>
+  <div class="row">
+    <span class="lbl">QQQ</span>
+    <span class="val" [class]="marketTrend?.qqqTrend ?? 'neutral'">{{ trendLabel(marketTrend?.qqqTrend ?? '') }}</span>
+    @if (marketTrend?.qqqPersistence != null) {
+      <span class="persist">{{ marketTrend!.qqqPersistence | number:'1.0-0' }}%</span>
+    }
+  </div>
+  <div class="row">
+    <span class="lbl">Regime</span>
+    <span class="val regime">{{ marketTrend?.regime ?? '—' }}</span>
+  </div>
+  <div class="row">
+    <span class="lbl">Semis</span>
+    <span class="val" [class]="breadthClass(marketTrend?.semiBreadth)">{{ marketTrend?.semiBreadth ?? '—' }}</span>
+  </div>
+  <div class="row">
+    <span class="lbl">AI</span>
+    <span class="val" [class]="breadthClass(marketTrend?.aiBreadth)">{{ marketTrend?.aiBreadth ?? '—' }}</span>
+  </div>
+  <div class="row">
+    <span class="lbl">Risk-On</span>
+    <span class="val" [class.risk-on]="(marketTrend?.riskOnScore ?? 0) >= 60">
+      {{ marketTrend?.riskOnScore != null ? (marketTrend!.riskOnScore | number:'1.0-0') : riskLabel() }}
+    </span>
+  </div>
+  @if (status) {
+    <div class="row">
+      <span class="lbl">Session</span>
+      <span class="val" [class.open]="status.marketOpen">{{ status.marketStatus }}</span>
+    </div>
+  }
+  @if (personality) {
+    <div class="personality-block">
+      <div class="row">
+        <span class="lbl">Personality</span>
+        <span class="val personality">{{ personality.personality }}</span>
+      </div>
+      <p class="personality-desc">{{ personality.description }}</p>
+    </div>
+  }
+</div>

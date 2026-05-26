@@ -1,0 +1,19 @@
+@if (events.length) {
+  <div class="intel-stream" [class.collapsed]="collapsed">
+    <button type="button" class="stream-toggle" (click)="toggle()">
+      <span class="pulse"></span>
+      <span>Intelligence Stream</span>
+      <span class="chev">{{ collapsed ? '▶' : '▼' }}</span>
+    </button>
+    @if (!collapsed) {
+      <ul>
+        @for (e of events.slice(0, 6); track e.id) {
+          <li [class]="e.severity">
+            <span class="type">{{ e.type.replace('_', ' ') }}</span>
+            {{ e.message }}
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}

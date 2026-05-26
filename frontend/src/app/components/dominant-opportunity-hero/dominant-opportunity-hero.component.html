@@ -1,0 +1,111 @@
+<section class="dominant-panel">
+  @if (dominant(); as d) {
+    <button
+      type="button"
+      class="dominant-hero"
+      [class.selected]="d.card.symbol === selectedSymbol"
+      (click)="select(d.card.symbol)">
+      <header class="hero-head">
+        <span class="hero-flame">🔥</span>
+        <span class="hero-title">DOMINANT OPPORTUNITY</span>
+        <span class="state-badge" [class]="stateClass(d.state)">{{ formatLabel(d.state) }}</span>
+      </header>
+
+      <div class="hero-symbol">
+        <span class="sym">{{ d.card.symbol }}</span>
+        <span class="regime">· {{ d.regimeLabel }}</span>
+      </div>
+
+      <div class="hero-metrics-grid">
+        <div class="metric-cell conviction-cell">
+          <span class="cell-label">CONVICTION</span>
+          <span class="conv-score">{{ d.card.convictionScore }}</span>
+        </div>
+        <div class="metric-cell velocity-cell">
+          <span class="cell-label">VELOCITY</span>
+          @if (d.velocityArrow) {
+            <span class="hero-velocity" [class.down]="d.velocityArrow === '↓'">
+              {{ d.velocityArrow }}
+              @if (d.velocityDelta !== 0) {
+                {{ d.velocityDelta > 0 ? '+' : '' }}{{ d.velocityDelta }}
+              } @else if (d.card.popVelocity) {
+                +{{ d.card.popVelocity }}
+              }
+            </span>
+          } @else {
+            <span class="hero-velocity muted">—</span>
+          }
+        </div>
+        <div class="metric-cell persist-cell">
+          <span class="cell-label">PERSISTENCE</span>
+          <span class="cell-value persist-val">{{ d.persistenceTier }}</span>
+          <div class="persist-bar" [attr.data-tier]="d.persistenceTier">
+            <span class="fill" [style.width.%]="d.card.continuationPersistence"></span>
+          </div>
+        </div>
+        <div class="metric-cell inst-cell">
+          <span class="cell-label">INSTITUTIONAL</span>
+          <span class="cell-value inst-val">{{ d.institutionalLabel }}</span>
+        </div>
+      </div>
+
+      <p class="why-now"><span class="why-label">Why now:</span> {{ d.whyNowLine }}</p>
+
+      @if (d.badges.length) {
+        <div class="badge-row">
+          @for (b of d.badges; track b) {
+            <span class="dom-badge">{{ b }}</span>
+          }
+        </div>
+      }
+    </button>
+  } @else {
+    <div class="dominant-empty" role="status">
+      <span class="empty-title">No dominant opportunity</span>
+      <span class="empty-detail">{{ formatLabel(snapshot?.marketMode) || 'Market' }} — waiting for quality setup</span>
+    </div>
+  }
+
+  @if (emerging(); as e) {
+    <button
+      type="button"
+      class="emerging-row"
+      [class.selected]="e.card.symbol === selectedSymbol"
+      (click)="select(e.card.symbol)">
+      <span class="emerging-label">EMERGING FASTEST</span>
+      <span class="emerging-sym">{{ e.card.symbol }}</span>
+      <span class="emerging-vel">↑ +{{ e.convictionDelta || e.card.popVelocity }}</span>
+      <span class="emerging-score">{{ e.dominanceScore }}</span>
+    </button>
+  }
+
+  @if (others().length) {
+    <div class="ranked-block">
+      <span class="ranked-title">Ranked</span>
+      @for (r of others(); track r.card.symbol; let i = $index) {
+        <button
+          type="button"
+          class="ranked-row"
+          [style.opacity]="1 - r.suppressWeight * 0.28"
+          [class.selected]="r.card.symbol === selectedSymbol"
+          (click)="select(r.card.symbol)">
+          <span class="rank-idx">{{ i + 2 }}</span>
+          <span class="rank-sym">{{ r.card.symbol }}</span>
+          <span class="rank-regime">{{ r.regimeLabel }}</span>
+          <span class="rank-score">{{ r.dominanceScore }}</span>
+          @if (r.velocityArrow) {
+            <span class="rank-vel">{{ r.velocityArrow }}</span>
+          }
+        </button>
+      }
+    </div>
+  }
+
+  @if (snapshot?.degrading?.length) {
+    <div class="degrading-block">
+      @for (g of snapshot!.degrading!.slice(0, 2); track g.card.symbol) {
+        <span class="degrading-chip">{{ g.card.symbol }} {{ g.state === 'EXHAUSTING' ? 'exhausting' : 'degrading' }}</span>
+      }
+    </div>
+  }
+</section>

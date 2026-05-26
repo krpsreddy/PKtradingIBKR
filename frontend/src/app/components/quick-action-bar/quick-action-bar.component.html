@@ -1,0 +1,7 @@
+<div class="quick-bar">
+  <span class="sym">{{ symbol }}</span>
+  <button type="button" (click)="focusSymbol.emit(symbol)">Focus</button>
+  <button type="button" [class.active]="pinned" (click)="pinSymbol.emit(symbol)">{{ pinned ? '★ Pinned' : 'Pin' }}</button>
+  <button type="button" (click)="openReplay.emit(symbol)">Replay</button>
+  <button type="button" (click)="scrollTimeline.emit()">Timeline</button>
+</div>

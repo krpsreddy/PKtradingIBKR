@@ -1,0 +1,38 @@
+<section class="reason-panel" [class.collapsed]="collapsed">
+  <header class="reason-header">
+    <h4>Why This Signal?</h4>
+    @if (symbol) {
+      <span class="context">{{ symbol }} · {{ signalType.replace('_', ' ') }}</span>
+    }
+  </header>
+  @if (!collapsed && conditions) {
+    <div class="reason-body">
+      <div class="col passed">
+        <h5>Passed</h5>
+        @for (c of conditions.passed; track c) {
+          <div class="line pass">✅ {{ c }}</div>
+        }
+        @if (!conditions.passed.length) {
+          <div class="line muted">No passed conditions recorded</div>
+        }
+      </div>
+      <div class="col failed">
+        <h5>Failed / Risk</h5>
+        @for (c of conditions.failed; track c) {
+          <div class="line fail">❌ {{ c }}</div>
+        }
+        @if (!conditions.failed.length) {
+          <div class="line muted">No failed conditions</div>
+        }
+      </div>
+      @if (conditions.optionsWarnings.length) {
+        <div class="options-block">
+          <h5>⚠ Options Risk</h5>
+          @for (w of conditions.optionsWarnings; track w) {
+            <div class="line risk">{{ w }}</div>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

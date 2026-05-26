@@ -1,0 +1,13 @@
+<div class="trader-state" [class]="'state-' + state.id">
+  <span class="dot"></span>
+  <div class="text">
+    <span class="label">{{ state.label }}</span>
+    <span class="detail">{{ state.detail }}</span>
+  </div>
+  @if (discipline) {
+    <div class="discipline" [class.low]="discipline.score < 60">
+      <span class="score">{{ discipline.score }}</span>
+      <span class="lbl">{{ discipline.label }}</span>
+    </div>
+  }
+</div>

@@ -1,0 +1,255 @@
+<section class="execution-panel"
+  [class.no-edge]="!!noEdgeBanner()"
+  [class.immersive]="immersive"
+  [class.ribbon]="immersive"
+  [class.mode-failure]="intensityMode === 'FAILURE'"
+  [class.mode-breakout]="intensityMode === 'BREAKOUT'"
+  [class.mode-trigger]="intensityMode === 'TRIGGER'"
+  [class.mode-chop]="intensityMode === 'CHOP'"
+  [class.rail-lane]="railLane"
+  [class.path-exit]="priority?.dominantPath === 'exit'"
+  [class.path-entry]="priority?.dominantPath === 'entry'"
+  [class.path-target]="priority?.dominantPath === 'target'"
+  [style]="guidance ? railDepthVars() : null">
+  @if (!immersive) {
+    <header class="strip-header">
+      <span class="sym">{{ symbol }}</span>
+      <span class="type">{{ displaySignalType() }}</span>
+    </header>
+    @if (calmDisciplineMessage()) {
+      <div class="calm-line">{{ calmDisciplineMessage() }}</div>
+    }
+  }
+
+  @if (!guidance) {
+    <p class="empty">Select active setup</p>
+  } @else {
+    @if (liveGate(); as lg) {
+      @if (!railLane) {
+        @if (liveDecision(); as ld) {
+          <div class="live-decision-banner" [class]="decisionClass()">
+            <div class="decision-primary">
+              @if (narrativeRailLine(); as narrative) {
+                <span class="decision-label narrative">{{ narrative }}</span>
+              } @else {
+                <span class="decision-label">{{ ld.decisionLabel }}</span>
+              }
+              <span class="decision-conviction">{{ narrativeTrajectoryLabel() ?? ld.conviction.label }}</span>
+            </div>
+            <div class="decision-meta">
+              @if (marketStateIntel(); as ms) {
+                <span class="decision-reason">{{ ms.narrativeLine }}</span>
+                <span class="decision-risk">{{ ms.flowLabel }}</span>
+              } @else {
+                <span class="decision-reason">{{ ld.keyReason }}</span>
+                <span class="decision-risk">{{ ld.riskLabel }}</span>
+              }
+              <span class="decision-timing">{{ ld.timingLabel }}</span>
+            </div>
+            @if (adaptiveEntryLine(); as entryLine) {
+              <span class="adaptive-entry">{{ entryLine }}</span>
+            }
+            @if (adaptiveInsightLine(); as insight) {
+              <span class="adaptive-insight">{{ insight }}</span>
+            }
+            @if (calibrationLine(); as calLine) {
+              <span class="calibration-line">{{ calLine }}</span>
+            }
+            @if (autonomousExecutionLine(); as autoLine) {
+              <span class="autonomous-exec-promo">▲ {{ autoLine }}</span>
+            }
+            @if (liveRegimeLine(); as regimeLine) {
+              <span class="live-regime-promo">◆ {{ regimeLine }}</span>
+            }
+            @if (executionTriggerCard(); as trigger) {
+              <div class="execution-trigger-card" [class.exhaustion]="trigger.traderAction === 'DO_NOT_CHASE' || trigger.traderAction === 'LATE_STAGE_EXHAUSTION'">
+                <div class="trigger-card-head">
+                  <span class="trigger-symbol">{{ symbol }}</span>
+                  <span class="trigger-action">{{ executionTriggerActionLabel() }}</span>
+                </div>
+                <ul class="trigger-metrics">
+                  <li>continuation integrity: <strong>{{ trigger.metrics.continuationIntegrity >= 70 ? 'HIGH' : trigger.metrics.continuationIntegrity >= 55 ? 'MODERATE' : 'LOW' }}</strong></li>
+                  <li>RVOL sustained {{ executionTriggerRvol() }}</li>
+                  <li>shallow PB quality: <strong>{{ trigger.metrics.pullbackEfficiency >= 70 ? 'STRONG' : trigger.metrics.pullbackEfficiency >= 55 ? 'SOLID' : 'WEAK' }}</strong></li>
+                  <li>VWAP persistence: {{ trigger.vwapPersistenceMinutes }}m</li>
+                  <li>expansion probability: {{ trigger.expansionProbability }}%</li>
+                  @if (trigger.idealEntryZone) {
+                    <li>ideal entry: {{ trigger.idealEntryZone.label }}</li>
+                  }
+                  <li>continuation risk: <strong>{{ trigger.continuationRisk }}</strong></li>
+                </ul>
+                <p class="trigger-reason">{{ trigger.triggerReason }}</p>
+              </div>
+            }
+            @if (continuationParticipationLine(); as partLine) {
+              <span class="participation-promo">▲ {{ partLine }}</span>
+            }
+            @if (openingExpansionLine(); as openLine) {
+              <span class="opening-expansion-promo">▲ {{ openLine }}</span>
+            }
+            @if (legacyComparisonLine(); as legLine) {
+              <span class="legacy-compare">{{ legLine }}</span>
+            }
+            @if (continuationPromotionLine(); as promoLine) {
+              <span class="continuation-promo">▲ {{ promoLine }}</span>
+            }
+          </div>
+        } @else {
+          @if (executionQualityLine(); as eqLine) {
+            <div class="eq-intel-banner" [class]="executionQualityClass()">
+              <span class="eq-primary">{{ eqLine }}</span>
+              @if (entrySequencingIntel()?.governanceHint ?? executionQualityIntel()?.governanceHint; as hint) {
+                <span class="eq-hint">{{ hint }}</span>
+              }
+            </div>
+          }
+        }
+
+        @if (!liveDecision()) {
+          <div class="live-gate-banner" [class]="liveGateBannerClass()">
+            <div class="gate-primary">
+              <span class="gate-state">{{ governanceLabel() }}</span>
+              <span class="gate-headline">{{ lg.headline }}</span>
+            </div>
+            @if (lg.sublines.length) {
+              <div class="gate-sublines">
+                @for (line of lg.sublines.slice(0, 2); track line) {
+                  <span class="gate-sub">{{ line }}</span>
+                }
+              </div>
+            }
+          </div>
+
+          @if (lifecycleCoach()) {
+            <app-execution-coaching-panel [coach]="lifecycleCoach()"></app-execution-coaching-panel>
+          }
+
+          <div class="live-gate-metrics">
+            <span class="lg-item"><span class="lk">Exec</span> <span class="lv">{{ lg.executionScore }}/100</span></span>
+            <span class="lg-sep">·</span>
+            <span class="lg-item"><span class="lk">Gov</span> <span class="lv" [class]="governanceClass()">{{ lg.governance.confidence }}</span></span>
+            <span class="lg-sep">·</span>
+            <span class="lg-item"><span class="lk">Size</span> <span class="lv">{{ (lg.sizeMultiplier * 100) | number:'1.0-0' }}%</span></span>
+            <span class="lg-sep">·</span>
+            <span class="lg-item"><span class="lk">Cont</span> <span class="lv">{{ lg.continuation.label }}</span></span>
+            <button type="button" class="matrix-toggle" (click)="govOpen = !govOpen">{{ govOpen ? 'Hide' : 'Gov' }}</button>
+            <button type="button" class="matrix-toggle" (click)="tertiaryOpen = !tertiaryOpen">{{ tertiaryOpen ? 'Hide' : 'Matrix' }}</button>
+          </div>
+
+          @if (govOpen) {
+            <div class="gov-panel">
+              <p class="gov-coach">{{ lg.coachSummary }}</p>
+              <div class="gov-section">
+                <span class="gov-title">Execution Governance</span>
+                <div class="gov-row">
+                  <span class="gov-chip" [class]="governanceClass()">{{ governanceLabel() }}</span>
+                  <span class="gov-meta">Conf {{ lg.governance.statisticalConfidence }}% · Stab {{ lg.governance.edgeStability }}%</span>
+                </div>
+              </div>
+              <div class="gov-section">
+                <span class="gov-title">Playbook Priority</span>
+                <div class="gov-list">
+                  @for (p of lg.playbookPriorities.preferred; track p.rank) {
+                    <span class="gov-pref">{{ p.rank }}. {{ p.playbook }} <em>({{ p.recommendedSize }})</em></span>
+                  }
+                </div>
+                @if (lg.playbookPriorities.avoid.length) {
+                  <div class="gov-avoid">
+                    @for (a of lg.playbookPriorities.avoid; track a.rank) {
+                      <span class="gov-avoid-item">✕ {{ a.playbook }}</span>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="gov-section">
+                <span class="gov-title">Execution Quality</span>
+                <div class="gov-row">
+                  @for (label of execQualityLabels(); track label) {
+                    <span class="eq-chip" [class.eq-warn]="label.includes('CHASE') || label.includes('LATE') || label.includes('OVER')">
+                      {{ label }}
+                    </span>
+                  } @empty {
+                    <span class="gov-meta">Discipline {{ lg.executionQuality.executionDiscipline }}/100</span>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          @if (tertiaryOpen) {
+            <table class="live-matrix inline-matrix">
+              <tbody>
+                @for (row of lg.matrix; track row.condition) {
+                  <tr>
+                    <td class="mk">{{ row.condition }}</td>
+                    <td class="mv" [class]="matrixStatusClass(row.status)">{{ row.status }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        }
+      }
+    }
+
+    <div class="tactical-footer">
+      <div class="row-primary" [style]="primaryRailStyle()" [style.--exit-reserve-px.px]="railCollisionGaps().exitReservePx || null">
+        <span class="dir pri-secondary" [class.compress]="true" [style.margin-right.px]="gapAfter('dir')">{{ footerDirection() }}</span>
+        @for (key of metricOrder(); track key) {
+          @switch (key) {
+            @case ('entry') {
+              <span class="pri entry" [class.magnet]="entryMagnet()" [style.margin-right.px]="gapAfter('entry')">
+                <span class="k">Entry</span><span class="v">{{ entryPrice() }}</span>
+              </span>
+            }
+            @case ('stop') {
+              <span class="pri stop" [class.magnet]="stopMagnet()" [class.stop-secondary]="stopSecondary()" [style.margin-right.px]="gapAfter('stop')">
+                <span class="k">Stop</span><span class="v">{{ stopPrice() }}</span>
+              </span>
+            }
+            @case ('exit') {
+              <span class="pri exit" [class.magnet]="exitMagnet()" [class.exit-dominant]="exitDominant()" [class.risk]="exitMagnet()" [style.margin-right.px]="gapAfter('exit')">
+                @if (!exitDominant()) {
+                  <span class="k">Exit</span>
+                }
+                <span class="v">{{ exitLabel() }}</span>
+              </span>
+            }
+            @case ('rr') {
+              <span class="pri rr pri-secondary" [class.magnet]="rrMagnet()" [class.compress]="true" [style.padding-right.px]="rrGutter()">
+                <span class="k">RR</span><span class="v" [class]="rrClass()">{{ displayRr() }}</span>
+              </span>
+            }
+          }
+        }
+      </div>
+      <div class="row-secondary row-tertiary" [style]="tertiaryRecovery().cssVars">
+        @if (liveDecision(); as ld) {
+          <span class="ter-item decision-rail" [class]="decisionClass()">
+            <span class="tk">Decision</span> <span class="tv">{{ ld.decisionLabel }}</span>
+          </span>
+          <span class="ter-sep">·</span>
+          <span class="ter-item"><span class="tk">Conv</span> <span class="tv">{{ ld.conviction.score }}%</span></span>
+          <span class="ter-sep">·</span>
+          <span class="ter-item"><span class="tk">Risk</span> <span class="tv">{{ ld.riskLabel }}</span></span>
+        } @else {
+          @if (executionQualityLine(); as eqLine) {
+            <span class="ter-item eq-rail" [class]="executionQualityClass()">
+              <span class="tk">ExecQ</span> <span class="tv">{{ eqLine }}</span>
+            </span>
+            <span class="ter-sep">·</span>
+            @if (liveGate(); as lg) {
+              <span class="ter-item"><span class="tk">Gov</span> <span class="tv">{{ governanceLabel() }}</span></span>
+              <span class="ter-sep">·</span>
+              <span class="ter-item"><span class="tk">Size</span> <span class="tv">{{ (lg.sizeMultiplier * 100) | number:'1.0-0' }}%</span></span>
+            }
+          }
+        }
+      </div>
+    </div>
+
+    @if (!immersive && optionsExec(); as opt) {
+      <div class="options-exec guidance-whisper">{{ opt.compact }}</div>
+    }
+  }
+</section>

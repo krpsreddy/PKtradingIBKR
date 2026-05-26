@@ -1,0 +1,217 @@
+<section class="playbook-lab">
+  <header class="lab-head">
+    <div>
+      <h3>Strategy Research Lab</h3>
+      <span class="sub">Statistical candidate discovery · human review only · no auto-trading</span>
+    </div>
+    <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">Refresh Discovery</button>
+  </header>
+
+  @if (!snapshot || snapshot.candidates.length === 0) {
+    <div class="empty-panel">
+      <p class="empty">{{ snapshot?.diagnostics?.message ?? 'No qualified playbook candidates yet.' }}</p>
+      @if (snapshot?.diagnostics; as d) {
+        <div class="diag-grid">
+          <span>Signals in store: {{ d.totalSignals }}</span>
+          <span>Evaluated: {{ d.evaluatedSignals }}</span>
+          <span>Sessions: {{ d.sessionGroups }}</span>
+          <span>Sequence patterns: {{ d.rawSequenceBuckets }}</span>
+          <span>Patterns n≥10: {{ d.bucketsAboveMinSamples }}</span>
+          <span>Qualified: {{ d.qualified }}</span>
+        </div>
+        @if (d.evaluatedSignals < 10 && !hasHydratedHistory()) {
+          <p class="hint">→ Go to <strong>Edge Lab</strong> → click <strong>Load All 60D History</strong>, wait for hydration, then Refresh Discovery here.</p>
+        } @else if (d.evaluatedSignals < 10) {
+          <p class="hint">→ History is loaded but this browser has few evaluated signals. Edge Lab → <strong>Load All 60D History</strong> (will skip IBKR re-fetch) to replay signals into Playbook Lab.</p>
+        } @else if (d.bucketsAboveMinSamples === 0) {
+          <p class="hint">→ Need more evaluated signals on the same symbol/day (2+ within 120 min) to form sequences.</p>
+        }
+      }
+      @if (snapshot?.nearMisses?.length) {
+        <div class="panel near-miss">
+          <h4>Near-Miss Patterns (under review)</h4>
+          @for (n of snapshot!.nearMisses; track n.name) {
+            <p class="near-line">
+              <span class="nm-name">{{ n.name }}</span>
+              <span class="nm-meta">{{ n.sampleCount }} samples · {{ n.expectancyR >= 0 ? '+' : '' }}{{ n.expectancyR.toFixed(2) }}R</span>
+              <span class="nm-reason">{{ n.reason }}</span>
+            </p>
+          }
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="summary-strip">
+      <span>{{ snapshot.candidates.length }} candidates</span>
+      <span>{{ snapshot.totalEvaluated }} evaluated signals</span>
+      <span>{{ snapshot.emerging.length }} emerging</span>
+      <span>{{ snapshot.weakening.length }} weakening</span>
+      <span>{{ snapshot.lookbackDays }}D lookback</span>
+    </div>
+
+    <div class="top-panels">
+      <div class="panel">
+        <h4>Strongest Candidates</h4>
+        @for (c of snapshot.candidates.slice(0, 5); track c.id) {
+          <button type="button" class="candidate-line" [class.active]="selected?.id === c.id" (click)="selectCandidate(c)">
+            <span class="name">{{ c.name }}</span>
+            <span class="meta">{{ formatR(c.expectancyR) }} · n={{ c.sampleCount }} · Q{{ c.qualityScore }}</span>
+          </button>
+        }
+      </div>
+      <div class="panel">
+        <h4>Emerging Structures</h4>
+        @for (c of snapshot.emerging; track c.id) {
+          <p class="mini-line">{{ c.name }} <span class="muted">({{ c.confidence }})</span></p>
+        } @empty { <p class="muted">—</p> }
+      </div>
+      <div class="panel warn">
+        <h4>Weakening</h4>
+        @for (c of snapshot.weakening; track c.id) {
+          <p class="mini-line warn-line">{{ c.name }} <span class="muted">{{ c.evolutionState }}</span></p>
+        } @empty { <p class="muted">None</p> }
+      </div>
+    </div>
+
+    @if (selected; as c) {
+      <div class="detail-grid">
+        <div class="panel detail">
+          <header class="detail-head">
+            <h4>{{ c.name }}</h4>
+            <span class="badge" [class]="confidenceClass(c.confidence)">{{ c.confidence }}</span>
+            <span class="badge evo" [class]="evolutionClass(c.evolutionState)">{{ c.evolutionState }}</span>
+            <span class="badge promo">{{ promotionLabel(c.promotionState) }}</span>
+          </header>
+          <p class="desc">{{ c.description }}</p>
+          <div class="stats-row">
+            <span>Exp {{ formatR(c.expectancyR) }}</span>
+            <span>WR {{ c.winRate }}%</span>
+            <span>Fakeout {{ c.fakeoutRate }}%</span>
+            <span>Cont {{ c.continuationStrength }}%</span>
+            <span>Stab {{ c.stability }}</span>
+            <span>Score {{ c.qualityScore }}/100</span>
+          </div>
+          <div class="two-col">
+            <div>
+              <span class="k">Regimes</span>
+              <p>{{ c.regimes.join(', ') || '—' }}</p>
+            </div>
+            <div>
+              <span class="k">Best windows</span>
+              <p>{{ c.bestTimeWindows.join(', ') || '—' }}</p>
+            </div>
+            <div>
+              <span class="k">Best symbols</span>
+              <p>{{ c.bestSymbols.join(', ') || '—' }}</p>
+            </div>
+            <div>
+              <span class="k">Sessions / symbols</span>
+              <p>{{ c.uniqueSessions }} sessions · {{ c.uniqueSymbols }} symbols</p>
+            </div>
+          </div>
+          @if (c.suppressionConditions.length) {
+            <div class="suppress-block">
+              <span class="k">Suppression hints</span>
+              @for (s of c.suppressionConditions; track s) {
+                <p class="suppress-line">{{ s }}</p>
+              }
+            </div>
+          }
+          @if (c.optimalEntryZones?.length || c.avoidEntryZones?.length) {
+            <div class="entry-zones-block">
+              <span class="k">Optimal entry zones</span>
+              <p>Best: {{ (c.optimalEntryZones ?? []).join(' · ') || '—' }}</p>
+              <p class="warn-line">Avoid: {{ (c.avoidEntryZones ?? []).join(' · ') || '—' }}</p>
+            </div>
+          }
+          @if (simFor(c.id); as sim) {
+            <div class="sim-block">
+              <span class="k">Simulation</span>
+              <p>Exp {{ formatR(sim.expectancyR) }} · DD {{ sim.maxDrawdownR }}R · Fakeout {{ sim.fakeoutRate }}%</p>
+              @for (r of sim.regimeSensitivity.slice(0, 3); track r.regime) {
+                <p class="sim-regime">{{ r.regime }}: {{ formatR(r.expectancyR) }} (n={{ r.count }})</p>
+              }
+            </div>
+          }
+          @if (nextPromotionState(); as next) {
+            <button type="button" class="promote-btn" (click)="promote(next)">
+              Promote → {{ promotionLabel(next) }}
+            </button>
+          } @else if (c.promotionState === 'ACTIVE_PLAYBOOK') {
+            <p class="active-note">Active playbook — human promoted (still advisory, no auto-signals)</p>
+          }
+        </div>
+
+        <div class="panel matrix-panel">
+          <h4>Candidate Matrix</h4>
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Candidate</th>
+                <th>Exp</th>
+                <th>n</th>
+                <th>Conf</th>
+                <th>Quality</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of snapshot.candidates.slice(0, 12); track row.id) {
+                <tr [class.active]="row.id === c.id" (click)="selectCandidate(row)">
+                  <td class="name-cell">{{ row.name }}</td>
+                  <td [class.pos]="row.expectancyR > 0" [class.neg]="row.expectancyR < 0">{{ formatR(row.expectancyR) }}</td>
+                  <td>{{ row.sampleCount }}</td>
+                  <td><span class="conf-chip" [class]="confidenceClass(row.confidence)">{{ row.confidence }}</span></td>
+                  <td>{{ row.qualityScore }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @if (calibrationProfiles.length) {
+      <div class="panel calibration-block">
+        <h4>Calibration Profiles <span class="muted">advisory only</span></h4>
+        @for (p of calibrationProfiles; track p.playbookKey) {
+          <p class="cal-profile">
+            <strong>{{ p.label }}</strong>
+            · {{ p.convictionAdjustment }} conviction
+            · {{ p.waitBias }} wait
+            · {{ p.aggressionAllowed ? 'aggression allowed' : 'aggression restricted' }}
+            <span class="muted">— {{ p.note }}</span>
+          </p>
+        }
+      </div>
+    }
+
+    <div class="panel ai-block">
+      <h4>AI Observations <span class="muted">(deterministic · analytics authoritative)</span></h4>
+      <p class="ai-summary">{{ snapshot.aiSummary.summary }}</p>
+      @for (o of snapshot.aiSummary.observations; track o) {
+        <p class="ai-obs">· {{ o }}</p>
+      }
+    </div>
+
+    @if (snapshot.relationships.length) {
+      <div class="panel">
+        <h4>Relationship Analysis</h4>
+        @for (r of snapshot.relationships.slice(0, 6); track r.candidateA + r.candidateB) {
+          <p class="rel-line" [class]="r.type.toLowerCase()">{{ r.type }}: {{ r.message }}</p>
+        }
+      </div>
+    }
+
+    @if (timeline.length) {
+      <div class="panel timeline">
+        <h4>Evolution Timeline</h4>
+        @for (e of timeline.slice(0, 8); track e.at + e.candidateId) {
+          <p class="tl-line">
+            <span class="tl-time">{{ e.at | date:'short' }}</span>
+            <span class="tl-msg">{{ e.message }}</span>
+          </p>
+        }
+      </div>
+    }
+  }
+</section>

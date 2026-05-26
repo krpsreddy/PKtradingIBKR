@@ -1,0 +1,156 @@
+<section class="symbol-dna-panel">
+  <header class="panel-head">
+    <div class="title-block">
+      <h3>Autonomous Symbol Profile</h3>
+      <span class="sub">Execution personality · how THIS symbol trades in autonomous regimes · advisory only</span>
+    </div>
+    <div class="toolbar">
+      <span class="sym-badge">{{ activeSymbol }}</span>
+      <span class="status-pill" [class]="analysisStatus.toLowerCase()">{{ statusLabel(analysisStatus) }}</span>
+      <button type="button" class="action-btn" (click)="analyzeSymbol(true)" [disabled]="loading || backfilling">Analyze</button>
+      <button type="button" class="action-btn hydrate" (click)="loadSymbolHistory()" [disabled]="loading || backfilling">
+        {{ backfilling ? 'Loading…' : 'Load ' + lookbackDays + 'D' }}
+      </button>
+    </div>
+  </header>
+
+  @if (backfillMessage) {
+    <p class="msg-line">{{ backfillMessage }}</p>
+  }
+
+  @if (dna) {
+    <div class="personality-banner">
+      <span class="personality-label">{{ activeSymbol }} Execution Personality</span>
+      <span class="personality-text">{{ dna.personality }}</span>
+    </div>
+
+    <div class="dna-metrics">
+      <div class="metric"><span class="k">Edge Score</span><span class="v">{{ formatScore(dna.edgeScore) }}</span></div>
+      <div class="metric"><span class="k">Status</span><span class="v band" [class]="bandClass(dna.edgeScoreBand)">{{ dna.edgeScoreBand.replace('_', ' ') }}</span></div>
+      <div class="metric"><span class="k">Continuation</span><span class="v">{{ dna.continuationQuality }}%</span></div>
+      <div class="metric"><span class="k">Fakeout</span><span class="v" [class]="fakeoutClass(dna.fakeoutTendency)">{{ dna.fakeoutTendency }}</span></div>
+      <div class="metric"><span class="k">Reclaim</span><span class="v">{{ dna.reclaimQuality != null ? formatR(dna.reclaimQuality) : '—' }}</span></div>
+      <div class="metric"><span class="k">Confidence</span><span class="v">{{ dna.confidence }} (n={{ dna.sampleCount }})</span></div>
+    </div>
+
+    @if (dna.sampleCount < 10) {
+      <p class="warn-line">LOW CONFIDENCE — load history via Global Edge Lab or Load {{ lookbackDays }}D above.</p>
+    }
+  }
+
+  @if (rankings.length) {
+    <div class="rankings-section">
+      <h4>Symbol Capital Rankings</h4>
+      <table class="rank-table">
+        <thead>
+          <tr><th>Symbol</th><th>Edge Score</th><th>Expectancy</th><th>Status</th><th>Samples</th></tr>
+        </thead>
+        <tbody>
+          @for (row of rankings; track row.symbol) {
+            <tr [class.active]="row.symbol === activeSymbol" class="clickable" (click)="selectRankingRow(row)">
+              <td class="sym">{{ row.symbol }}</td>
+              <td>{{ formatScore(row.edgeScore) }}</td>
+              <td [class.pos]="row.expectancy > 0" [class.neg]="row.expectancy < 0">{{ formatR(row.expectancy) }}</td>
+              <td><span class="band-chip" [class]="row.edgeScore >= 65 ? 'favorable' : row.edgeScore >= 35 ? 'selective' : 'avoid'">
+                {{ row.edgeScore >= 65 ? 'FAVORABLE' : row.edgeScore >= 35 ? 'SELECTIVE' : 'AVOID' }}
+              </span></td>
+              <td>{{ row.sampleCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (dna) {
+    <div class="two-col">
+      <div class="panel">
+        <h4>Best Regime Opportunities</h4>
+        @for (s of dna.bestSetups; track s.type) {
+          <p class="line pos">{{ s.type }} · {{ formatR(s.expectancy) }} · n={{ s.sample }}</p>
+        } @empty { <p class="muted">—</p> }
+      </div>
+      <div class="panel">
+        <h4>Worst Regime Patterns</h4>
+        @for (s of dna.worstSetups; track s.type) {
+          <p class="line neg">{{ s.type }} · {{ formatR(s.expectancy) }} · n={{ s.sample }}</p>
+        } @empty { <p class="muted">—</p> }
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Timing Behavior</h4>
+        @for (t of dna.timingBehavior; track t.bucket) {
+          <p class="line">{{ t.bucket }} · WR {{ formatPct(t.winRate) }} · {{ formatR(t.expectancy) }}</p>
+        }
+      </div>
+      <div class="panel">
+        <h4>Regime Behavior</h4>
+        @for (r of dna.regimeBehavior; track r.name) {
+          <p class="line">{{ r.name }} · WR {{ formatPct(r.winRate) }} · {{ formatR(r.expectancy) }}</p>
+        }
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Preferred Conditions</h4>
+        @for (c of dna.preferredConditions; track c) {
+          <p class="line pos">→ {{ c }}</p>
+        }
+      </div>
+      <div class="panel">
+        <h4>Avoid Conditions</h4>
+        @for (c of dna.avoidConditions; track c) {
+          <p class="line neg">✕ {{ c }}</p>
+        }
+      </div>
+    </div>
+  }
+
+  @if (matrix?.pivot?.length) {
+    <div class="matrix-section">
+      <h4>{{ activeSymbol }} Setup × Regime</h4>
+      <div class="matrix-wrap">
+        <table class="matrix-grid">
+          <thead>
+            <tr><th>Setup</th>@for (reg of matrixRegimes; track reg) { <th>{{ reg }}</th> }</tr>
+          </thead>
+          <tbody>
+            @for (setup of matrixSetups; track setup) {
+              <tr>
+                <td>{{ setup.replace('_', ' ') }}</td>
+                @for (reg of matrixRegimes; track reg) {
+                  @if (pivotCell(setup, reg); as cell) {
+                    <td [class.pos]="cell.edgeTone === 'POSITIVE'" [class.neg]="cell.edgeTone === 'NEGATIVE'">
+                      {{ formatR(cell.expectancyR) }} <span class="n">n={{ cell.sampleCount }}</span>
+                    </td>
+                  } @else { <td class="empty">—</td> }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (analysis?.ai; as ai) {
+    <div class="ai-section">
+      <h4>AI Symbol Insights</h4>
+      @if (ai.summary) { <p class="ai-summary">{{ ai.summary }}</p> }
+      <div class="ai-cols">
+        <div>
+          <h5>Execution Notes</h5>
+          @for (n of ai.executionNotes; track n) { <p class="note">{{ n }}</p> }
+        </div>
+        <div>
+          <h5>Optimization</h5>
+          @for (o of ai.optimizationSuggestions; track o) { <p class="note">◆ {{ o }}</p> }
+        </div>
+      </div>
+      <p class="disclaimer">Advisory only — Global Edge Lab determines whether conditions deserve capital.</p>
+    </div>
+  }
+</section>

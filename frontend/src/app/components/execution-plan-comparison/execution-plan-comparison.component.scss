@@ -1,0 +1,74 @@
+.plan-compare {
+  margin: 0 0 0.35rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(56, 139, 253, 0.28);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.compare-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+
+  h3 {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.mode-tab {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 4px;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 0.68rem;
+
+  &.active {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.45);
+    color: #86efac;
+  }
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 0.25rem 0.35rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  th {
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  tr.delta td {
+    color: #fde68a;
+  }
+}
+
+.mode-hint {
+  margin: 0;
+  color: #94a3b8;
+}

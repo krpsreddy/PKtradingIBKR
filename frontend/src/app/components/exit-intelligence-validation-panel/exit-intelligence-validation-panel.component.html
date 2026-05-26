@@ -1,0 +1,282 @@
+<section class="exit-val">
+  <header class="ev-head">
+    <div>
+      <h2>EXIT INTELLIGENCE VALIDATION</h2>
+      <p class="ev-sub">Phase 180 · exit / target / continuation monetization · research only · no execution changes</p>
+    </div>
+    <button type="button" class="run-btn" (click)="runValidation()" [disabled]="running">
+      {{ running ? 'Analyzing…' : 'Run ' + lookbackDays + 'D validation' }}
+    </button>
+  </header>
+
+  @if (progressLabel) {
+    <p class="progress">{{ progressLabel }}</p>
+  }
+
+  @if (!report && !running) {
+    <p class="hint">Uses cached replay sessions and historical execution snapshots. Hydrate history in Global Edge Lab, then run validation.</p>
+  }
+
+  @if (report; as r) {
+    @for (w of r.validationWarnings; track w) {
+      <div class="warn-banner">{{ w }}</div>
+    }
+
+    @for (insight of r.summaryInsights; track insight) {
+      <p class="insight">{{ insight }}</p>
+    }
+
+    <div class="stats-row">
+      <span>Sessions <strong>{{ r.sessionsScanned }}</strong></span>
+      <span>Events <strong>{{ r.eventsEvaluated }}</strong></span>
+      <span>Symbols <strong>{{ r.symbolsScanned }}</strong></span>
+      <span>Clusters <strong>{{ r.clustersEvaluated }}</strong></span>
+      <span>Winner <strong [class]="winnerClass(r.overallWinner)">{{ r.overallWinner }}</strong></span>
+    </div>
+
+    <nav class="ev-tabs">
+      <button type="button" [class.active]="activeSection === 'overview'" (click)="setSection('overview')">Overview</button>
+      <button type="button" [class.active]="activeSection === 'regimes'" (click)="setSection('regimes')">Regimes</button>
+      <button type="button" [class.active]="activeSection === 'clusters'" (click)="setSection('clusters')">Clusters</button>
+      <button type="button" [class.active]="activeSection === 'leaderboards'" (click)="setSection('leaderboards')">Leaderboards</button>
+      <button type="button" [class.active]="activeSection === 'routing'" (click)="setSection('routing')">Hybrid routing</button>
+    </nav>
+
+    @if (activeSection === 'overview') {
+      <div class="card-grid hero-grid">
+        <div class="metric-card hero">
+          <span class="label">Overall exit quality</span>
+          <strong class="score">{{ formatScore(r.overallExitQualityScore) }}</strong>
+          <span class="sub">Composite across legacy / autonomous / hybrid</span>
+        </div>
+        <div class="metric-card">
+          <span class="label">Legacy score</span>
+          <strong>{{ formatScore(r.overallLegacy.exitQualityScore) }}</strong>
+          <span class="sub">Missed MFE {{ formatPct(r.overallLegacy.avgMissedMfePct) }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="label">Autonomous score</span>
+          <strong>{{ formatScore(r.overallAutonomous.exitQualityScore) }}</strong>
+          <span class="sub">False exhaust {{ formatPct(r.overallAutonomous.falseExhaustionPct) }}</span>
+        </div>
+        <div class="metric-card">
+          <span class="label">Hybrid score</span>
+          <strong>{{ formatScore(r.overallHybrid.exitQualityScore) }}</strong>
+          <span class="sub">2nd leg {{ formatPct(r.overallHybrid.secondLegCapturePct) }}</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Exit mode comparison</h3>
+        <div class="table-scroll">
+          <table class="data-table compact">
+            <thead>
+              <tr>
+                <th>Mode</th>
+                <th>Quality</th>
+                <th>Retained MFE</th>
+                <th>Missed MFE</th>
+                <th>Post-exit cont</th>
+                <th>2nd leg %</th>
+                <th>False exhaust</th>
+                <th>Early trim</th>
+                <th>n</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of modeRows(r); track row.label) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ formatScore(row.agg.exitQualityScore) }}</td>
+                  <td>{{ formatPct(row.agg.avgRetainedMfePct) }}</td>
+                  <td>{{ formatPct(row.agg.avgMissedMfePct) }}</td>
+                  <td>{{ formatPct(row.agg.postExitContinuationPct) }}</td>
+                  <td>{{ formatPct(row.agg.secondLegCapturePct) }}</td>
+                  <td>{{ formatPct(row.agg.falseExhaustionPct) }}</td>
+                  <td>{{ formatPct(row.agg.earlyTrimPct) }}</td>
+                  <td>{{ row.agg.sampleCount }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h3>Best exit regimes</h3>
+          <ul class="lb-list">
+            @for (row of r.bestExitRegimes; track row.label) {
+              <li>
+                <span class="name">{{ row.label }}</span>
+                <span class="score pos">{{ formatScore(row.score) }}</span>
+                <span class="detail">{{ row.detail }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Worst exit regimes</h3>
+          <ul class="lb-list">
+            @for (row of r.worstExitRegimes; track row.label) {
+              <li>
+                <span class="name">{{ row.label }}</span>
+                <span class="score warn">{{ formatScore(row.score) }}</span>
+                <span class="detail">{{ row.detail }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+
+    @if (activeSection === 'regimes') {
+      <div class="panel">
+        <h3>Canonical regime · exit path comparison</h3>
+        <p class="panel-sub">Legacy vs autonomous vs hybrid per regime</p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Regime</th>
+                <th>Winner</th>
+                <th>Δ quality</th>
+                <th>Leg</th>
+                <th>Auto</th>
+                <th>Hybrid</th>
+                <th>Missed (auto)</th>
+                <th>Post-exit cont</th>
+                <th>n</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of r.regimeComparisons; track row.regime) {
+                <tr [class]="winnerClass(row.winner)">
+                  <td class="name">{{ formatRegime(row.regime) }}</td>
+                  <td>{{ row.winner }}</td>
+                  <td [class.pos]="row.exitQualityDelta > 0" [class.warn]="row.exitQualityDelta < 0">
+                    {{ row.exitQualityDelta >= 0 ? '+' : '' }}{{ row.exitQualityDelta.toFixed(1) }}
+                  </td>
+                  <td>{{ formatScore(row.legacy.exitQualityScore) }}</td>
+                  <td>{{ formatScore(row.autonomous.exitQualityScore) }}</td>
+                  <td>{{ formatScore(row.hybrid.exitQualityScore) }}</td>
+                  <td>{{ formatPct(row.autonomous.avgMissedMfePct) }}</td>
+                  <td>{{ formatPct(row.autonomous.postExitContinuationPct) }}</td>
+                  <td>{{ row.sampleCount }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Continuation heatmap (autonomous)</h3>
+        <p class="panel-sub">Missed MFE · post-exit continuation · false exhaustion</p>
+        <div class="heat-grid">
+          @for (row of r.regimeComparisons; track row.regime) {
+            <div class="heat-row">
+              <span class="heat-label">{{ formatRegime(row.regime) }}</span>
+              <span class="heat-cell" [class]="heatClass(heatValue(row, 'missed'), true)">
+                Missed {{ formatPct(heatValue(row, 'missed')) }}
+              </span>
+              <span class="heat-cell" [class]="heatClass(heatValue(row, 'cont'))">
+                Cont {{ formatPct(heatValue(row, 'cont')) }}
+              </span>
+              <span class="heat-cell" [class]="heatClass(heatValue(row, 'falseEx'), true)">
+                FalseEx {{ formatPct(heatValue(row, 'falseEx')) }}
+              </span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeSection === 'clusters') {
+      <div class="panel">
+        <h3>Raw cluster + canonical attribution</h3>
+        <p class="panel-sub">EXPANSION_* · PERSISTENCE_* · CONTINUATION_PROFILE_* · canonical regimes</p>
+        <div class="table-scroll">
+          <table class="data-table compact">
+            <thead>
+              <tr>
+                <th>Cluster</th>
+                <th>Kind</th>
+                <th>Regime</th>
+                <th>Mode</th>
+                <th>Quality</th>
+                <th>Missed MFE</th>
+                <th>Under-ext</th>
+                <th>Over-tight</th>
+                <th>n</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of r.clusterRows; track c.clusterId + c.mode) {
+                <tr>
+                  <td class="name">{{ c.clusterLabel }}</td>
+                  <td>{{ c.clusterKind }}</td>
+                  <td>{{ formatRegime(c.canonicalRegime) }}</td>
+                  <td>{{ c.mode }}</td>
+                  <td>{{ formatScore(c.aggregate.exitQualityScore) }}</td>
+                  <td>{{ formatPct(c.aggregate.avgMissedMfePct) }}</td>
+                  <td>{{ formatPct(c.aggregate.underExtendedTargetPct) }}</td>
+                  <td>{{ formatPct(c.aggregate.overTightTargetPct) }}</td>
+                  <td>{{ c.aggregate.sampleCount }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @if (activeSection === 'leaderboards') {
+      <div class="lb-grid">
+        @for (kind of ['premature', 'undercapture', 'secondleg', 'falseex', 'persistence', 'targetext']; track kind) {
+          <div class="panel lb-panel">
+            <h3>{{ leaderboardTitle(kind) }}</h3>
+            <ul class="lb-list">
+              @for (row of rowsForLeaderboard(kind); track row.label) {
+                <li>
+                  <span class="name">{{ row.label }}</span>
+                  <span class="score">{{ formatScore(row.score) }}{{ kind === 'premature' || kind === 'falseex' ? '%' : '' }}</span>
+                  <span class="detail muted">n={{ row.sampleCount }} · {{ row.detail }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeSection === 'routing') {
+      <div class="panel">
+        <h3>Hybrid routing suggestions</h3>
+        <p class="panel-sub">Regime-specific entry / exit / target blending (advisory)</p>
+        <div class="routing-grid">
+          @for (h of r.hybridRoutingSuggestions; track h.regime) {
+            <div class="routing-card">
+              <span class="routing-regime">{{ formatRegime(h.regime) }}</span>
+              <div class="routing-flow">
+                <span>{{ h.entrySource }}</span>
+                <span class="arrow">→</span>
+                <span>{{ h.exitStrategy }}</span>
+                <span class="arrow">→</span>
+                <span>{{ h.targetStrategy }}</span>
+              </div>
+              @if (h.persistenceOverride) {
+                <span class="pill">Persistence override ON</span>
+              }
+              <p class="routing-reason">{{ h.reason }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <footer class="ev-footer">
+    Research only · replay cache · no live scanner impact · insufficient sample = directional only
+  </footer>
+</section>

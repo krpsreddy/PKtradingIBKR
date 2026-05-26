@@ -1,0 +1,9 @@
+@if (priority) {
+  <div class="priority-banner" [class]="severityClass()">
+    <span class="label">What matters most</span>
+    <span class="insight">{{ priority.insight }}</span>
+    @if (priority.detail) {
+      <span class="detail">{{ priority.detail }}</span>
+    }
+  </div>
+}

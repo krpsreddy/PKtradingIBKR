@@ -1,0 +1,14 @@
+@if (visible && bestSetup.symbol !== '—' && bestSetup.symbol !== selectedSymbol) {
+  <div class="best-setup-cta">
+    <div class="cta-body">
+      <span class="tag">BEST SETUP ACTIVE</span>
+      <span class="sym">→ {{ bestSetup.symbol }}</span>
+      <span class="meta">
+        Rank {{ bestSetup.rankScore ?? '—' }}
+        @if (bestSetup.relativeVolume != null) { · RVOL {{ bestSetup.relativeVolume | number:'1.1-1' }}x }
+      </span>
+    </div>
+    <button type="button" class="switch-btn" (click)="onSwitch()">Switch To {{ bestSetup.symbol }}</button>
+    <button type="button" class="dismiss-btn" (click)="dismiss.emit()" title="Dismiss">×</button>
+  </div>
+}

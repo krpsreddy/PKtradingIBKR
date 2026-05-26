@@ -1,0 +1,150 @@
+<section class="template-validation">
+  <header class="val-head">
+    <h4>Phase 176 · Template validation</h4>
+    <div class="val-actions">
+      <button type="button" class="run-btn" (click)="runValidation()" [disabled]="running">
+        {{ running ? 'Running…' : 'Run 60D validation' }}
+      </button>
+      @if (report) {
+        <button type="button" class="toggle-btn" (click)="toggleExpanded()">
+          {{ expanded ? 'Collapse' : 'Report' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (progressLabel) {
+    <p class="progress">{{ progressLabel }}</p>
+  }
+
+  @if (report && expanded) {
+    <div class="summary-grid">
+      <div class="summary-card">
+        <span class="label">Overall winner</span>
+        <strong>{{ report.overallWinner }}</strong>
+        <span class="sub">Δ expectancy {{ report.overallExpectancyDelta >= 0 ? '+' : '' }}{{ report.overallExpectancyDelta }}R</span>
+      </div>
+      <div class="summary-card">
+        <span class="label">Confidence</span>
+        <strong>{{ report.confidence }}</strong>
+        <span class="sub">{{ report.eventsEvaluated }} events · {{ report.symbolsScanned }} symbols</span>
+      </div>
+      <div class="summary-card">
+        <span class="label">Default recommendation</span>
+        <strong>{{ recommendationLabel() }}</strong>
+        <span class="sub" [class.ready]="report.productionReady" [class.not-ready]="!report.productionReady">
+          {{ report.productionReady ? 'Production-ready' : 'Not production-ready' }}
+        </span>
+      </div>
+    </div>
+
+    <div class="metric-compare">
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Legacy</th>
+            <th>Autonomous</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Expectancy</td>
+            <td>{{ report.overallLegacy.expectancy }}</td>
+            <td>{{ report.overallAutonomous.expectancy }}</td>
+          </tr>
+          <tr>
+            <td>Win rate %</td>
+            <td>{{ report.overallLegacy.winRate }}</td>
+            <td>{{ report.overallAutonomous.winRate }}</td>
+          </tr>
+          <tr>
+            <td>Avg R (MFE)</td>
+            <td>{{ report.overallLegacy.averageR }}</td>
+            <td>{{ report.overallAutonomous.averageR }}</td>
+          </tr>
+          <tr>
+            <td>MFE capture %</td>
+            <td>{{ report.overallLegacy.mfeCapturePct }}</td>
+            <td>{{ report.overallAutonomous.mfeCapturePct }}</td>
+          </tr>
+          <tr>
+            <td>Stop efficiency</td>
+            <td>{{ report.overallLegacy.stopEfficiency }}</td>
+            <td>{{ report.overallAutonomous.stopEfficiency }}</td>
+          </tr>
+          <tr>
+            <td>Target efficiency</td>
+            <td>{{ report.overallLegacy.targetEfficiency }}</td>
+            <td>{{ report.overallAutonomous.targetEfficiency }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h5>Regime winners</h5>
+    <ul class="regime-list">
+      @for (r of report.regimeComparisons; track r.regime) {
+        <li [class.auto-win]="r.winner === 'AUTONOMOUS_TEMPLATE'" [class.leg-win]="r.winner === 'LEGACY_RR'">
+          {{ r.regime }} · {{ r.winner }} · Δ {{ r.expectancyDelta }}R · n={{ r.sampleCount }}
+        </li>
+      }
+    </ul>
+
+    @if (report.bestImprovements.length) {
+      <h5>Best improvements</h5>
+      <ul>
+        @for (line of report.bestImprovements; track line) {
+          <li>{{ line }}</li>
+        }
+      </ul>
+    }
+
+    @if (report.worstRegressions.length) {
+      <h5>Worst regressions</h5>
+      <ul class="warn">
+        @for (line of report.worstRegressions; track line) {
+          <li>{{ line }}</li>
+        }
+      </ul>
+    }
+
+    @if (report.autonomousUnderperforms.length) {
+      <h5>Where autonomous underperforms</h5>
+      <ul class="warn">
+        @for (line of report.autonomousUnderperforms; track line) {
+          <li>{{ line }}</li>
+        }
+      </ul>
+    }
+
+    @if (report.hybridRouting.length) {
+      <h5>Hybrid routing</h5>
+      <ul>
+        @for (h of report.hybridRouting; track h.regime) {
+          <li>{{ h.regime }} → {{ h.recommendedMode }} · {{ h.reason }}</li>
+        }
+      </ul>
+    }
+
+    @if (report.failureModes.length) {
+      <h5>Failure modes</h5>
+      <ul class="warn">
+        @for (f of report.failureModes; track f.code) {
+          <li [class.critical]="f.severity === 'CRITICAL'">{{ f.code }}: {{ f.description }} (n={{ f.sampleCount }})</li>
+        }
+      </ul>
+    }
+
+    @if (report.remainingWeaknesses.length) {
+      <h5>Before full migration</h5>
+      <ul>
+        @for (w of report.remainingWeaknesses; track w) {
+          <li>{{ w }}</li>
+        }
+      </ul>
+    }
+  } @else if (!report) {
+    <p class="hint">Uses cached 60D replay sessions. Load history in Global Edge Lab first if empty.</p>
+  }
+</section>

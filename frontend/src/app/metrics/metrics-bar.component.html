@@ -1,0 +1,47 @@
+<div class="metrics-bar">
+  <app-global-symbol-switcher
+    [symbol]="symbol"
+    [watchlist]="watchlist"
+    [recentSymbols]="recentSymbols"
+    [hotMomentum]="hotMomentum"
+    [emergingSetups]="emergingSetups"
+    [activeSignals]="activeSignals"
+    (symbolSelected)="symbolSelected.emit($event)"
+    (symbolAdded)="symbolAdded.emit($event)">
+  </app-global-symbol-switcher>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">Price</span><span class="val">${{ price != null ? (price | number:'1.2-2') : '—' }}</span></div>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">RSI</span><span class="val" [class]="indicators && indicators.rsi < 45 ? 'bearish' : indicators && indicators.rsi > 55 ? 'bullish' : 'neutral'">{{ indicators ? (indicators.rsi | number:'1.0-0') : '—' }}</span></div>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">MACD</span><span class="val" [class]="macdClass()">{{ macdLabel() }}</span></div>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">Trend</span><span class="val" [class]="trendClass()">{{ trendLabel }}</span></div>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">RelVol</span><span class="val" [class]="relVolClass()">{{ indicators ? (indicators.relativeVolume | number:'1.1-1') + 'x' : '—' }}</span></div>
+  <div class="sep"></div>
+  <div class="metric"><span class="lbl">VWAP</span><span class="val" [class]="vwapLabel() === 'Above' ? 'bullish' : vwapLabel() === 'Below' ? 'bearish' : 'neutral'">{{ vwapLabel() }}</span></div>
+  <div class="sep"></div>
+  <div class="metric regime-metric">
+    <span class="lbl">Regime</span>
+    <span class="val regime-pill" [class]="regimeClass()">{{ marketTrend?.regime || '—' }}</span>
+  </div>
+  @if (sessionTemperature) {
+    <div class="sep"></div>
+    <div class="metric temp-metric" [title]="sessionTemperature.description">
+      <span class="lbl">Temp</span>
+      <span class="val temp-pill">{{ sessionTemperature.label }}</span>
+    </div>
+  }
+  @if (disciplineScore != null) {
+    <div class="sep"></div>
+    <div class="metric">
+      <span class="lbl">Discipline</span>
+      <span class="val" [class]="disciplineScore >= 70 ? 'bullish' : disciplineScore >= 50 ? 'neutral' : 'bearish'">{{ disciplineScore }}</span>
+    </div>
+  }
+  <div class="spacer"></div>
+  @if (status) {
+    <div class="market-pill" [class.open]="status.marketOpen" [class.closed]="!status.marketOpen">{{ status.marketStatus }}</div>
+  }
+</div>

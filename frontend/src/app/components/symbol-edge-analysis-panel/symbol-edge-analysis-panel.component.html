@@ -1,0 +1,401 @@
+<section class="symbol-edge-panel">
+  <header class="panel-head">
+    <div class="title-block">
+      <h3>Symbol Edge Intelligence Lab</h3>
+      <span class="sub">{{ lookbackDays }}-day edge analytics · follows global symbol · advisory only</span>
+    </div>
+    <div class="toolbar">
+      <div class="meta-strip">
+        <span class="sym-badge">{{ activeSymbol }}</span>
+        <span class="status-pill" [class]="analysisStatus.toLowerCase()">{{ statusLabel(analysisStatus) }}</span>
+        @if (queueDepth > 0) {
+          <span class="queue-badge">{{ queueDepth }} in queue</span>
+        }
+        <span class="meta-item">Updated: {{ lastUpdatedLabel }}</span>
+        <span class="meta-item">Samples: {{ deterministic?.evaluatedTrades ?? profile?.sampleCount ?? 0 }}</span>
+        @if (profile?.edgeScore != null) {
+          <span class="meta-item edge-score">Edge {{ formatScore(profile!.edgeScore) }}</span>
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="refresh-btn" (click)="analyzeSelected(true)" [disabled]="loading || backfilling || bulkRunning">
+          Analyze
+        </button>
+        <button type="button" class="backfill-btn" (click)="loadStoredHistory()" [disabled]="loading || backfilling || bulkRunning || bulkHydrating">
+          {{ backfilling ? 'Loading…' : 'Load ' + lookbackDays + 'D History' }}
+        </button>
+        @if (watchlist.length) {
+          <button type="button" class="bulk-hydrate-btn" (click)="loadAllHistory()" [disabled]="loading || backfilling || bulkRunning || bulkHydrating">
+            {{ bulkHydrating ? 'Hydrating…' : 'Load All ' + lookbackDays + 'D History' }}
+          </button>
+          <button type="button" class="bulk-btn" (click)="analyzeWatchlist()" [disabled]="loading || backfilling || bulkRunning || bulkHydrating">
+            {{ bulkRunning ? 'Analyzing…' : 'Analyze Active Watchlist' }}
+          </button>
+        }
+      </div>
+      @if (watchlist.length) {
+        <label class="auto-analyze-toggle">
+          <input type="checkbox" [checked]="autoAnalyzeAfterLoad" (change)="toggleAutoAnalyze()" [disabled]="bulkHydrating" />
+          Auto Analyze After History Load
+        </label>
+      }
+    </div>
+  </header>
+
+  @if (profile?.personality) {
+    <div class="personality-banner">
+      <span class="personality-label">{{ activeSymbol }} personality</span>
+      <span class="personality-text">{{ profile!.personality }}</span>
+    </div>
+  }
+
+  @if (backfillMessage) {
+    <p class="backfill-line">{{ backfillMessage }}</p>
+  }
+
+  @if (hydrationProgress?.running || (hydrationProgress && hydrationProgress.totalSymbols > 0)) {
+    <div class="hydration-progress">
+      <div class="progress-head">
+        <span class="progress-title">Bulk Hydration</span>
+        @if (hydrationProgress!.currentSymbol) {
+          <span class="progress-current">Loading {{ hydrationProgress!.currentSymbol }}</span>
+        }
+      </div>
+      <div class="progress-stats">
+        <span>{{ hydrationProgress!.completed + hydrationProgress!.skipped }}/{{ hydrationProgress!.totalSymbols }} done</span>
+        <span>{{ hydrationProgress!.queueSize }} queued</span>
+        @if (hydrationProgress!.skipped) {
+          <span>{{ hydrationProgress!.skipped }} skipped</span>
+        }
+        @if (hydrationProgress!.failed) {
+          <span class="fail-count">{{ hydrationProgress!.failed }} failed</span>
+        }
+        <span>ETA {{ formatEta(hydrationProgress!.estimatedRemainingMs) }}</span>
+      </div>
+    </div>
+  }
+
+  @if (hydrationRows.length) {
+    <div class="hydration-table-section">
+      <header class="rankings-head">
+        <h4>Symbol Hydration Status</h4>
+        <span class="rankings-sub">{{ hydrationRows.length }} symbols · incremental · resumable</span>
+      </header>
+      <div class="rankings-table-wrap">
+        <table class="rankings-table hydration-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>History</th>
+              <th>Signals</th>
+              <th>Edge Score</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of hydrationRows; track row.symbol) {
+              <tr [class.active]="row.symbol === activeSymbol" class="clickable" (click)="selectRankingRow(row)">
+                <td class="sym-cell">{{ row.symbol }}</td>
+                <td>{{ row.historyLabel }}</td>
+                <td>{{ row.signalCount }}</td>
+                <td>
+                  <span class="score-chip" [class.high]="row.edgeScore >= 65" [class.mid]="row.edgeScore >= 40 && row.edgeScore < 65">
+                    {{ formatScore(row.edgeScore) }}
+                  </span>
+                </td>
+                <td>
+                  <span class="hydration-badge" [class]="row.status.toLowerCase()">{{ hydrationStatusLabel(row.status) }}</span>
+                </td>
+                <td>
+                  @if (row.status === 'FAILED') {
+                    <button type="button" class="retry-btn" (click)="retryHydration(row.symbol); $event.stopPropagation()">Retry</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (loading || analysisStatus === 'ANALYZING_AI' || analysisStatus === 'QUEUED') {
+    <p class="state-line">{{ statusMessage || ('Processing ' + activeSymbol + '…') }}</p>
+  }
+
+  @if (rankings.length) {
+    <div class="rankings-section">
+      <header class="rankings-head">
+        <h4>All Symbol Rankings</h4>
+        <span class="rankings-sub">{{ rankings.length }} profiles</span>
+      </header>
+      <div class="rankings-table-wrap">
+        <table class="rankings-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>WR</th>
+              <th>Expectancy</th>
+              <th>Best Setup</th>
+              <th>Worst Regime</th>
+              <th>Edge Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rankings; track row.symbol) {
+              <tr
+                [class.active]="row.symbol === activeSymbol"
+                [class.clickable]="true"
+                (click)="selectRankingRow(row)">
+                <td class="sym-cell">{{ row.symbol }}</td>
+                <td>{{ formatPct(row.winRate) }}</td>
+                <td [class.pos]="row.expectancy > 0" [class.neg]="row.expectancy < 0">{{ formatR(row.expectancy) }}</td>
+                <td>{{ row.bestSetup }}</td>
+                <td>{{ row.worstRegime }}</td>
+                <td>
+                  <span class="score-chip" [class.high]="row.edgeScore >= 65" [class.mid]="row.edgeScore >= 40 && row.edgeScore < 65">
+                    {{ formatScore(row.edgeScore) }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (matrix?.pivot?.length) {
+    <div class="matrix-section">
+      <header class="matrix-head">
+        <h4>Setup × Regime Matrix</h4>
+        <span class="matrix-sub">min {{ matrix!.minSample }} samples · excludes OPEN · analytics only</span>
+      </header>
+      <div class="matrix-grid-wrap">
+        <table class="matrix-grid">
+          <thead>
+            <tr>
+              <th>Setup</th>
+              @for (reg of matrixRegimes; track reg) {
+                <th>{{ reg }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (setup of matrixSetups; track setup) {
+              <tr>
+                <td class="setup-cell">{{ setup.replace('_', ' ') }}</td>
+                @for (reg of matrixRegimes; track reg) {
+                  @if (pivotCell(setup, reg); as cell) {
+                    <td class="matrix-cell" [class.pos]="cell.edgeTone === 'POSITIVE'" [class.neg]="cell.edgeTone === 'NEGATIVE'">
+                      <span class="exp">{{ formatR(cell.expectancyR) }}</span>
+                      <span class="meta">n={{ cell.sampleCount }} · {{ formatPct(cell.winRate) }}</span>
+                    </td>
+                  } @else {
+                    <td class="matrix-cell empty-cell">—</td>
+                  }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (matrix!.bestCombinations.length) {
+        <div class="combo-lists">
+          <div class="combo-col">
+            <span class="combo-title pos">Best combinations</span>
+            @for (c of matrix!.bestCombinations.slice(0, 4); track c.label + c.timeWindow) {
+              <span class="combo-line">{{ c.label }} · {{ c.timeWindow }} · {{ c.rvolBucket }} · {{ formatR(c.expectancyR) }} (n={{ c.sampleCount }})</span>
+            }
+          </div>
+          @if (matrix!.worstCombinations.length) {
+            <div class="combo-col">
+              <span class="combo-title neg">Worst combinations</span>
+              @for (c of matrix!.worstCombinations.slice(0, 4); track c.label + c.timeWindow) {
+                <span class="combo-line">{{ c.label }} · {{ c.timeWindow }} · {{ formatR(c.expectancyR) }} (n={{ c.sampleCount }})</span>
+              }
+            </div>
+          }
+          @if (matrix!.unstableCombinations.length) {
+            <div class="combo-col">
+              <span class="combo-title warn">Unstable combinations</span>
+              @for (c of matrix!.unstableCombinations.slice(0, 3); track c.label + c.timeWindow) {
+                <span class="combo-line">{{ c.label }} · WR {{ formatPct(c.winRate) }} · {{ formatR(c.expectancyR) }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @if (deterministic) {
+    <div class="confidence-banner" [class.low]="confidenceLabelText === 'LOW'" [class.medium]="confidenceLabelText === 'MEDIUM'">
+      <span class="sym-label">{{ activeSymbol }} — {{ lookbackDays }} DAY EDGE ANALYSIS</span>
+      <span class="conf-badge">{{ confidenceLabelText }} CONFIDENCE</span>
+      <span class="sample">({{ deterministic.evaluatedTrades }} evaluated signals)</span>
+    </div>
+
+    @if (deterministic.evaluatedTrades < 10) {
+      <p class="warn-line">LOW CONFIDENCE — minimum 10 evaluated signals recommended. Click <strong>Load {{ lookbackDays }}D History</strong> to backfill from stored candles.</p>
+    }
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="k">Win Rate</span>
+        <span class="v">{{ formatPct(deterministic.overall.winRate) }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="k">Expectancy</span>
+        <span class="v" [class.pos]="deterministic.overall.expectancy > 0" [class.neg]="deterministic.overall.expectancy < 0">
+          {{ formatR(deterministic.overall.expectancy) }}
+        </span>
+      </div>
+      <div class="stat-card">
+        <span class="k">Avg MFE</span>
+        <span class="v">{{ formatR(deterministic.overall.avgMfe) }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="k">Avg MAE</span>
+        <span class="v">{{ formatR(deterministic.overall.avgMae) }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="k">1R Hit</span>
+        <span class="v">{{ formatPct(deterministic.overall.hit1RRate) }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="k">2R Hit</span>
+        <span class="v">{{ formatPct(deterministic.overall.hit2RRate) }}</span>
+      </div>
+    </div>
+
+    <div class="breakdown-row">
+      <div class="breakdown-col">
+        <h4>By Setup</h4>
+        @for (s of deterministic.bySetup; track s.type) {
+          <div class="breakdown-line">
+            <span class="label">{{ s.type }}</span>
+            <span class="meta">n={{ s.sample }} · WR {{ formatPct(s.winRate) }} · {{ formatR(s.expectancy) }}</span>
+          </div>
+        } @empty {
+          <p class="empty">No setup breakdown yet.</p>
+        }
+      </div>
+      <div class="breakdown-col">
+        <h4>By Regime</h4>
+        @for (r of deterministic.byRegime; track r.name) {
+          <div class="breakdown-line">
+            <span class="label">{{ r.name }}</span>
+            <span class="meta">n={{ r.sample }} · WR {{ formatPct(r.winRate) }} · {{ formatR(r.expectancy) }}</span>
+          </div>
+        } @empty {
+          <p class="empty">No regime breakdown yet.</p>
+        }
+      </div>
+      <div class="breakdown-col">
+        <h4>RVOL Buckets</h4>
+        @for (b of deterministic.byRvol; track b.bucket) {
+          <div class="breakdown-line">
+            <span class="label">{{ b.bucket }}</span>
+            <span class="meta">n={{ b.sample }} · WR {{ formatPct(b.winRate) }} · {{ formatR(b.expectancy) }}</span>
+          </div>
+        } @empty {
+          <p class="empty">No RVOL data yet.</p>
+        }
+      </div>
+      <div class="breakdown-col">
+        <h4>Time of Day</h4>
+        @for (t of deterministic.byTimeOfDay; track t.bucket) {
+          <div class="breakdown-line">
+            <span class="label">{{ t.bucket }}</span>
+            <span class="meta">n={{ t.sample }} · WR {{ formatPct(t.winRate) }} · {{ formatR(t.expectancy) }}</span>
+          </div>
+        } @empty {
+          <p class="empty">No time-of-day data yet.</p>
+        }
+      </div>
+    </div>
+
+    @if (deterministic.lateEntryPenalty.expectancyDropPct > 10) {
+      <p class="insight-line">
+        Late entry penalty: {{ deterministic.lateEntryPenalty.expectancyDropPct }}% expectancy drop
+        (ideal {{ formatR(deterministic.lateEntryPenalty.idealExpectancy) }} vs late {{ formatR(deterministic.lateEntryPenalty.lateExpectancy) }})
+      </p>
+    }
+  }
+
+  @if (analysis?.ai; as ai) {
+    <div class="ai-section">
+      <header class="ai-head">
+        <span>AI Edge Insights</span>
+        @if (analysis!.fallbackUsed) {
+          <span class="fallback-tag">deterministic fallback</span>
+        } @else {
+          <span class="provider-tag">{{ analysis!.provider }}</span>
+        }
+      </header>
+
+      @if (ai.summary) {
+        <p class="ai-summary">{{ ai.summary }}</p>
+      }
+
+      <div class="ai-columns">
+        <div class="ai-col">
+          <h4>Strengths</h4>
+          @for (s of ai.strengths; track s) {
+            <p class="bullet pos">+ {{ s }}</p>
+          } @empty {
+            <p class="empty">—</p>
+          }
+        </div>
+        <div class="ai-col">
+          <h4>Weaknesses</h4>
+          @for (w of ai.weaknesses; track w) {
+            <p class="bullet neg">− {{ w }}</p>
+          } @empty {
+            <p class="empty">—</p>
+          }
+        </div>
+        <div class="ai-col">
+          <h4>Best Conditions</h4>
+          @for (c of ai.bestConditions; track c) {
+            <p class="bullet">→ {{ c }}</p>
+          } @empty {
+            <p class="empty">—</p>
+          }
+        </div>
+        <div class="ai-col">
+          <h4>Avoid</h4>
+          @for (a of ai.avoidConditions; track a) {
+            <p class="bullet warn">✕ {{ a }}</p>
+          } @empty {
+            <p class="empty">—</p>
+          }
+        </div>
+      </div>
+
+      <div class="optimize-section">
+        <h4>Optimization Suggestions</h4>
+        <p class="disclaimer">Advisory only — human approval required. No automatic strategy changes.</p>
+        @for (o of ai.optimizationSuggestions; track o) {
+          <p class="optimize-line">◆ {{ o }}</p>
+        } @empty {
+          <p class="empty">No optimization suggestions yet.</p>
+        }
+      </div>
+
+      @for (n of ai.executionNotes; track n) {
+        <p class="exec-note">{{ n }}</p>
+      }
+    </div>
+  }
+
+  @if (analysis?.warnings?.length) {
+    <div class="warnings">
+      @for (w of analysis!.warnings; track w) {
+        <p class="warn-line">{{ w }}</p>
+      }
+    </div>
+  }
+</section>

@@ -1,0 +1,8 @@
+@mixin guidance-whisper {
+  color: #9aa4ae;
+  opacity: var(--typo-guidance-opacity, 0.52);
+  font-weight: 500;
+  font-size: var(--typo-guidance-min, 0.75rem);
+  line-height: 1.35;
+  letter-spacing: 0.06em;
+}

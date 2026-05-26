@@ -1,0 +1,559 @@
+<section class="edge-refinement-lab">
+  <header class="lab-head">
+    <div>
+      <h3>Regime Refinement Lab</h3>
+      <span class="sub">Live decision engine · execution sequencing · analytics only · human approval required</span>
+    </div>
+    <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">Refresh</button>
+  </header>
+
+  @if (!report || report.totalEvaluated < 10) {
+    <p class="empty">Need ≥10 evaluated signals. Load 60D history in Edge Lab first.</p>
+  } @else {
+    <div class="summary-strip">
+      <span>{{ report.totalEvaluated }} evaluated · {{ report.lookbackDays }}D</span>
+      <span>Baseline {{ formatR(report.baseline.expectancyR) }}</span>
+      <span>WR {{ report.baseline.winRate }}%</span>
+      <span>Fakeout {{ report.baseline.fakeoutRate }}%</span>
+      @if (report.activePreset) {
+        <button type="button" class="clear-preset" (click)="clearPreset()">Clear preset</button>
+      }
+    </div>
+
+    <div class="preset-row">
+      @for (p of presets; track p.id) {
+        <button type="button" class="preset-btn" [class.active]="report.activePreset === p.id" (click)="runPreset(p.id)" [disabled]="loading">
+          {{ p.label }}
+        </button>
+      }
+    </div>
+
+    @if (report.liveCandidates.length) {
+      <div class="panel advisory">
+        <h4>Live Candidate Filters <span class="tag">advisory only</span></h4>
+        @for (c of report.liveCandidates; track c.id) {
+          <div class="candidate-line">
+            <span class="headline">{{ c.headline }}</span>
+            <span class="detail">{{ c.detail }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Best Suppressions</h4>
+        @for (s of report.bestSuppressions.slice(0, 6); track s.ruleId) {
+          <button type="button" class="sim-row" [class.active]="selected?.ruleId === s.ruleId" (click)="selectSim(s)">
+            <span class="name">{{ s.ruleLabel }}</span>
+            <span class="meta">{{ formatR(s.deltas.expectancyR) }} · Q{{ s.qualityScore }} · {{ s.verdict.replace('_', ' ') }}</span>
+          </button>
+        } @empty { <p class="muted">No filters pass validation thresholds yet</p> }
+      </div>
+      <div class="panel warn">
+        <h4>Over-Suppression Warnings</h4>
+        @for (s of report.overSuppressed.slice(0, 5); track s.ruleId) {
+          <p class="warn-line">{{ s.ruleLabel }} — removes {{ s.deltas.missedWinners }} winners</p>
+        } @empty { <p class="muted">None detected</p> }
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Dangerous Conditions</h4>
+        @for (d of report.dangerousConditions.slice(0, 6); track d.id) {
+          <p class="danger-line" [class]="severityClass(d.severity)">
+            {{ d.label }} · {{ formatR(d.expectancyR) }} · fakeout {{ d.fakeoutRate }}% · n={{ d.sampleCount }}
+          </p>
+        }
+      </div>
+      <div class="panel">
+        <h4>Entry Timing Simulation</h4>
+        @for (t of report.entryTiming; track t.timing) {
+          <p class="timing-line">
+            <span class="timing">{{ t.timing }}</span>
+            <span class="meta">{{ formatR(t.expectancyR) }} · WR {{ t.winRate }}% · n={{ t.sampleCount }}</span>
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Acceptance Confirmation Results</h4>
+      @for (a of report.acceptanceResults; track a.id) {
+        <p class="accept-line">
+          <span class="name">{{ a.label }}</span>
+          <span class="meta">instant {{ formatR(a.instantExpectancyR) }} → confirmed {{ formatR(a.confirmedExpectancyR) }} · fakeout −{{ a.fakeoutImprovement }}%</span>
+        </p>
+      } @empty { <p class="muted">Insufficient samples for acceptance tests</p> }
+    </div>
+
+    @if (selected; as s) {
+      <div class="panel detail">
+        <header class="detail-head">
+          <h4>{{ s.ruleLabel }}</h4>
+          <span class="badge" [class]="verdictClass(s.verdict)">{{ s.verdict.replace('_', ' ') }}</span>
+          <span class="score">Quality {{ s.qualityScore }}/100</span>
+        </header>
+        <p class="note">{{ s.advisoryNote }}</p>
+        <div class="compare-grid">
+          <div>
+            <h5>Baseline</h5>
+            <span>n={{ s.baseline.sampleCount }}</span>
+            <span>Exp {{ formatR(s.baseline.expectancyR) }}</span>
+            <span>WR {{ s.baseline.winRate }}%</span>
+            <span>Fakeout {{ s.baseline.fakeoutRate }}%</span>
+            <span>DD {{ formatR(s.baseline.drawdownR) }}</span>
+          </div>
+          <div>
+            <h5>After Suppression</h5>
+            <span>n={{ s.suppressed.sampleCount }}</span>
+            <span>Exp {{ formatR(s.suppressed.expectancyR) }}</span>
+            <span>WR {{ s.suppressed.winRate }}%</span>
+            <span>Fakeout {{ s.suppressed.fakeoutRate }}%</span>
+            <span>DD {{ formatR(s.suppressed.drawdownR) }}</span>
+          </div>
+          <div>
+            <h5>Delta</h5>
+            <span>Exp {{ formatR(s.deltas.expectancyR) }}</span>
+            <span>WR {{ formatPct(s.deltas.winRate) }}</span>
+            <span>Fakeout {{ formatPct(s.deltas.fakeoutRate) }}</span>
+            <span>Trades {{ formatPct(s.deltas.tradeCountPct) }}</span>
+            <span>Missed winners {{ s.deltas.missedWinners }}</span>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (report.missedWinners.length) {
+      <div class="panel">
+        <h4>Missed Winners Analysis</h4>
+        @for (m of report.missedWinners; track m.ruleId) {
+          <p class="miss-line">{{ m.ruleLabel }} — {{ m.missedCount }} winners (+{{ m.missedExpectancyR.toFixed(2) }}R missed)</p>
+        }
+      </div>
+    }
+
+    @if (report.executionQuality; as eq) {
+      @if (eq.synthesis.length) {
+        <div class="panel advisory">
+          <h4>Execution Quality Synthesis <span class="tag">advisory only</span></h4>
+          @for (s of eq.synthesis; track s.id) {
+            <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+          }
+        </div>
+      }
+
+      <div class="panel">
+        <h4>Execution Quality Matrix</h4>
+        <div class="matrix-scroll">
+          <table class="eq-matrix">
+            <thead>
+              <tr>
+                <th>Class</th><th>Setup</th><th>Regime</th><th>n</th><th>Exp</th><th>WR</th><th>Cont</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of eq.matrix.slice(0, 12); track row.classification + row.setup + row.regime) {
+                <tr>
+                  <td>{{ row.classification.replace('_', ' ') }}</td>
+                  <td>{{ row.setup }}</td>
+                  <td>{{ row.regime }}</td>
+                  <td>{{ row.sampleCount }}</td>
+                  <td [class.pos]="row.expectancyR > 0" [class.neg]="row.expectancyR < 0">{{ formatR(row.expectancyR) }}</td>
+                  <td>{{ row.winRate }}%</td>
+                  <td>{{ row.continuationSuccess }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>Good vs Bad Chase</h4>
+          <p class="chase-panel good">GOOD CHASE · {{ formatR(eq.goodVsBadChase.good.expectancyR) }} · n={{ eq.goodVsBadChase.good.sampleCount }} · cont {{ eq.goodVsBadChase.good.continuationSuccess }}%</p>
+          <p class="chase-panel bad">BAD CHASE · {{ formatR(eq.goodVsBadChase.bad.expectancyR) }} · n={{ eq.goodVsBadChase.bad.sampleCount }} · fakeout {{ eq.goodVsBadChase.bad.fakeoutRate }}%</p>
+          <p class="chase-panel">NEUTRAL · {{ formatR(eq.goodVsBadChase.neutral.expectancyR) }} · n={{ eq.goodVsBadChase.neutral.sampleCount }}</p>
+        </div>
+        <div class="panel">
+          <h4>Reclaim Quality Analysis</h4>
+          <p class="reclaim-summary">Hold {{ eq.reclaimQuality.holdRate }}% · Success {{ eq.reclaimQuality.continuationRate }}% · Exp {{ formatR(eq.reclaimQuality.expectancyR) }}</p>
+          @for (t of eq.reclaimQuality.timingBuckets.slice(0, 4); track t.window) {
+            <p class="reclaim-line">{{ t.window }} · hold {{ t.holdRate }}% · {{ formatR(t.expectancyR) }} · n={{ t.sampleCount }}</p>
+          }
+          @for (p of eq.reclaimQuality.failurePatterns; track p) {
+            <p class="warn-line">{{ p }}</p>
+          }
+        </div>
+      </div>
+
+      @if (eq.missedWinners.rows.length) {
+        <div class="panel warn">
+          <h4>Suppression Regret Analysis</h4>
+          <p class="muted">Severity: {{ eq.missedWinners.overSuppressionSeverity }} · Regret score {{ eq.missedWinners.totalRegretScore }}</p>
+          @for (r of eq.missedWinners.rows.slice(0, 6); track r.classification) {
+            <p class="miss-line">{{ r.classification.replace('_', ' ') }} — {{ r.missedWinners }} winners missed · {{ r.safetyRating }} · {{ r.note }}</p>
+          }
+        </div>
+      }
+    }
+
+    @if (report.entrySequencing; as seq) {
+      @if (seq.synthesis.length) {
+        <div class="panel advisory">
+          <h4>Entry Sequencing Synthesis <span class="tag">advisory only</span></h4>
+          @for (s of seq.synthesis; track s.id) {
+            <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+          }
+        </div>
+      }
+
+      <div class="panel">
+        <h4>Entry Evolution Timeline</h4>
+        @for (p of seq.commonPaths.slice(0, 5); track p.path) {
+          <p class="evolution-path">
+            <span class="path">{{ p.path }}</span>
+            <span class="meta">n={{ p.count }} · {{ formatR(p.expectancyR) }}</span>
+          </p>
+        } @empty { <p class="muted">Need more evaluated signals for path analysis</p> }
+      </div>
+
+      <div class="panel">
+        <h4>Sequenced Entry Simulation</h4>
+        @for (sim of seq.simulations; track sim.presetId) {
+          <p class="sim-line">
+            <span class="name">{{ sim.presetLabel }}</span>
+            <span class="meta">instant {{ formatR(sim.baseline.expectancyR) }} → sequenced {{ formatR(sim.sequenced.expectancyR) }} · fakeout {{ formatPct(sim.deltas.fakeoutRate) }} · missed {{ sim.deltas.missedWinners }}</span>
+          </p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>Acceptance Matrix</h4>
+          <div class="matrix-scroll">
+            <table class="eq-matrix">
+              <thead><tr><th>Acceptance</th><th>Setup</th><th>Regime</th><th>n</th><th>Exp</th><th>Cont</th></tr></thead>
+              <tbody>
+                @for (row of seq.acceptanceMatrix.slice(0, 8); track row.acceptance + row.setup + row.regime) {
+                  <tr>
+                    <td>{{ formatLabel(row.acceptance) }}</td>
+                    <td>{{ row.setup }}</td>
+                    <td>{{ row.regime }}</td>
+                    <td>{{ row.sampleCount }}</td>
+                    <td [class.pos]="row.expectancyR > 0" [class.neg]="row.expectancyR < 0">{{ formatR(row.expectancyR) }}</td>
+                    <td>{{ row.continuationQuality }}%</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <h4>Reclaim Acceptance Analysis</h4>
+          <p class="reclaim-summary">Hold {{ seq.reclaimAcceptance.holdRate }}% · Cont {{ seq.reclaimAcceptance.continuationRate }}% · Reject {{ seq.reclaimAcceptance.rejectionRate }}%</p>
+          <p class="reclaim-line">Recovery {{ seq.reclaimAcceptance.recoveryRate }}% · Second leg {{ seq.reclaimAcceptance.secondLegRate }}% · Fakeout {{ seq.reclaimAcceptance.fakeoutRate }}%</p>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>Pullback Stability Analysis</h4>
+          @for (pb of seq.pullbackStability.byLevel; track pb.level) {
+            <p class="timing-line"><span class="timing">{{ pb.level }}</span> <span class="meta">{{ formatR(pb.expectancyR) }} · survival {{ pb.continuationSurvival }}% · n={{ pb.sampleCount }}</span></p>
+          }
+        </div>
+        <div class="panel warn">
+          <h4>Sequencing Regret Analysis</h4>
+          @for (r of seq.regret.rows; track r.presetId) {
+            <p class="miss-line">{{ r.presetId }} — gained {{ formatR(r.expectancyGained) }} · avoided ~{{ r.fakeoutsAvoided }} fakeouts · missed {{ r.missedContinuation }} · window {{ r.bestWindow }}</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (report.decisionQuality; as dq) {
+      <div class="panel advisory">
+        <h4>Decision Quality Analysis <span class="tag">advisory only</span></h4>
+        @for (s of dq.synthesis; track s.id) {
+          <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+        }
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <h4>Decision Types</h4>
+          @for (d of dq.byDecision.slice(0, 6); track d.decision) {
+            <p class="timing-line"><span class="timing">{{ formatLabel(d.decision) }}</span> <span class="meta">{{ formatR(d.expectancyR) }} · WR {{ d.winRate }}% · n={{ d.sampleCount }}</span></p>
+          }
+        </div>
+        <div class="panel">
+          <h4>Conviction Accuracy</h4>
+          @for (c of dq.convictionAccuracy; track c.band) {
+            <p class="timing-line"><span class="timing">{{ c.band }}</span> <span class="meta">{{ formatR(c.expectancyR) }} · WR {{ c.winRate }}% · n={{ c.sampleCount }}</span></p>
+          }
+        </div>
+      </div>
+      <div class="panel">
+        <h4>Wait Benefit Analysis</h4>
+        @for (w of dq.waitBenefit; track w.preset) {
+          <p class="sim-line"><span class="name">{{ w.preset }}</span> <span class="meta">+{{ w.expectancyGainR.toFixed(2) }}R · avoided ~{{ w.fakeoutsAvoided }} fakeouts · missed {{ w.winnersMissed }} winners</span></p>
+        }
+        <p class="muted">Accuracy: {{ dq.decisionAccuracy.losersAvoided }} losers avoided · {{ dq.decisionAccuracy.winnersAllowed }} winners allowed on FULL EXECUTION</p>
+      </div>
+      @if (dq.overConfidence.length) {
+        <div class="panel warn">
+          <h4>Over-Confidence Analysis</h4>
+          @for (o of dq.overConfidence; track o.label) {
+            <p class="warn-line">{{ o.label }} — {{ formatR(o.expectancyR) }} · {{ o.note }}</p>
+          }
+        </div>
+      }
+    }
+
+    @if (report.decisionFeedback; as df) {
+      <div class="panel advisory">
+        <h4>Decision Feedback Analytics <span class="tag">advisory only · self-audit</span></h4>
+        @for (s of df.synthesis; track s.id) {
+          <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+        }
+      </div>
+
+      <div class="panel">
+        <h4>1. Decision Accuracy</h4>
+        @for (d of df.accuracy.slice(0, 8); track d.decision) {
+          <p class="timing-line">
+            <span class="timing">{{ formatLabel(d.decision) }}</span>
+            <span class="meta">
+              {{ formatR(d.expectancyR) }} · WR {{ d.winRate }}%
+              @if (d.fakeoutRate) { · Fakeout {{ d.fakeoutRate }}% }
+              @if (d.correctAvoidanceRate !== undefined) { · Correct Avoidance {{ d.correctAvoidanceRate }}% }
+              · n={{ d.sampleCount }}
+            </span>
+          </p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>2. Conviction Calibration</h4>
+          @for (c of df.convictionCalibration.points; track c.band) {
+            <p class="timing-line">
+              <span class="timing">{{ c.band }} conviction</span>
+              <span class="meta">{{ formatR(c.expectancyR) }} · WR {{ c.winRate }}% · {{ c.reliability }} · n={{ c.sampleCount }}</span>
+            </p>
+          }
+        </div>
+        <div class="panel warn">
+          <h4>3. Regret Analysis</h4>
+          <p class="miss-line">Regret score: {{ df.regret.regretScore }}/100</p>
+          <p class="miss-line">False avoids: {{ df.regret.falseAvoids }}</p>
+          <p class="miss-line">False trap warnings: {{ df.regret.falseTrapWarnings }}</p>
+          <p class="miss-line">Excessive waiting: {{ df.regret.excessiveWaiting }}</p>
+          @for (z of df.regret.overConservativeZones; track z.label) {
+            <p class="warn-line">{{ z.label }} — {{ z.note }}</p>
+          }
+        </div>
+      </div>
+
+      <div class="panel">
+        <h4>4. Wait Benefit Analysis</h4>
+        <p class="muted">{{ df.waitVsAct.summary }}</p>
+        @for (w of df.waitVsAct.comparisons; track w.strategyId) {
+          <p class="sim-line">
+            <span class="name">{{ w.strategy }}</span>
+            <span class="meta">
+              {{ w.expectancyImprovementR >= 0 ? '+' : '' }}{{ w.expectancyImprovementR.toFixed(2) }}R ·
+              fakeout −{{ w.fakeoutReductionPct.toFixed(0) }}% ·
+              cont +{{ w.continuationImprovementPct.toFixed(0) }}% ·
+              missed ~{{ w.missedWinnerCostR.toFixed(2) }}R · n={{ w.sampleCount }}
+            </span>
+          </p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>Decision Reliability Scores</h4>
+          @for (r of df.reliabilityScores; track r.group) {
+            <p class="timing-line">
+              <span class="timing">{{ r.label }}</span>
+              <span class="meta">{{ r.score }}/100 · {{ formatR(r.expectancyR) }} · fakeout avoid {{ r.fakeoutAvoidance }}% · n={{ r.sampleCount }}</span>
+            </p>
+          }
+        </div>
+        <div class="panel">
+          <h4>Engine Confidence Monitor</h4>
+          @for (l of df.engineConfidence.lines; track l.id) {
+            <p class="synth-line"><span class="headline">{{ l.headline }}</span></p>
+          }
+          @if (df.consistency.unstableEdgeZones.length) {
+            <p class="muted">Unstable zones: {{ df.consistency.unstableEdgeZones.join(' · ') }}</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (report.marketNarrative; as mn) {
+      <div class="panel advisory">
+        <h4>Market Narrative Analytics <span class="tag">advisory only · state machine</span></h4>
+        @for (s of mn.synthesis; track s.id) {
+          <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+        }
+      </div>
+
+      <div class="panel">
+        <h4>1. Best Narratives</h4>
+        @for (n of mn.bestNarratives.slice(0, 6); track n.id) {
+          <p class="timing-line">
+            <span class="timing">{{ n.label }}</span>
+            <span class="meta">{{ formatR(n.expectancyR) }} · cont {{ n.continuationRate }}% · fakeout {{ n.fakeoutRate }}% · n={{ n.sampleCount }}</span>
+          </p>
+        }
+      </div>
+
+      <div class="panel warn">
+        <h4>2. Dangerous Narratives</h4>
+        @for (n of mn.dangerousNarratives.slice(0, 6); track n.id) {
+          <p class="warn-line">{{ n.label }} — {{ formatR(n.expectancyR) }} · fakeout {{ n.fakeoutRate }}% · n={{ n.sampleCount }}</p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>3. Narrative Stability</h4>
+          <p class="muted">Stable: {{ mn.stableNarratives.join(' · ') }}</p>
+          <p class="muted">Unstable: {{ mn.unstableNarratives.join(' · ') }}</p>
+        </div>
+        <div class="panel">
+          <h4>4. Institutional Flow</h4>
+          <p class="timing-line"><span class="timing">Current market</span> <span class="meta">{{ mn.currentFlowHint }}</span></p>
+          @for (f of mn.institutionalFlowSummary.slice(0, 5); track f.flow) {
+            <p class="sim-line"><span class="name">{{ formatLabel(f.flow) }}</span> <span class="meta">{{ formatR(f.expectancyR) }} · n={{ f.sampleCount }}</span></p>
+          }
+        </div>
+      </div>
+
+      @if (mn.transitionFailures.length) {
+        <div class="panel warn">
+          <h4>Transition Failures</h4>
+          @for (f of mn.transitionFailures.slice(0, 6); track f.id) {
+            <p class="warn-line">{{ f.label }} — {{ f.note }}</p>
+          }
+        </div>
+      }
+    }
+
+    @if (report.adaptiveEntry; as ae) {
+      <div class="panel advisory">
+        <h4>Adaptive Entry Analytics <span class="tag">advisory only · entry optimization</span></h4>
+        @for (s of ae.synthesis; track s.id) {
+          <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+        }
+      </div>
+
+      <div class="panel">
+        <h4>1. Best Entry Locations</h4>
+        @for (l of ae.bestEntryLocations.slice(0, 6); track l.location) {
+          <p class="timing-line">
+            <span class="timing">{{ l.label }}</span>
+            <span class="meta">{{ formatR(l.expectancyR) }} · fakeout {{ l.fakeoutRate }}% · cont {{ l.continuationRate }}% · n={{ l.sampleCount }}</span>
+          </p>
+        }
+      </div>
+
+      <div class="panel warn">
+        <h4>2. Dangerous Entry Locations</h4>
+        @for (l of ae.dangerousEntryLocations.slice(0, 6); track l.location) {
+          <p class="warn-line">{{ l.label }} — {{ formatR(l.expectancyR) }} · fakeout {{ l.fakeoutRate }}%</p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>3. Aggressive vs Patient Matrix</h4>
+          @for (s of ae.aggressiveVsPatient; track s.style) {
+            <p class="sim-line">
+              <span class="name">{{ s.style }}</span>
+              <span class="meta">{{ formatR(s.expectancyR) }} · fakeout {{ s.fakeoutRate }}% · capture {{ s.expansionCapturePct }}% · missed {{ s.missedWinners }}</span>
+            </p>
+          }
+        </div>
+        <div class="panel">
+          <h4>4. Missed Expansion Analysis</h4>
+          @for (m of ae.missedExpansion; track m.waitStrategy) {
+            <p class="miss-line">{{ m.waitStrategy }} — missed ~{{ m.missedExpansionPct }}% · fakeout −{{ m.fakeoutReductionPct }}% · {{ m.note }}</p>
+          }
+        </div>
+      </div>
+
+      @if (ae.entryWindows.length) {
+        <div class="panel">
+          <h4>Entry Windows Inside Narratives</h4>
+          @for (w of ae.entryWindows.slice(0, 7); track w.window) {
+            <p class="timing-line"><span class="timing">{{ w.label }}</span> <span class="meta">{{ formatR(w.expectancyR) }} · cont {{ w.continuationRate }}% · missed {{ w.missedExpansionPct }}% · n={{ w.sampleCount }}</span></p>
+          }
+        </div>
+      }
+    }
+
+    @if (report.adaptiveCalibration; as ac) {
+      <div class="panel advisory">
+        <h4>Adaptive Calibration Analytics <span class="tag">advisory only · self-awareness</span></h4>
+        @for (s of ac.synthesis; track s.id) {
+          <p class="synth-line"><span class="headline">{{ s.headline }}</span> <span class="detail">{{ s.detail }}</span></p>
+        }
+      </div>
+
+      <div class="panel">
+        <h4>1. Conviction Calibration</h4>
+        @for (r of ac.conviction.rows; track r.band) {
+          <p class="timing-line">
+            <span class="timing">{{ r.band }}</span>
+            <span class="meta">Expected {{ formatR(r.expectedR) }} · Actual {{ formatR(r.actualR) }} · {{ r.reliability }} · n={{ r.sampleCount }}</span>
+          </p>
+        }
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <h4>2. Wait Calibration</h4>
+          @for (w of ac.wait.rows; track w.waitType) {
+            <p class="sim-line">
+              <span class="name">{{ w.label }}</span>
+              <span class="meta">fakeout −{{ w.fakeoutReductionPct }}% · cont +{{ w.continuationImprovementPct }}% · missed {{ w.missedExpansionPct }}%</span>
+            </p>
+          }
+        </div>
+        <div class="panel">
+          <h4>3. Suppression Calibration</h4>
+          @for (s of ac.suppression.rows; track s.zone) {
+            <p class="sim-line">
+              <span class="name">{{ s.zone }}</span>
+              <span class="meta">{{ s.safety }} suppression · false avoid {{ s.falseAvoidRate }}% · n={{ s.sampleCount }}</span>
+            </p>
+          }
+        </div>
+      </div>
+
+      <div class="panel">
+        <h4>4. Expansion Capture Efficiency</h4>
+        @for (e of ac.expansion.rows; track e.style) {
+          <p class="timing-line">
+            <span class="timing">{{ e.label }}</span>
+            <span class="meta">captures {{ e.capturePct }}% · fakeout {{ e.fakeoutRate }}% · cont {{ e.continuationSurvival }}% · {{ formatR(e.expectancyR) }}</span>
+          </p>
+        }
+      </div>
+
+      @if (ac.governance.balance !== 'BALANCED') {
+        <div class="panel warn">
+          <h4>Governance Balance</h4>
+          <p class="warn-line">{{ ac.governance.balance.replace('_', ' ') }} — {{ ac.governance.targetNote }}</p>
+          <p class="muted">Regret score {{ ac.regret.regretScore }}/100 · false avoids {{ ac.regret.falseAvoids }} · excessive waiting {{ ac.regret.excessiveWaiting }}</p>
+        </div>
+      }
+    }
+  }
+</section>

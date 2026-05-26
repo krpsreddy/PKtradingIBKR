@@ -1,0 +1,43 @@
+.conf-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+
+  &.size-sm { font-size: 0.58rem; }
+  &.size-md { font-size: 0.65rem; }
+  &.size-lg { font-size: 0.72rem; }
+}
+
+.lbl {
+  color: #6e7681;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.58rem;
+  min-width: 2.5rem;
+}
+
+.blocks {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.block {
+  width: 6px;
+  height: 8px;
+  border-radius: 1px;
+  background: #21262d;
+
+  &.on { background: #388bfd; }
+
+  .conf-bar:has(.val) .block.on:nth-child(n+8) { background: #3fb950; }
+  .conf-bar:has(.val) .block.on:nth-child(n+9) { background: #e3b341; }
+}
+
+.val {
+  font-weight: 700;
+  color: #e6edf3;
+  min-width: 1.4rem;
+}
+
+.size-lg .block { width: 8px; height: 10px; }

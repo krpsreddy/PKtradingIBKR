@@ -1,0 +1,28 @@
+# Spring Boot profile for ngrok remote access (local dev only)
+# Activate: SPRING_PROFILES_ACTIVE=ngrok
+# Or: mvn spring-boot:run -Dspring-boot.run.profiles=ngrok
+
+# --- CORS: allow your ngrok frontend origin ---
+# Set after tunnels start (scripts write dev/ngrok/.ngrok-urls.env):
+#   export $(grep -v '^#' dev/ngrok/.ngrok-urls.env | xargs)
+app.cors.extra-origin-patterns=${APP_CORS_EXTRA_ORIGIN_PATTERNS:https://*.ngrok-free.app,https://*.ngrok.app,https://*.ngrok.dev}
+
+# --- Trust forwarded headers from ngrok proxy ---
+server.forward-headers-strategy=framework
+
+# --- Actuator: keep disabled or minimal for tunneled dev ---
+# Do NOT expose env, beans, heapdump, etc. over a public tunnel.
+management.endpoints.enabled-by-default=false
+management.endpoint.health.enabled=true
+management.endpoints.web.exposure.include=health
+management.endpoint.health.show-details=never
+# Bind management to localhost only if you enable more endpoints later:
+# management.server.address=127.0.0.1
+# management.server.port=8081
+
+# --- Optional: require a header for admin-style routes (defense in depth) ---
+# app.ngrok.dev-header-name=X-Ngrok-Dev-Secret
+# app.ngrok.dev-header-value=${NGROK_DEV_HEADER_SECRET:}
+
+# --- Logging: avoid leaking tokens in access logs ---
+logging.level.org.springframework.web=INFO

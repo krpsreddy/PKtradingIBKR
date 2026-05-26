@@ -1,0 +1,21 @@
+@if (narrative?.narrative) {
+  <section class="setup-narrative" [class]="emphasisClass()">
+    <header>
+      <span class="ai-label">AI Setup Narrative</span>
+      @if (narrative!.symbol) {
+        <span class="sym">{{ narrative!.symbol }}</span>
+      }
+    </header>
+    <p class="text">{{ narrative!.narrative }}</p>
+    @if (narrative!.highlights.length || narrative!.cautions.length) {
+      <div class="tags">
+        @for (h of narrative!.highlights; track h) {
+          <span class="tag good">{{ h }}</span>
+        }
+        @for (c of narrative!.cautions; track c) {
+          <span class="tag warn">{{ c }}</span>
+        }
+      </div>
+    }
+  </section>
+}

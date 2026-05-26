@@ -1,0 +1,221 @@
+.strategy-memory {
+  padding: 0.5rem 0;
+}
+
+.mem-head {
+  margin-bottom: 1rem;
+
+  h3 { margin: 0 0 0.25rem; color: var(--text-primary); }
+  .sub { font-size: 0.75rem; color: var(--text-muted); }
+}
+
+.loading, .empty {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+}
+
+.strategy-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 0.75rem;
+
+  &.inactive { opacity: 0.65; }
+  &.deprecated { border-color: var(--text-subtle); }
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+
+  h4 { margin: 0; font-size: 0.95rem; color: var(--text-symbol); }
+  .sid { font-size: 0.62rem; color: var(--text-subtle); }
+}
+
+.toggle-btn {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--text-positive);
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--text-positive);
+  cursor: pointer;
+
+  &.off {
+    border-color: var(--text-subtle);
+    background: transparent;
+    color: var(--text-muted);
+  }
+}
+
+.metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.68rem;
+  color: var(--text-accent);
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.category {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+
+.conditions {
+  margin: 0 0 0.5rem;
+  padding-left: 1rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.thresholds-read {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  align-items: center;
+}
+
+.thresh-chip {
+  font-size: 0.62rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+.edit-btn, .save-btn, .cancel-btn {
+  font-size: 0.62rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.edit-btn {
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-accent);
+}
+
+.threshold-edit {
+  margin-bottom: 0.5rem;
+  padding: 0.45rem;
+  border: 1px dashed var(--border-default);
+  border-radius: 6px;
+}
+
+.edit-head {
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.thresh-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+
+  input {
+    width: 5rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+  }
+}
+
+.notes-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+
+  textarea {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 0.35rem;
+  }
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.save-btn {
+  border: 1px solid var(--text-positive);
+  background: var(--action-enter);
+  color: var(--text-primary);
+}
+
+.cancel-btn {
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.45rem;
+
+  .tag {
+    font-size: 0.58rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    background: rgba(88, 166, 255, 0.12);
+    color: var(--text-accent);
+  }
+}
+
+.replay-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.replay-btn {
+  font-size: 0.62rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover { border-color: var(--border-accent); color: var(--text-accent); }
+}
+
+.notes {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+}

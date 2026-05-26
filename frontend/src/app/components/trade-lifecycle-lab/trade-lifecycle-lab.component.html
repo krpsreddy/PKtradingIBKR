@@ -1,0 +1,159 @@
+<section class="lifecycle-lab">
+  <header class="lab-head">
+    <div>
+      <h3>Execution Timeline</h3>
+      <span class="sub">Lifecycle intelligence · outcome attribution · coaching only · no auto-trading</span>
+    </div>
+    <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">Refresh</button>
+  </header>
+
+  @if (!snapshot || snapshot.totalEvaluated === 0) {
+    <p class="empty">No evaluated trades for {{ symbol }}. Load 60D history in Edge Lab first.</p>
+  } @else {
+    <div class="summary-strip">
+      <span>{{ snapshot.totalEvaluated }} evaluated trades</span>
+      <span>Exit eff {{ formatPct(snapshot.exitQuality.exitEfficiency) }}</span>
+      <span>Realized {{ formatR(snapshot.exitQuality.realizedExpectancyR) }}</span>
+      <span>MFE {{ formatR(snapshot.exitQuality.unrealizedExpectancyR) }}</span>
+    </div>
+
+    @if (snapshot.coaching.length) {
+      <div class="panel coaching-panel">
+        <h4>Coaching Insights</h4>
+        @for (c of snapshot.coaching.slice(0, 6); track c.headline) {
+          <div class="coach-line" [class]="severityClass(c.severity)">
+            <span class="coach-head">{{ c.headline }}</span>
+            <span class="coach-detail">{{ c.detail }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Management Analytics</h4>
+        <div class="metric-grid">
+          <span>Premature exits</span><span>{{ formatPct(snapshot.management.prematureExitRate) }}</span>
+          <span>Held exhaustion</span><span>{{ formatPct(snapshot.management.heldThroughExhaustionRate) }}</span>
+          <span>Missed partials</span><span>{{ formatPct(snapshot.management.missedPartialRate) }}</span>
+          <span>Stop discipline</span><span>{{ formatPct(snapshot.management.poorStopDisciplineRate) }}</span>
+          <span>Scaling quality</span><span>{{ formatPct(snapshot.management.scalingQuality) }}</span>
+        </div>
+        @for (l of snapshot.management.labels; track l) {
+          <p class="warn-line">{{ l }}</p>
+        }
+      </div>
+      <div class="panel">
+        <h4>Expectancy by Entry Timing</h4>
+        @for (t of snapshot.expectancyByTiming; track t.timing) {
+          <p class="timing-line">
+            <span class="timing-label">{{ t.timing }}</span>
+            <span class="timing-meta">n={{ t.n }} · {{ formatR(t.expectancyR) }}</span>
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Management Style Comparison</h4>
+        @for (s of snapshot.managementStyles; track s.style) {
+          <p class="style-line">
+            <span>{{ s.style.replace('_', ' ') }}</span>
+            <span class="muted">{{ formatR(s.expectancyR) }} · WR {{ formatPct(s.winRate) }} · n={{ s.sampleCount }}</span>
+          </p>
+        } @empty { <p class="muted">—</p> }
+      </div>
+      <div class="panel">
+        <h4>Playbook Lifecycle</h4>
+        @for (p of snapshot.playbookInsights.slice(0, 6); track p.playbookKey) {
+          <p class="pb-line">
+            <span class="pb-name">{{ p.label }}</span>
+            <span class="muted">sustain {{ formatPct(p.sustainScore) }} · fail-fast {{ formatPct(p.failFastRate) }}</span>
+          </p>
+        } @empty { <p class="muted">Need more cross-playbook samples</p> }
+      </div>
+    </div>
+
+    <div class="trade-layout">
+      <div class="panel trade-list">
+        <h4>Trades</h4>
+        @for (t of snapshot.trades.slice(0, 20); track t.signalId) {
+          <button type="button" class="trade-row" [class.active]="selected?.signalId === t.signalId" (click)="selectTrade(t)">
+            <span class="sym">{{ t.symbol }}</span>
+            <span class="type">{{ formatOpportunity(t.path.signalType) }}</span>
+            <span class="state" [class]="stateClass(t.lifecycleState)">{{ t.lifecycleState }}</span>
+            <span class="health" [class]="healthClass(t.continuationHealth)">{{ t.continuationHealth.replace('_', ' ') }}</span>
+          </button>
+        }
+      </div>
+
+      @if (selected; as t) {
+        <div class="panel trade-detail">
+          <header class="detail-head">
+            <h4>{{ t.symbol }} · {{ formatOpportunity(t.path.signalType) }}</h4>
+            <span class="badge state" [class]="stateClass(t.lifecycleState)">{{ t.lifecycleState }}</span>
+            <span class="badge health" [class]="healthClass(t.continuationHealth)">{{ t.continuationHealth }}</span>
+          </header>
+
+          <div class="quality-row">
+            <span>Exec {{ t.executionQuality }}</span>
+            <span>Mgmt {{ t.managementQuality }}</span>
+            <span>Exit {{ t.exitQuality }}</span>
+            <span>Conf {{ t.attributionConfidence }}%</span>
+          </div>
+
+          <div class="entry-efficiency-row">
+            <span>Entered at: {{ formatEntryLocation(t.entryLocation) }}</span>
+            <span>Captured: {{ t.entryEfficiencyPct }}% of narrative move</span>
+          </div>
+
+          <div class="calibration-row">
+            <span>Conviction: {{ t.convictionAccuracy }}</span>
+            <span>Wait: {{ t.waitEfficiency }}</span>
+            <span>Suppression: {{ t.suppressionRegret }}</span>
+          </div>
+
+          <div class="timeline">
+            <h5>Lifecycle Timeline</h5>
+            @for (e of t.path.events; track e.state + e.timestamp) {
+              <div class="tl-event" [class]="stateClass(e.state)">
+                <span class="tl-dot"></span>
+                <div class="tl-body">
+                  <span class="tl-state">{{ e.state }}</span>
+                  <span class="tl-label">{{ e.label }}</span>
+                </div>
+              </div>
+            }
+          </div>
+
+          @if (t.marketStatePath.length) {
+            <div class="timeline market-state-timeline">
+              <h5>Market State Transitions</h5>
+              @for (e of t.marketStatePath; track e.state) {
+                <div class="tl-event ms-event">
+                  <span class="tl-dot"></span>
+                  <div class="tl-body">
+                    <span class="tl-state">{{ e.label }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (t.failureReason) {
+            <p class="attr-line"><strong>Attribution:</strong> {{ formatFailure(t.failureReason) }}</p>
+          }
+          @for (n of t.lifecycleNotes; track n) {
+            <p class="note-line">{{ n }}</p>
+          }
+
+          @if (attributionFor(t); as attr) {
+            <p class="attr-summary">{{ attr.summary }}</p>
+            <p class="muted">Signal correct: {{ attr.signalCorrect ? 'Yes' : 'No' }} · Entry: {{ attr.entryTiming }}</p>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

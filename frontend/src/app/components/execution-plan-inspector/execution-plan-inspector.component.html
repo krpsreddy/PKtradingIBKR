@@ -1,0 +1,29 @@
+<section class="plan-inspector">
+  <h3>Execution Plan Inspector</h3>
+  @if (plan; as p) {
+    <dl class="plan-rows">
+      @for (row of lines(); track row.label) {
+        <div class="plan-row">
+          <dt>{{ row.label }}</dt>
+          <dd>{{ row.value }}</dd>
+        </div>
+      }
+    </dl>
+    @if (historical) {
+      <p class="hist-head">Historical snapshot at {{ historical.timestamp }}</p>
+      <p class="hist-meta">bar {{ historical.barIndex }} · RVOL {{ historical.rvol }} · conv {{ historical.conviction }}</p>
+    }
+    @if (drift.length) {
+      <h4>Determinism drift</h4>
+      <ul class="drift-list">
+        @for (d of drift; track d.field) {
+          <li [class.critical]="d.severity === 'CRITICAL'">
+            {{ d.field }}: hist {{ d.historical }} vs live {{ d.live }}
+          </li>
+        }
+      </ul>
+    }
+  } @else {
+    <p class="empty">No execution plan at cursor.</p>
+  }
+</section>

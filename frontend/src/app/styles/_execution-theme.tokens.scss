@@ -1,0 +1,44 @@
+@import 'visual-parity.tokens';
+
+/** Phase 170/179 — execution dark palette aligned to reference UI. */
+:root,
+.theme-execution-dark {
+  --text-primary: #f3f6fa;
+  --text-secondary: #9aa4b2;
+  --text-muted: #697586;
+  --text-subtle: #7a8494;
+  --text-positive: #52ff7a;
+  --text-warning: #f6b84a;
+  --text-danger: #ff6b6b;
+  --text-accent: #72e6ff;
+  --text-symbol: #f3f6fa;
+
+  --bg-panel: #0a0e14;
+  --bg-elevated: #0f141c;
+  --bg-surface: #141a24;
+  --bg-hover: #1a2230;
+
+  --border-default: rgba(120, 140, 180, 0.16);
+  --border-subtle: rgba(120, 140, 180, 0.12);
+  --border-focus: rgba(114, 230, 255, 0.35);
+  --border-accent: rgba(114, 230, 255, 0.45);
+
+  /* Actions (execution semantics; keep distinct from up/down) */
+  --action-enter: #089981;
+  --action-add: #2962ff;
+  --action-hold: #787b86;
+  --action-wait: #f0b90b;
+  --action-reduce: #ff9800;
+  --action-exit: #f23645;
+  --action-avoid: #5d606b;
+
+  --conviction-elite: #26a69a;
+  --conviction-strong: #2962ff;
+  --conviction-standard: #787b86;
+  --conviction-weak: #5d606b;
+
+  --lifecycle-active: #2962ff;
+  --lifecycle-complete: #26a69a;
+  --lifecycle-pending: #2a2e39;
+  --lifecycle-exhaust: #f23645;
+}

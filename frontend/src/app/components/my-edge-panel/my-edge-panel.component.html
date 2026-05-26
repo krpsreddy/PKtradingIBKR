@@ -1,0 +1,29 @@
+<div class="my-edge">
+  @if (!edge || edge.sampleSize === 0) {
+    <p class="empty">Log journal outcomes to unlock Execution Edge analytics.</p>
+  } @else {
+    <p class="summary">{{ edge.summary }}</p>
+    <div class="grid">
+      @if (edge.bestSetupTypes.length) {
+        <div><span class="lbl">Best regimes</span><span class="val good">{{ edge.bestSetupTypes.join(' · ') }}</span></div>
+      }
+      @if (edge.worstSetupTypes.length) {
+        <div><span class="lbl">Avoid</span><span class="val bad">{{ edge.worstSetupTypes.join(' · ') }}</span></div>
+      }
+      @if (edge.bestRegimes.length) {
+        <div><span class="lbl">Best regimes</span><span class="val">{{ edge.bestRegimes.join(' · ') }}</span></div>
+      }
+    </div>
+  }
+  @for (b of behavior; track b.title) {
+    <div class="insight" [class.warn]="b.type !== 'POSITIVE'">{{ b.title }}</div>
+  }
+  @if (personalized?.insights?.length) {
+    <div class="personalized">
+      <span class="lbl">Personalized coaching</span>
+      @for (i of personalized!.insights; track i) {
+        <p>{{ i }}</p>
+      }
+    </div>
+  }
+</div>

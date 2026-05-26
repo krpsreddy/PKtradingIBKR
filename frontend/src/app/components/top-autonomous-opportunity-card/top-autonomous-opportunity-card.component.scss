@@ -1,0 +1,46 @@
+.top-opportunity {
+  margin-bottom: 0.35rem;
+}
+
+.top-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.top-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.top-rank {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: var(--text-warning);
+  letter-spacing: 0.04em;
+}
+
+.empty-card {
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--border-default);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.empty-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.empty-detail {
+  font-size: 0.62rem;
+  color: var(--text-subtle);
+}

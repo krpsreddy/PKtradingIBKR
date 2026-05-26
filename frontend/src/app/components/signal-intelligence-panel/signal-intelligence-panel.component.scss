@@ -1,0 +1,228 @@
+.intel-panel {
+  background: #0d1117;
+  border: 1px solid rgba(48, 54, 61, 0.55);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.6875rem;
+  color: #8b949e;
+  line-height: 1.35;
+
+  &.compact {
+    padding: 6px 8px;
+    .metric-grid { gap: 4px 10px; }
+  }
+
+  &.empty {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    .hint { opacity: 0.72; font-size: 0.625rem; }
+  }
+
+  .empty-hint {
+    margin: 0 0 8px;
+    padding: 6px 8px;
+    border-radius: 3px;
+    background: rgba(56, 139, 253, 0.08);
+    border: 1px solid rgba(56, 139, 253, 0.2);
+    color: #79c0ff;
+    font-size: 0.625rem;
+  }
+}
+
+.intel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.45);
+
+  .title {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #8b949e;
+    text-transform: uppercase;
+  }
+
+  .meta {
+    font-size: 0.5625rem;
+    color: #6e7681;
+    font-variant-numeric: tabular-nums;
+
+    &.conf {
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    &.conf-very-high { color: #3fb950; }
+    &.conf-high { color: #58a6ff; }
+    &.conf-medium { color: #d29922; }
+    &.conf-low { color: #8b949e; }
+  }
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px 12px;
+  margin-bottom: 6px;
+
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+
+    &.wide {
+      grid-column: span 2;
+    }
+
+    .k {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #6e7681;
+    }
+
+    .v {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #e6edf3;
+      font-variant-numeric: tabular-nums;
+
+      &.pos { color: #3fb950; }
+      &.neg { color: #f85149; }
+      &.muted { color: #9aa4ae; font-weight: 500; }
+    }
+  }
+}
+
+.section-block {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(48, 54, 61, 0.35);
+
+  .section-title {
+    font-size: 0.5625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #6e7681;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  &.insights .insight-line {
+    font-size: 0.625rem;
+    color: #b8c4d0;
+    line-height: 1.45;
+    padding: 1px 0;
+  }
+}
+
+.row-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 0;
+  min-width: 0;
+
+  &.compact {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .row-label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: #8b949e;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &.muted { color: #6e7681; font-weight: 500; }
+  }
+
+  .row-value {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #e6edf3;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    &.pos { color: #3fb950; }
+    &.neg { color: #f85149; }
+    &.muted { color: #9aa4ae; font-weight: 500; }
+  }
+
+  .row-meta {
+    font-size: 0.5625rem;
+    color: #6e7681;
+    white-space: nowrap;
+    text-align: right;
+
+    &.conf-very-high { color: #3fb950; }
+    &.conf-high { color: #58a6ff; }
+    &.conf-medium { color: #d29922; }
+    &.conf-low { color: #8b949e; }
+    &.pos { color: #3fb950; }
+    &.neg { color: #f85149; }
+  }
+}
+
+.aging-note {
+  font-size: 0.625rem;
+  color: #79c0ff;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.insight-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
+
+  .insight {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    .label {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: #6e7681;
+      flex-shrink: 0;
+    }
+
+    .value {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      color: #e6edf3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      &.pos { color: #3fb950; }
+      &.neg { color: #f85149; }
+      &.muted { color: #9aa4ae; }
+    }
+  }
+}
+
+.intel-footer {
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(48, 54, 61, 0.35);
+  font-size: 0.5625rem;
+  color: #6e7681;
+  letter-spacing: 0.02em;
+}

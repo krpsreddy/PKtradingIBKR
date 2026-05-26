@@ -1,0 +1,48 @@
+@if (heatmap) {
+  <div class="heatmap">
+    <h4>Performance Heatmap</h4>
+    <div class="grid">
+      <section>
+        <h5>Setup Type</h5>
+        @for (entry of heatmap.setupWinRates | keyvalue; track entry.key) {
+          <div class="cell" [class]="cellClass(entry.value)">
+            <span class="k">{{ entry.key }}</span>
+            <span class="v">{{ entry.value * 100 | number:'1.0-0' }}%</span>
+          </div>
+        } @empty {
+          <p class="empty">No setup data</p>
+        }
+      </section>
+      <section>
+        <h5>Time Window</h5>
+        @for (entry of heatmap.timeWindowWinRates | keyvalue; track entry.key) {
+          <div class="cell" [class]="cellClass(entry.value)">
+            <span class="k">{{ entry.key }}</span>
+            <span class="v">{{ entry.value * 100 | number:'1.0-0' }}%</span>
+          </div>
+        } @empty {
+          <p class="empty">No time data</p>
+        }
+      </section>
+      <section>
+        <h5>Regime</h5>
+        @for (entry of heatmap.regimeWinRates | keyvalue; track entry.key) {
+          <div class="cell" [class]="cellClass(entry.value)">
+            <span class="k">{{ entry.key }}</span>
+            <span class="v">{{ entry.value * 100 | number:'1.0-0' }}%</span>
+          </div>
+        } @empty {
+          <p class="empty">No regime data</p>
+        }
+      </section>
+    </div>
+    @if (heatmap.worstBehaviors.length) {
+      <div class="behaviors">
+        <span class="lbl">Watch:</span>
+        @for (b of heatmap.worstBehaviors; track b) {
+          <span class="bad">{{ b }}</span>
+        }
+      </div>
+    }
+  </div>
+}

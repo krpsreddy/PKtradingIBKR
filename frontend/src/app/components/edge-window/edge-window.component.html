@@ -1,0 +1,12 @@
+<div class="edge-window">
+  <div class="head">
+    <span class="label">EDGE WINDOW</span>
+    <span class="time">{{ remainingMinutes() }}m left</span>
+  </div>
+  <div class="bar-track">
+    <div class="bar-fill" [class]="barClass()" [style.width.%]="fillPct()"></div>
+  </div>
+  @if (warning(); as w) {
+    <span class="warn">⚠ {{ w }}</span>
+  }
+</div>

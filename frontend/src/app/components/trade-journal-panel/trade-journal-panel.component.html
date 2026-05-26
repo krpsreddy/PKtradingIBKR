@@ -1,0 +1,42 @@
+<section class="journal-panel" [class.collapsed]="collapsed">
+  <header>
+    <h4>Trade Journal</h4>
+    <div class="actions">
+      <button type="button" class="btn" (click)="startEntry()">+ Log</button>
+      <button type="button" class="btn" (click)="toggleCollapse.emit()">{{ collapsed ? '▲' : '▼' }}</button>
+    </div>
+  </header>
+  @if (!collapsed) {
+    @if (draft.symbol) {
+      <form class="draft" (ngSubmit)="submit()">
+        <input [(ngModel)]="draft.symbol" name="sym" placeholder="Symbol" />
+        <input [(ngModel)]="draft.setupType" name="setup" placeholder="Setup type" />
+        <input [(ngModel)]="draft.emotion" name="emotion" placeholder="Emotion" />
+        <textarea [(ngModel)]="draft.notes" name="notes" placeholder="Notes" rows="2"></textarea>
+        <button type="submit" class="btn primary">Save</button>
+      </form>
+    }
+    <div class="entries">
+      @for (e of entries; track e.id ?? e.entryTimestamp) {
+        <div class="entry" [class.loss]="e.result === 'LOSS'">
+          <div class="row">
+            <span class="sym">{{ e.symbol }}</span>
+            <span class="setup">{{ formatSetup(e.setupType || e.signalType) }}</span>
+            <span class="result">{{ e.result || '—' }}</span>
+            @if (e.rrAchieved != null) {
+              <span class="rr">RR {{ e.rrAchieved | number:'1.1-1' }}</span>
+            }
+          </div>
+          @if (e.notes) { <p class="notes">{{ e.notes }}</p> }
+          <div class="row actions-row">
+            <button type="button" class="btn sm" (click)="reviewEntry.emit(e)">Review</button>
+            <button type="button" class="btn sm" (click)="attachReplay(e)">Replay</button>
+          </div>
+        </div>
+      }
+      @if (entries.length === 0) {
+        <p class="empty">No journal entries yet</p>
+      }
+    </div>
+  }
+</section>

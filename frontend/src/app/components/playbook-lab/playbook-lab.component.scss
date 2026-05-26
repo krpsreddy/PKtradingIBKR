@@ -1,0 +1,248 @@
+.playbook-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(48, 54, 61, 0.4);
+  border-radius: 4px;
+  background: rgba(19, 23, 34, 0.72);
+}
+
+.lab-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  h3 { margin: 0; font-size: 0.9375rem; color: #e6edf3; }
+  .sub { font-size: 0.625rem; color: #6e7681; text-transform: uppercase; letter-spacing: 0.04em; }
+}
+
+.refresh-btn {
+  background: rgba(56, 139, 253, 0.12);
+  border: 1px solid rgba(56, 139, 253, 0.35);
+  color: #79c0ff;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: 0.5; }
+}
+
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.6875rem;
+  color: #8b949e;
+}
+
+.top-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.panel {
+  padding: 10px 12px;
+  border: 1px solid rgba(48, 54, 61, 0.35);
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.5);
+  h4 {
+    margin: 0 0 8px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #79c0ff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  &.warn h4 { color: #d29922; }
+}
+
+.candidate-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.25);
+  padding: 5px 0;
+  cursor: pointer;
+  .name { font-size: 0.6875rem; font-weight: 600; color: #b8c4d0; }
+  .meta { font-size: 0.5625rem; color: #6e7681; }
+  &.active .name { color: #79c0ff; }
+  &:hover .name { color: #e6edf3; }
+}
+
+.mini-line {
+  margin: 3px 0;
+  font-size: 0.6875rem;
+  color: #b8c4d0;
+  &.warn-line { color: #d29922; }
+}
+
+.muted { color: #6e7681; font-size: 0.6875rem; }
+.empty { color: #8b949e; font-size: 0.8125rem; margin: 0 0 8px; }
+
+.empty-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.diag-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 0.6875rem;
+  color: #8b949e;
+  padding: 8px 10px;
+  border: 1px solid rgba(48, 54, 61, 0.35);
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.5);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #79c0ff;
+}
+
+.near-miss {
+  h4 { color: #d29922; }
+}
+
+.near-line {
+  margin: 6px 0;
+  font-size: 0.6875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  .nm-name { color: #b8c4d0; font-weight: 600; }
+  .nm-meta { color: #6e7681; }
+  .nm-reason { color: #d29922; font-size: 0.625rem; }
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 10px;
+  @media (max-width: 900px) { grid-template-columns: 1fr; }
+}
+
+.detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  h4 { margin: 0; font-size: 0.8125rem; color: #e6edf3; text-transform: none; letter-spacing: 0; }
+}
+
+.badge {
+  font-size: 0.5rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  background: rgba(110, 118, 129, 0.2);
+  color: #8b949e;
+  &.experimental { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+  &.developing { background: rgba(56, 139, 253, 0.15); color: #79c0ff; }
+  &.stable { background: rgba(46, 160, 67, 0.15); color: #3fb950; }
+  &.discovered, &.evo.discovered { background: rgba(56, 139, 253, 0.12); color: #79c0ff; }
+  &.weakening { background: rgba(210, 153, 34, 0.12); color: #d29922; }
+  &.deprecated { background: rgba(248, 81, 73, 0.12); color: #f85149; }
+  &.promo { background: rgba(163, 113, 247, 0.12); color: #d2a8ff; }
+}
+
+.desc { margin: 0 0 8px; font-size: 0.6875rem; color: #8b949e; line-height: 1.4; }
+
+.stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.625rem;
+  color: #b8c4d0;
+  margin-bottom: 8px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 0.6875rem;
+  .k { display: block; font-size: 0.5625rem; color: #6e7681; text-transform: uppercase; letter-spacing: 0.05em; }
+  p { margin: 2px 0 0; color: #b8c4d0; }
+}
+
+.suppress-block, .sim-block {
+  margin-top: 8px;
+  .k { font-size: 0.5625rem; color: #6e7681; text-transform: uppercase; }
+  p { margin: 3px 0; font-size: 0.6875rem; color: #d29922; }
+  .sim-regime { color: #8b949e; font-size: 0.625rem; }
+}
+
+.promote-btn {
+  margin-top: 10px;
+  background: rgba(163, 113, 247, 0.12);
+  border: 1px solid rgba(163, 113, 247, 0.35);
+  color: #d2a8ff;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.active-note {
+  margin: 10px 0 0;
+  font-size: 0.625rem;
+  color: #3fb950;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.6875rem;
+  th { text-align: left; padding: 4px 6px; color: #6e7681; border-bottom: 1px solid rgba(48, 54, 61, 0.4); }
+  td { padding: 5px 6px; color: #b8c4d0; border-bottom: 1px solid rgba(48, 54, 61, 0.2); cursor: pointer; }
+  tr.active td { background: rgba(56, 139, 253, 0.08); }
+  tr:hover td { background: rgba(48, 54, 61, 0.2); }
+  .name-cell { font-weight: 600; color: #e6edf3; max-width: 180px; }
+  .pos { color: #3fb950; }
+  .neg { color: #f85149; }
+}
+
+.conf-chip {
+  font-size: 0.5rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(110, 118, 129, 0.2);
+  &.experimental { color: #d29922; }
+  &.developing { color: #79c0ff; }
+  &.stable { color: #3fb950; }
+}
+
+.ai-block {
+  .ai-summary { margin: 0 0 8px; font-size: 0.8125rem; color: #c9d1d9; }
+  .ai-obs { margin: 3px 0; font-size: 0.6875rem; color: #8b949e; }
+}
+
+.rel-line {
+  margin: 4px 0;
+  font-size: 0.6875rem;
+  color: #8b949e;
+  &.redundant, &.contradictory { color: #f85149; }
+  &.overlap, &.competing { color: #d29922; }
+}
+
+.timeline .tl-line {
+  margin: 4px 0;
+  font-size: 0.625rem;
+  color: #8b949e;
+  .tl-time { color: #6e7681; margin-right: 8px; }
+}

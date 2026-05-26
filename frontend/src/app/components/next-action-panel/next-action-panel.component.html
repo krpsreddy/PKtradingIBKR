@@ -1,0 +1,9 @@
+@if (action) {
+  <div class="tactical-bar" [class]="toneClass() + ' mode-' + intensityMode.toLowerCase()" [class.calm]="calmMode" [class.urgent]="shouldEscalate()" [title]="action.line">
+    @if (aiHint) {
+      <span class="ai-hint">{{ aiHint }}</span>
+      <span class="sep">·</span>
+    }
+    <span class="line">{{ action.line }}</span>
+  </div>
+}

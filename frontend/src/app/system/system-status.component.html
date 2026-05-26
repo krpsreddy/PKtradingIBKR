@@ -1,0 +1,26 @@
+<mat-card class="status-card">
+  <h3>System Status</h3>
+  @if (status) {
+    <div class="row market-row">
+      <span>Market</span>
+      <span class="badge market-badge" [class]="marketClass()">{{ status.marketStatus }}</span>
+    </div>
+    <div class="row">
+      <span>IBKR Connected</span>
+      <span class="badge" [class]="statusClass(status.ibkrConnected)">{{ label(status.ibkrConnected) }}</span>
+    </div>
+    <div class="row">
+      <span>Historical Loaded</span>
+      <span class="badge" [class]="statusClass(status.historicalLoaded)">{{ label(status.historicalLoaded) }}</span>
+    </div>
+    <div class="row">
+      <span>Live Streaming</span>
+      <span class="badge" [class]="statusClass(status.liveStreaming)">{{ label(status.liveStreaming) }}</span>
+    </div>
+    @if (status.symbol) {
+      <div class="meta">Symbol: {{ status.symbol }}</div>
+    }
+  } @else {
+    <p class="empty">Loading…</p>
+  }
+</mat-card>

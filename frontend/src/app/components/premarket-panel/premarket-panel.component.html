@@ -1,0 +1,33 @@
+@if (brief?.active) {
+  <section class="premarket-panel">
+    <header>
+      <span class="title">Pre-Market Preparation</span>
+      @if (brief!.likelyRegime) {
+        <span class="regime">Likely: {{ brief!.likelyRegime }}</span>
+      }
+    </header>
+    <div class="cols">
+      @if (brief!.highGapNames.length) {
+        <div class="col">
+          <h5>High Gap</h5>
+          @for (s of brief!.highGapNames; track s) { <span class="chip">{{ s }}</span> }
+        </div>
+      }
+      @if (brief!.likelyMomentumSymbols.length) {
+        <div class="col">
+          <h5>Momentum Watch</h5>
+          @for (s of brief!.likelyMomentumSymbols; track s) { <span class="chip hot">{{ s }}</span> }
+        </div>
+      }
+      @if (brief!.strongestSectors.length) {
+        <div class="col">
+          <h5>Sectors</h5>
+          @for (s of brief!.strongestSectors; track s) { <span class="chip">{{ s }}</span> }
+        </div>
+      }
+    </div>
+    @for (n of brief!.notes; track n) {
+      <p class="note">{{ n }}</p>
+    }
+  </section>
+}

@@ -1,0 +1,312 @@
+<section class="ad-lab">
+  <header class="ad-head">
+    <div>
+      <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+      <h1>AUTONOMOUS STRATEGY DISCOVERY LAB</h1>
+      <p class="subtitle">Phase 158 · mines pre-expansion conditions from {{ lookbackDays }}D evaluated intelligence · advisory only</p>
+    </div>
+    <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">
+      {{ loading ? 'Mining…' : 'Re-mine patterns' }}
+    </button>
+  </header>
+
+  @if (loading && !report) {
+    <p class="loading-hint">Loading evaluated history from PostgreSQL…</p>
+  }
+
+  @if (loadError) {
+    <div class="warn-banner error">{{ loadError }}</div>
+  }
+
+  @if (!hasHydratedHistory() && !loading) {
+    <div class="warn-banner">
+      Hydrate 60D replay history from Global Edge Lab for richer autonomous discoveries.
+    </div>
+  }
+
+  <nav class="ad-tabs">
+    <button type="button" class="ad-tab" [class.active]="activeTab === 'discovery'" (click)="setTab('discovery')">
+      Discovery
+    </button>
+    <button type="button" class="ad-tab" [class.active]="activeTab === 'explainable'" (click)="setTab('explainable')">
+      Explainable Regimes
+    </button>
+    <button type="button" class="ad-tab" [class.active]="activeTab === 'exit-validation'" (click)="setTab('exit-validation')">
+      Exit Intelligence Validation
+    </button>
+  </nav>
+
+  @if (activeTab === 'exit-validation') {
+    @if (exitPanelLoading) {
+      <p class="loading-hint">Loading exit validation module…</p>
+    } @else if (exitValidationPanel) {
+      <ng-container *ngComponentOutlet="exitValidationPanel" />
+    }
+  }
+
+  @if (report; as r) {
+    @if (activeTab !== 'exit-validation') {
+    @for (insight of r.summaryInsights; track insight) {
+      <p class="insight">{{ insight }}</p>
+    }
+
+    <div class="stats-row">
+      <span class="stat">Evaluated <strong>{{ r.totalEvaluated }}</strong></span>
+      <span class="stat">Elite winners <strong>{{ r.eliteWinnerCount }}</strong></span>
+      <span class="stat">Discovered <strong>{{ r.discoveredStrategies.length }}</strong></span>
+    </div>
+    }
+
+    @if (activeTab === 'explainable') {
+      <app-explainable-regime-explainer
+        [report]="r"
+        [selectedStrategy]="selectedStrategy">
+      </app-explainable-regime-explainer>
+    }
+
+    @if (families.length) {
+      <div class="panel family-panel">
+        <h2>Cluster families (canonical)</h2>
+        <p class="panel-sub">Phase 171 · trader-facing regimes · expand clusters in detail below</p>
+        <div class="family-grid">
+          @for (f of families; track f.familyId) {
+            <div class="family-card">
+              <span class="family-name">{{ f.displayLabel }}</span>
+              <span class="family-meta">{{ f.memberClusterNames.length }} clusters · n={{ f.sampleCount }} · {{ formatR(f.avgR) }}</span>
+              <span class="family-members muted">{{ f.memberClusterNames.slice(0, 4).join(', ') }}{{ f.memberClusterNames.length > 4 ? '…' : '' }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab === 'discovery') {
+    <!-- 1. DISCOVERED STRATEGIES -->
+    <div class="panel">
+      <h2>1. Discovered Strategies</h2>
+      <p class="panel-sub">Auto-generated archetypes — not anchored to legacy signal names</p>
+      <div class="strategy-grid">
+        @for (s of r.discoveredStrategies; track s.id) {
+          <button
+            type="button"
+            class="strategy-card"
+            [class.selected]="selectedStrategy?.id === s.id"
+            (click)="selectStrategy(s)">
+            <span class="strategy-name">{{ s.name }}</span>
+            <span class="strategy-kind">{{ formatLabel(s.kind) }}</span>
+            <div class="metrics">
+              <span>WR {{ s.winRate }}%</span>
+              <span class="pos">{{ formatR(s.avgR) }}</span>
+              <span>${{ s.avgDollar.toFixed(1) }}</span>
+              <span>n={{ s.sampleCount }}</span>
+            </div>
+            <span class="conf" [class]="confidenceClass(s.confidence)">{{ s.confidence }}</span>
+          </button>
+        }
+      </div>
+
+      <h3 class="sub-head cluster-table-head">All clusters — pre-expansion conditions</h3>
+      <div class="table-scroll">
+        <table class="data-table cluster-table">
+          <thead>
+            <tr>
+              <th>Cluster</th>
+              <th>Family</th>
+              <th>Pre-expansion conditions</th>
+              <th>Avg R</th>
+              <th>Symbols</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of r.discoveredStrategies; track s.id) {
+              <tr
+                class="cluster-row"
+                [class.selected]="selectedStrategy?.id === s.id"
+                (click)="selectStrategy(s)">
+                <td class="name">{{ s.name }}</td>
+                <td class="family-cell">
+                  <strong>{{ familyLabel(s) }}</strong>
+                  <span class="muted family-members">{{ familyMembersLabel(s) }}</span>
+                </td>
+                <td class="conditions-cell">
+                  @for (c of s.conditions; track c.dimension) {
+                    <span class="cond-line"><strong>{{ c.label }}:</strong> {{ c.value }}</span>
+                  }
+                </td>
+                <td class="pos avg-r">{{ formatR(s.avgR) }}</td>
+                <td class="symbols-cell">{{ (s.topSymbols ?? []).join(', ') || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (selectedStrategy; as sel) {
+        <div class="detail-panel">
+          <h3>{{ sel.name }}</h3>
+          <p class="family-detail">
+            <strong>Family:</strong> {{ familyLabel(sel) }}
+            <span class="muted">· {{ familyMembersLabel(sel) }}</span>
+          </p>
+          <div class="detail-metrics">
+            <span>Fakeout {{ sel.fakeoutPct }}%</span>
+            <span>Continuation {{ sel.continuationPct }}%</span>
+            <span>Ideal zone: {{ zoneLabel(sel.idealEntryZone) }}</span>
+            @if (sel.promotable) { <span class="promo-tag">STATISTICALLY PROMOTABLE</span> }
+          </div>
+          <h4>Pre-expansion conditions</h4>
+          <ul class="cond-list">
+            @for (c of sel.conditions; track c.dimension) {
+              <li><strong>{{ c.label }}:</strong> {{ c.value }}</li>
+            }
+          </ul>
+          @if (examplesForStrategy(sel.id).length) {
+            <h4>Review historical examples</h4>
+            @for (ex of examplesForStrategy(sel.id); track ex.signalId) {
+              <button type="button" class="review-btn" (click)="reviewExample(ex)">
+                {{ ex.symbol }} {{ ex.sessionDate }} · {{ formatR(ex.outcomeR) }} · Review replay →
+              </button>
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <!-- 2. BIGGEST WINNER CLUSTERS -->
+    <div class="panel">
+      <h2>2. Biggest Winner Clusters</h2>
+      <table class="data-table">
+        <thead>
+          <tr><th>Cluster</th><th>n</th><th>Avg R</th><th>Avg $</th><th>Symbols</th><th>Conf</th></tr>
+        </thead>
+        <tbody>
+          @for (c of r.topExpansionClusters; track c.clusterId) {
+            <tr>
+              <td class="name">{{ c.name }}</td>
+              <td>{{ c.sampleCount }}</td>
+              <td class="pos">{{ formatR(c.avgR) }}</td>
+              <td>${{ c.avgDollar.toFixed(1) }}</td>
+              <td>{{ c.topSymbols.join(', ') }}</td>
+              <td [class]="confidenceClass(c.confidence)">{{ c.confidence }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 3. PRE-EXPANSION CONDITIONS -->
+    <div class="panel">
+      <h2>3. Pre-Expansion Conditions</h2>
+      <p class="panel-sub">What existed BEFORE expansion began (not post-hoc descriptions)</p>
+      <table class="data-table">
+        <thead>
+          <tr><th>Condition</th><th>Presence</th><th>Avg R</th><th>Lift R</th><th>n</th></tr>
+        </thead>
+        <tbody>
+          @for (p of r.preExpansionConditions; track p.condition) {
+            <tr>
+              <td>{{ p.condition }}</td>
+              <td>{{ p.presencePct }}%</td>
+              <td class="pos">{{ formatR(p.avgRWhenPresent) }}</td>
+              <td [class.pos]="p.liftR > 0">{{ formatR(p.liftR) }}</td>
+              <td>{{ p.sampleCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col">
+      <!-- 4. IDEAL ENTRY ZONES -->
+      <div class="panel">
+        <h2>4. Ideal Entry Zones</h2>
+        @for (z of r.idealEntryZones; track z.zone) {
+          <p class="zone-line">
+            <strong>{{ zoneLabel(z.zone) }}</strong>
+            · n={{ z.sampleCount }} · WR {{ z.winRate }}% · {{ formatR(z.avgR) }}
+          </p>
+        }
+        <h3 class="sub-head">Optimal pullback structures</h3>
+        @for (pb of r.optimalPullbackStructures.slice(0, 5); track pb.id) {
+          <p class="zone-line">
+            {{ pb.pullbackDepthLabel }} / {{ pb.compressionLabel }}
+            · WR {{ pb.winRate }}% · {{ formatR(pb.avgR) }}
+            · vs chase {{ formatR(pb.vsChaseDeltaR) }}
+          </p>
+        }
+      </div>
+
+      <!-- Hidden continuation -->
+      <div class="panel">
+        <h2>Hidden Continuation Patterns</h2>
+        @for (h of r.hiddenContinuationPatterns.slice(0, 6); track h.patternId) {
+          <div class="hidden-card">
+            <span class="name">{{ h.name }}</span>
+            <span>WR {{ h.winRate }}% · {{ formatR(h.avgR) }} · cont {{ h.continuationPct }}%</span>
+          </div>
+        }
+        <h3 class="sub-head">Institutional expansion profiles</h3>
+        @for (p of r.institutionalExpansionProfiles.slice(0, 4); track p.profileId) {
+          <p class="zone-line">
+            <strong>{{ p.label }}</strong> · n={{ p.sampleCount }} · {{ formatR(p.avgR) }} · ${{ p.avgDollar.toFixed(0) }}
+          </p>
+        }
+      </div>
+    </div>
+
+    <!-- 5. GOVERNANCE CONFLICTS -->
+    <div class="panel governance">
+      <h2>5. Governance Conflicts</h2>
+      <p class="panel-sub">Profitable discovered patterns that current governance suppresses</p>
+      @for (g of r.governanceSuppressedPatterns; track g.strategyId) {
+        <div class="gov-card">
+          <span class="name">{{ g.strategyName }}</span>
+          <span>Suppressed {{ g.suppressedPct }}% · missed {{ formatR(g.avgMissedR) }} avg</span>
+          <span class="muted">Decisions: {{ g.topGovernanceDecisions.join(', ') }}</span>
+          @for (ex of g.examples; track ex) {
+            <p class="example">{{ ex }}</p>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Feature importance -->
+    <div class="panel">
+      <h2>Strategy Feature Importance</h2>
+      <table class="data-table compact">
+        <thead><tr><th>Dimension</th><th>Separation</th><th>Top clusters</th><th>Baseline</th></tr></thead>
+        <tbody>
+          @for (f of r.strategyFeatureImportance; track f.dimension) {
+            <tr>
+              <td>{{ f.label }}</td>
+              <td>{{ f.separationScore }}</td>
+              <td>{{ f.topClusterMean }}</td>
+              <td>{{ f.baselineMean }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 6. REPLAY REVIEW -->
+    <div class="panel replay-section">
+      <h2>6. Replay Review</h2>
+      @for (ex of r.replayExamples; track ex.signalId) {
+        <button type="button" class="review-row" (click)="reviewExample(ex)">
+          <span class="sym">{{ ex.symbol }}</span>
+          <span>{{ ex.sessionDate }}</span>
+          <span class="name">{{ ex.strategyName }}</span>
+          <span class="pos">{{ formatR(ex.outcomeR) }}</span>
+          <span class="arrow">Review →</span>
+        </button>
+      }
+    </div>
+    }
+  } @else if (activeTab !== 'exit-validation') {
+    <p class="empty">No discovery report yet — hydrate history and refresh.</p>
+  }
+
+  <footer class="ad-footer">
+    Advisory only · no auto-trading · n &lt; 10 = not authoritative · n &lt; 25 = low confidence
+  </footer>
+</section>

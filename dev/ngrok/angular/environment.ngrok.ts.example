@@ -1,0 +1,24 @@
+/**
+ * Angular environment for ngrok remote development.
+ *
+ * Setup:
+ * 1. Copy to frontend/src/environments/environment.ngrok.ts
+ * 2. After tunnels start, set apiUrl to your backend ngrok URL:
+ *      apiUrl: 'https://YOUR-BACKEND-SUBDOMAIN.ngrok-free.app/api'
+ * 3. Serve with host binding for ngrok:
+ *      npm run start:ngrok
+ *
+ * Or inject at build time:
+ *   NGROK_BACKEND_URL=https://xxx.ngrok-free.app npm run start:ngrok
+ */
+
+const backendBase =
+  (typeof process !== 'undefined' && process.env?.['NGROK_BACKEND_URL']) ||
+  'https://REPLACE-WITH-BACKEND-NGROK-URL.ngrok-free.app';
+
+export const environment = {
+  production: false,
+  apiUrl: `${backendBase.replace(/\/$/, '')}/api`,
+  /** Set true when accessing UI via ngrok (optional feature flags) */
+  ngrokMode: true
+};

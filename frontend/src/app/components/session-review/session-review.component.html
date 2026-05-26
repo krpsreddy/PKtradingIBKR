@@ -1,0 +1,69 @@
+<div class="session-review">
+  @if (loading && !hasContent()) {
+    <p class="muted">Session review loading…</p>
+  } @else {
+    @if (aiReview?.narrative) {
+      <section class="ai-review">
+        <h4>AI Session Review</h4>
+        <p class="narrative">{{ aiReview!.narrative }}</p>
+        @if (aiReview!.bestPlaybook) {
+          <p class="playbook">Best playbook today: <strong>{{ aiReview!.bestPlaybook }}</strong></p>
+        }
+      </section>
+    }
+    @if (summary) {
+      <section class="summary-grid">
+        <div><span class="k">Focus</span>{{ summary.whatMattersMost }}</div>
+        <div><span class="k">Avoid</span>{{ summary.whatToAvoid }}</div>
+        <div><span class="k">Strongest</span>{{ summary.strongestSetupsToday }}</div>
+      </section>
+    }
+    <header>
+      <h4>Session Review · {{ review?.sessionDate ?? 'Today' }}</h4>
+      @if (review?.summary) { <p class="summary">{{ review!.summary }}</p> }
+    </header>
+    <div class="grid">
+      <section>
+        <h5>Top setups today</h5>
+        @if (review?.topSetups?.length) {
+          <ul>@for (s of review!.topSetups; track s) { <li>{{ s }}</li> }</ul>
+        } @else if (aiReview?.bestOpportunities?.length) {
+          <ul>@for (s of aiReview!.bestOpportunities; track s) { <li>{{ s }}</li> }</ul>
+        } @else { <p class="muted">No standout setups recorded.</p> }
+      </section>
+      <section>
+        <h5>Failed setups</h5>
+        @if (review?.failedSetups?.length) {
+          <ul class="bad">@for (s of review!.failedSetups; track s) { <li>{{ s }}</li> }</ul>
+        } @else if (aiReview?.failedPatterns?.length) {
+          <ul class="bad">@for (s of aiReview!.failedPatterns; track s) { <li>{{ s }}</li> }</ul>
+        } @else { <p class="muted">None flagged.</p> }
+      </section>
+      <section>
+        <h5>Strongest sectors</h5>
+        @if (review?.strongestSectors?.length) {
+          <ul>@for (s of review!.strongestSectors; track s) { <li>{{ s }}</li> }</ul>
+        } @else if (aiReview?.strongestSectors?.length) {
+          <ul>@for (s of aiReview!.strongestSectors; track s) { <li>{{ s }}</li> }</ul>
+        } @else { <p class="muted">Sector data pending.</p> }
+      </section>
+      <section>
+        <h5>Trader strengths / mistakes</h5>
+        @if (aiReview?.traderStrengths?.length) {
+          <ul>@for (s of aiReview!.traderStrengths; track s) { <li class="good">{{ s }}</li> }</ul>
+        }
+        @if (aiReview?.traderMistakes?.length) {
+          <ul class="bad">@for (s of aiReview!.traderMistakes; track s) { <li>{{ s }}</li> }</ul>
+        } @else { <p class="muted">None logged.</p> }
+      </section>
+    </div>
+    @if (behavior.length) {
+      <div class="behavior">
+        <h5>Behavior warnings</h5>
+        @for (b of behavior; track b.title) {
+          <div class="warn-card">⚠ {{ b.title }}<span>{{ b.detail }}</span></div>
+        }
+      </div>
+    }
+  }
+</div>

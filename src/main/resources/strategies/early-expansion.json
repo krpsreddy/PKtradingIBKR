@@ -1,0 +1,21 @@
+{
+  "strategyId": "EARLY_EXPANSION",
+  "strategyName": "Early Expansion",
+  "category": "CONTINUATION",
+  "conditions": ["RVOL acceleration", "range expansion", "VWAP acceptance developing"],
+  "thresholds": {
+    "minRvol": 1.8,
+    "minExpansionProbability": 55,
+    "minConvictionDeveloping": 45
+  },
+  "winRate": 0.62,
+  "avgR": 1.4,
+  "robustness": 0.71,
+  "active": true,
+  "deprecated": false,
+  "replayExamples": ["NVDA", "AMD"],
+  "discoveredFromPhase": 165,
+  "notes": "Pre-candle-close expansion detection via nano scan",
+  "version": 1,
+  "governanceTags": ["AUTONOMOUS", "INTRACANDLE"]
+}

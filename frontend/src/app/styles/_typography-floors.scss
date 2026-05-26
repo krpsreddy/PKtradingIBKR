@@ -1,0 +1,25 @@
+/* Global typography accessibility floors — phases 123–126 */
+:root {
+  --typo-primary-min: 0.875rem;
+  --typo-primary-max: 1rem;
+  --typo-secondary-min: 0.75rem;
+  --typo-secondary-max: 0.8125rem;
+  --typo-tertiary-min: 0.6875rem;
+  --typo-tertiary-max: 0.75rem;
+  --typo-rail-label: 0.75rem;
+  --typo-rail-value-min: 0.8125rem;
+  --typo-rail-exit-now: 1.0625rem;
+  --typo-rail-stop: 0.9375rem;
+  --typo-sidebar-secondary: 0.8125rem;
+  --typo-cognition-pill: 0.6875rem;
+  --typo-timestamp: 0.75rem;
+  --typo-guidance-min: 0.8125rem;
+  --typo-tertiary-opacity: 0.58;
+  --typo-timestamp-opacity: 0.78;
+  --typo-guidance-opacity: 0.52;
+  --typo-sidebar-secondary-opacity: 0.72;
+  --typo-sidebar-inactive-opacity: 0.48;
+  --typo-tertiary-lh: 1.35;
+  --typo-sidebar-lh: 1.45;
+  --typo-rail-primary-min-h: 22px;
+}

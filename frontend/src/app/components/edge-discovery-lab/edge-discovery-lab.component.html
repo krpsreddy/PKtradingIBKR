@@ -1,0 +1,201 @@
+<section class="discovery-lab">
+  <header class="lab-head">
+    <div>
+      <h3>Edge Discovery Lab</h3>
+      <span class="sub">60D automated edge discovery · eliminate bad conditions · advisory only</span>
+    </div>
+    <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">Refresh Report</button>
+  </header>
+
+  @if (!report || report.discovery.totalEvaluated === 0) {
+    <p class="empty">No evaluated signals yet. Load 60D history in Edge Lab to populate discovery.</p>
+  } @else {
+    <div class="summary-strip">
+      <span>{{ report.discovery.totalEvaluated }} evaluated</span>
+      <span>{{ report.strongestConditions.length }} high-edge clusters</span>
+      <span>{{ report.toxicConditions.length }} toxic</span>
+      <span>{{ report.recommendedSuppressions.length }} suppressions</span>
+    </div>
+
+    @if (report.aiSummary; as ai) {
+      <div class="ai-block">
+        <h4>AI Synthesis</h4>
+        <p class="ai-summary">{{ ai.summary }}</p>
+        <p class="ai-line"><strong>Strongest:</strong> {{ ai.strongestEdge }}</p>
+        <p class="ai-line"><strong>Toxic:</strong> {{ ai.topToxic }}</p>
+        <p class="ai-line"><strong>Capital:</strong> {{ ai.capitalGuidance }}</p>
+        @for (s of ai.suppressions; track s) {
+          <p class="suppress-line">✕ {{ s }}</p>
+        }
+        <span class="provider-tag">{{ ai.provider }} · analytics authoritative</span>
+      </div>
+    }
+
+    <div class="two-col">
+      <div class="panel">
+        <h4>Strongest Conditions</h4>
+        @for (c of report.strongestConditions; track c.id) {
+          <div class="cluster-line pos">
+            <span class="label">{{ c.label }}</span>
+            <span class="meta">{{ formatR(c.metrics.expectancyR) }} · WR {{ formatPct(c.metrics.winRate) }} · n={{ c.metrics.sampleCount }} · score {{ c.edgeScore }}</span>
+          </div>
+        } @empty { <p class="muted">—</p> }
+      </div>
+      <div class="panel toxic">
+        <h4>Toxic Conditions</h4>
+        @for (c of report.toxicConditions; track c.id) {
+          <div class="cluster-line neg">
+            <span class="label">{{ c.label }}</span>
+            <span class="meta">{{ formatR(c.metrics.expectancyR) }} · fakeout {{ formatPct(c.metrics.fakeoutRate) }} · n={{ c.metrics.sampleCount }}</span>
+          </div>
+        } @empty { <p class="muted">—</p> }
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Recommended Suppressions</h4>
+      @for (e of report.recommendedSuppressions.slice(0, 8); track e.id) {
+        <p class="elim-line">{{ e.label }} — <span class="muted">{{ e.reason }}</span></p>
+      }
+    </div>
+
+    <div class="panel">
+      <h4>Symbol Capital Rankings</h4>
+      <table class="rank-table">
+        <thead>
+          <tr><th>Symbol</th><th>Edge Score</th><th>Expectancy</th><th>Capital Rank</th><th>Samples</th></tr>
+        </thead>
+        <tbody>
+          @for (r of report.symbolRankings.slice(0, 12); track r.symbol) {
+            <tr [class.active]="r.symbol === symbol">
+              <td class="sym">{{ r.symbol }}</td>
+              <td>{{ r.edgeScore }}</td>
+              <td [class.pos]="r.expectancyR > 0" [class.neg]="r.expectancyR < 0">{{ formatR(r.expectancyR) }}</td>
+              <td><span class="cap-badge" [class]="capitalClass(r.capitalRank)">{{ r.capitalRank }}</span></td>
+              <td>{{ r.sampleCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (report.weakeningEdges.length || report.risingFakeoutEnvironments.length) {
+      <div class="two-col">
+        <div class="panel">
+          <h4>Weakening Edges</h4>
+          @for (d of report.weakeningEdges; track d.message) {
+            <p class="decay-line">{{ d.message }}</p>
+          }
+        </div>
+        <div class="panel">
+          <h4>Rising Fakeout Environments</h4>
+          @for (d of report.risingFakeoutEnvironments; track d.message) {
+            <p class="decay-line warn">{{ d.message }}</p>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="heatmap-section">
+      <h4>Condition Heatmap — Setup × Regime</h4>
+      <div class="heatmap-wrap">
+        <table class="heatmap">
+          <thead>
+            <tr>
+              <th>Setup</th>
+              @for (reg of regimeDims; track reg) {
+                <th>{{ reg }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (setup of matrixSetups; track setup) {
+              <tr>
+                <td class="setup">{{ setup.replace('_', ' ') }}</td>
+                @for (reg of regimeDims; track reg) {
+                  @if (heatCell(report.discovery.heatmapRegime, setup, reg); as cell) {
+                    <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                      @if (cell.tone === 'INSUFFICIENT') { — }
+                      @else { {{ formatR(cell.expectancyR) }} }
+                    </td>
+                  } @else {
+                    <td class="cell insuf">—</td>
+                  }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="heatmap-grid">
+      <div class="heatmap-section">
+        <h4>Setup × RVOL</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Setup</th>@for (d of rvolDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ setup.replace('_', ' ') }}</td>
+                  @for (d of rvolDims; track d) {
+                    @if (heatCell(report.discovery.heatmapRvol, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="heatmap-section">
+        <h4>Setup × Timing</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Setup</th>@for (d of timeDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ setup.replace('_', ' ') }}</td>
+                  @for (d of timeDims; track d) {
+                    @if (heatCell(report.discovery.heatmapTime, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="heatmap-section">
+        <h4>Setup × Breadth</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Setup</th>@for (d of breadthDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ setup.replace('_', ' ') }}</td>
+                  @for (d of breadthDims; track d) {
+                    @if (heatCell(report.discovery.heatmapBreadth, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  }
+</section>

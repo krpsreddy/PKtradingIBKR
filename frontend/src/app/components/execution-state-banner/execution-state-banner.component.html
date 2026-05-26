@@ -1,0 +1,8 @@
+<div class="state-banner" [class.compact]="compact">
+  @for (s of flow; track s) {
+    <span class="pill" [ngClass]="pillClass(s)">{{ s }}</span>
+    @if (!$last) {
+      <span class="arrow" [class.lit]="isPast(flow[$index + 1]) || isActive(flow[$index + 1])">→</span>
+    }
+  }
+</div>

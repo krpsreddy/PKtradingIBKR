@@ -1,0 +1,36 @@
+/** Phase 179 — reference screenshot visual parity tokens (SCSS only). */
+
+:root {
+  --vp-text-primary: #f3f6fa;
+  --vp-text-secondary: #9aa4b2;
+  --vp-text-muted: #697586;
+  --vp-cyan: #72e6ff;
+  --vp-green: #52ff7a;
+  --vp-green-strong: #39ff5a;
+  --vp-amber: #f6b84a;
+  --vp-danger: #ff6b6b;
+  --vp-border: rgba(120, 140, 180, 0.16);
+  --vp-glow: rgba(70, 120, 255, 0.12);
+  --vp-panel-bg: linear-gradient(165deg, rgba(8, 12, 20, 0.98) 0%, rgba(6, 9, 16, 0.99) 100%);
+  --vp-panel-border: rgba(86, 255, 122, 0.28);
+  --vp-conviction-size: 4.5rem;
+  --vp-label-size: 0.6875rem;
+  --vp-label-tracking: 0.08em;
+}
+
+@mixin vp-header-label {
+  font-size: var(--vp-label-size);
+  font-weight: 700;
+  letter-spacing: var(--vp-label-tracking);
+  text-transform: uppercase;
+  color: var(--vp-text-muted);
+}
+
+@mixin vp-conviction-score {
+  font-size: var(--vp-conviction-size);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: var(--vp-green-strong);
+  text-shadow: 0 0 32px rgba(57, 255, 90, 0.28);
+}

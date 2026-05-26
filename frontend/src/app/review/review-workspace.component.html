@@ -1,0 +1,129 @@
+<div class="review-workspace">
+  <header class="review-header">
+    <div class="review-title">
+      <h2>Review Workspace</h2>
+      <span class="review-sub">Autonomous opportunity review · session reflection · journal</span>
+    </div>
+    <span class="review-symbol">{{ symbol }}</span>
+  </header>
+
+  <nav class="review-tabs">
+    @for (t of visibleTabs; track t.id) {
+      <button type="button" class="review-tab" [class.active]="activeTab === t.id" (click)="selectTab(t.id)">
+        {{ t.label }}
+      </button>
+    }
+  </nav>
+
+  <div class="review-body">
+    @switch (activeTab) {
+      @case ('intelligence') {
+        <div class="review-grid primary">
+          <app-signal-intelligence-panel [analytics]="signalAnalytics" [compact]="false"></app-signal-intelligence-panel>
+          <aside class="review-aside">
+            <app-trader-state [behavior]="behavior" [discipline]="cognition?.discipline ?? null"></app-trader-state>
+            <app-ranking-explain [items]="rankingNotes"></app-ranking-explain>
+            <app-intelligence-stream [events]="cognition?.events ?? []"></app-intelligence-stream>
+          </aside>
+        </div>
+      }
+      @case ('edge-lab') {
+        <app-global-edge-lab
+          [watchlist]="watchlist"
+          [initialTab]="edgeLabInitialTab"
+          [focusSymbol]="edgeLabFocusSymbol ?? symbol"
+          (openSymbolDna)="onOpenSymbolDna($event)">
+        </app-global-edge-lab>
+      }
+      @case ('symbol-dna') {
+        <app-symbol-dna-panel
+          [symbol]="symbol"
+          (symbolSelect)="symbolSelect.emit($event)">
+        </app-symbol-dna-panel>
+      }
+      @case ('symbol-edge') {
+        <app-symbol-dna-panel
+          [symbol]="symbol"
+          (symbolSelect)="symbolSelect.emit($event)">
+        </app-symbol-dna-panel>
+      }
+      @case ('edge-discovery') {
+        <app-global-edge-lab
+          [watchlist]="watchlist"
+          [initialTab]="edgeLabInitialTab"
+          [focusSymbol]="edgeLabFocusSymbol ?? symbol"
+          (openSymbolDna)="onOpenSymbolDna($event)">
+        </app-global-edge-lab>
+      }
+      @case ('session') {
+        <app-session-review
+          [review]="sessionReview"
+          [behavior]="behavior"
+          [aiReview]="aiReview()"
+          [summary]="summary()"
+          [loading]="sessionReviewLoading">
+        </app-session-review>
+      }
+      @case ('journal') {
+        <app-trade-journal-panel
+          [entries]="journalEntries"
+          [symbol]="symbol"
+          [collapsed]="false"
+          (saveEntry)="journalSave.emit($event)"
+          (reviewEntry)="journalReview.emit($event)">
+        </app-trade-journal-panel>
+      }
+      @case ('edge') {
+        <div class="review-stack">
+          <app-my-edge-panel
+            [edge]="traderEdge"
+            [behavior]="behavior"
+            [personalized]="cognition?.personalized ?? null">
+          </app-my-edge-panel>
+          <app-performance-heatmap [heatmap]="cognition?.heatmap ?? null"></app-performance-heatmap>
+        </div>
+      }
+      @case ('coaching') {
+        <app-ai-coaching-panel [symbol]="symbol"></app-ai-coaching-panel>
+        <app-coaching-feed [items]="coachingFeed()"></app-coaching-feed>
+      }
+      @case ('playbooks') {
+        <app-playbook-browser
+          [playbooks]="playbooks"
+          [activeSignalType]="selectedSignalType"
+          [flyoutMode]="false">
+        </app-playbook-browser>
+      }
+      @case ('playbook-lab') {
+        <app-playbook-lab></app-playbook-lab>
+      }
+      @case ('trade-timeline') {
+        <app-trade-lifecycle-lab [symbol]="symbol"></app-trade-lifecycle-lab>
+      }
+      @case ('edge-refinement') {
+        <app-edge-refinement-lab></app-edge-refinement-lab>
+      }
+      @case ('signal-explorer') {
+        <app-signal-explorer-panel
+          [symbol]="symbol"
+          [fullHeight]="true"
+          (openReplay)="symbolSelect.emit($event)">
+        </app-signal-explorer-panel>
+      }
+      @case ('analytics-query') {
+        <app-analytics-query-workbench [symbol]="symbol"></app-analytics-query-workbench>
+      }
+      @case ('history') {
+        <app-signal-table
+          [signals]="signals"
+          [marketTrend]="marketTrend"
+          [regimeWinRates]="regimeWinRates"
+          [collapsed]="false"
+          [emptyTitle]="emptySignals.title"
+          [emptyDetail]="emptySignals.detail"
+          (rowSelected)="signalSelected.emit($event)">
+        </app-signal-table>
+      }
+    }
+  </div>
+</div>

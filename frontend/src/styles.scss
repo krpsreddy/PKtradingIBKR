@@ -1,0 +1,38 @@
+@import './app/styles/execution-theme.tokens';
+
+html, body {
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-family: Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@import './app/styles/typography-floors';
+
+.bullish { color: #72e6ff !important; }
+.bearish { color: #ff6b6b !important; }
+.neutral { color: #9aa4b2 !important; }
+
+.badge-mom { background: #238636 !important; color: #fff !important; }
+.badge-pull { background: #1f6feb !important; color: #fff !important; }
+.badge-cont { background: #0891b2 !important; color: #fff !important; }
+.badge-open { background: #f97316 !important; color: #fff !important; }
+.badge-scout { background: #fbbf24 !important; color: #1a1a1a !important; }
+.badge-fail { background: #ef5350 !important; color: #fff !important; }
+.badge-exit { background: #da3633 !important; color: #fff !important; }
+
+.online { color: var(--text-positive); }
+.offline { color: var(--text-danger); }
+
+body.symbol-switcher-open .workspace-body,
+body.symbol-switcher-open .chart-panel,
+body.symbol-switcher-open app-trading-chart {
+  pointer-events: none;
+}
+
+body.symbol-switcher-open .sym-switcher-panel {
+  pointer-events: auto;
+}

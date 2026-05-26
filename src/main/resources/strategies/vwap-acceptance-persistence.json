@@ -1,0 +1,20 @@
+{
+  "strategyId": "VWAP_ACCEPTANCE_PERSISTENCE",
+  "strategyName": "VWAP Acceptance Persistence",
+  "category": "PARTICIPATION",
+  "conditions": ["VWAP reclaim", "bid persistence proxy", "participation sustainment"],
+  "thresholds": {
+    "minVwapHoldBars": 2,
+    "minPersistenceScore": 58
+  },
+  "winRate": 0.64,
+  "avgR": 1.3,
+  "robustness": 0.74,
+  "active": true,
+  "deprecated": false,
+  "replayExamples": ["NVDA", "TSLA"],
+  "discoveredFromPhase": 165,
+  "notes": "VWAP acceptance with sustained participation",
+  "version": 1,
+  "governanceTags": ["AUTONOMOUS"]
+}

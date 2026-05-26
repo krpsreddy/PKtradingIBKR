@@ -1,0 +1,13 @@
+# Spring Boot profile for ngrok remote access (local dev only)
+# Copied from dev/ngrok/spring/application-ngrok.properties.example
+
+app.cors.extra-origin-patterns=${APP_CORS_EXTRA_ORIGIN_PATTERNS:https://*.ngrok-free.app,https://*.ngrok.app,https://*.ngrok.dev}
+
+server.forward-headers-strategy=framework
+
+management.endpoints.enabled-by-default=false
+management.endpoint.health.enabled=true
+management.endpoints.web.exposure.include=health
+management.endpoint.health.show-details=never
+
+logging.level.org.springframework.web=INFO

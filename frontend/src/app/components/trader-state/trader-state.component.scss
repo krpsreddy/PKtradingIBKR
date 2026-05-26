@@ -1,0 +1,49 @@
+.trader-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  opacity: 0.92;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.text { display: flex; flex-direction: column; gap: 2px; }
+.label { font-size: 0.72rem; font-weight: 700; color: #e6edf3; }
+.detail { font-size: 0.65rem; color: #8b949e; line-height: 1.35; }
+
+.state-disciplined .dot { background: #3fb950; }
+.state-patient .dot { background: #58a6ff; }
+.state-aggressive .dot { background: #d29922; }
+.state-chasing .dot { background: #f85149; }
+.state-revenge-risk .dot { background: #f85149; box-shadow: 0 0 6px rgba(248, 81, 73, 0.5); }
+.state-overtrading-risk .dot { background: #bc8cff; }
+
+.discipline {
+  margin-left: auto;
+  text-align: right;
+
+  .score {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #3fb950;
+  }
+
+  .lbl {
+    font-size: 0.55rem;
+    color: #6e7681;
+    text-transform: uppercase;
+  }
+
+  &.low .score { color: #f85149; }
+}

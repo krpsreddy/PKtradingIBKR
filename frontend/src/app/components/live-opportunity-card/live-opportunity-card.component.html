@@ -1,0 +1,57 @@
+@if (compactRadar) {
+  <button type="button" class="radar-row" [class]="priorityCls() + ' ' + emphasisClass()"
+          [class.emphasis]="radarEmphasis"
+          [class.active-row]="isActive || rankIndex === 0"
+          [class.state-failed]="isFailed()" [class.state-watching]="isWatching()"
+          [class.rank-0]="rankIndex === 0" [style.opacity]="decayOpacity" (click)="selected.emit(signal.symbol)">
+    <span class="sym">{{ signal.symbol }}</span>
+    <span class="sep">·</span>
+    <span class="state">{{ radarState() }}</span>
+    <span class="sep">·</span>
+    <span class="dist">{{ radarDistance() }}</span>
+    <span class="sep">·</span>
+    <span class="regime">{{ radarRegime() }}</span>
+  </button>
+} @else {
+  <button type="button" class="opp-card" [class]="priorityCls() + ' ' + accentClass() + ' ' + emphasisClass()"
+          [class.pulse]="shouldPulse() && !isWatching()" [class.rank-0]="rankIndex === 0"
+          [class.active-row]="isActive || rankIndex === 0"
+          [class.state-failed]="isFailed()" [class.state-watching]="isWatching()"
+          [style.opacity]="decayOpacity"
+          (click)="selected.emit(signal.symbol)">
+    <div class="card-top">
+      @if (autonomousAction(); as autoAction) {
+        <span class="action-verb autonomous" [class.urgent]="shouldPulse()">{{ autoAction }}</span>
+      } @else if (actionVerb) {
+        <span class="action-verb" [class.urgent]="shouldPulse()">{{ actionVerb }}</span>
+      } @else {
+        <span class="signal-badge">{{ displayType(signal.signalType) }}</span>
+      }
+      <span class="sym">{{ signal.symbol }}</span>
+      @if (isFailed()) {
+        <span class="state-chip failed">EXIT</span>
+      } @else if (isWatching()) {
+        <span class="state-chip watching">WATCH</span>
+      } @else {
+        <span class="rank-big" [title]="tooltip('rank')">{{ autonomousCard ? convictionScore() : (signal.rankScore ?? attention().score) }}</span>
+      }
+    </div>
+    <div class="card-metrics">
+      <span class="fresh" [class.is-new]="signal.freshness === 'FRESH'" [title]="tooltip('freshness')">
+        {{ freshnessLabel() }}
+      </span>
+      <span class="health-dot" [class]="healthClass()"></span>
+      @if (signal.extended) {
+        <span class="ext-tag" [title]="tooltip('ext')">EXT</span>
+      }
+      @if (signal.optionsWarnings?.length) {
+        <span class="risk-tag" [title]="tooltip('optionsRisk')">⚠ OPT</span>
+      }
+      @if (triggerDistancePct != null && triggerDistancePct < 1.5) {
+        <span class="dist-chip">{{ triggerDistancePct | number:'1.1-1' }}% TO TRIGGER</span>
+      }
+      <span class="rvol" [class.rvol-hot]="highRvol() && shouldPulse()">RVOL {{ signal.relativeVolume != null ? (signal.relativeVolume | number:'1.1-1') + 'x' : '—' }}</span>
+    </div>
+    <app-confidence-bar [value]="convictionScore()" label="Focus" [tooltip]="tooltip('attention')" size="sm"></app-confidence-bar>
+  </button>
+}

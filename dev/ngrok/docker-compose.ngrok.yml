@@ -1,0 +1,35 @@
+# Optional Docker-based ngrok agent (runs alongside host apps on localhost:4200/8080)
+#
+# Usage:
+#   cp .env.example .env && edit .env
+#   docker compose -f docker-compose.ngrok.yml up
+#
+# Requires: Docker, apps running on host (not inside this compose stack)
+
+services:
+  ngrok:
+    image: ngrok/ngrok:3
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    volumes:
+      - ./ngrok.yml:/etc/ngrok/ngrok.yml:ro
+    command:
+      - start
+      - frontend
+      - backend
+      - --config
+      - /etc/ngrok/ngrok.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # Local agent API only — do not expose publicly
+      - "127.0.0.1:4040:4040"
+    # Override generated config upstream addrs for Docker → host
+    # Run ./scripts/generate-config-docker.sh before docker compose up
+
+networks:
+  default:
+    name: pktrading-ngrok

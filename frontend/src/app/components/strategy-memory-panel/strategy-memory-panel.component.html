@@ -1,0 +1,85 @@
+<section class="strategy-memory">
+  <header class="mem-head">
+    <h3>Strategy Memory</h3>
+    <span class="sub">Editable autonomous regime registry · thresholds · governance · replay anchors</span>
+  </header>
+
+  @if (loading) {
+    <p class="loading">Loading strategy definitions…</p>
+  } @else if (strategies.length === 0) {
+    <p class="empty">No strategies registered — ensure backend strategy JSON is loaded.</p>
+  } @else {
+    <div class="strategy-grid">
+      @for (s of strategies; track s.strategyId) {
+        <article class="strategy-card" [class.inactive]="!s.active" [class.deprecated]="s.deprecated">
+          <header class="card-top">
+            <div>
+              <h4>{{ s.strategyName }}</h4>
+              <span class="sid">{{ s.strategyId }} · v{{ s.version }}</span>
+            </div>
+            <button type="button" class="toggle-btn" [class.off]="!s.active" (click)="toggleActive(s)">
+              {{ s.active ? 'Active' : 'Disabled' }}
+            </button>
+          </header>
+          <div class="metrics">
+            <span>Hit {{ hitRate(s) | number:'1.0-0' }}%</span>
+            <span>AvgR {{ s.avgR | number:'1.1-1' }}</span>
+            <span>Robust {{ (s.robustness * 100) | number:'1.0-0' }}%</span>
+            <span>Last {{ lastActivationLabel(s) }}</span>
+          </div>
+          <p class="category">{{ s.category }}</p>
+          <ul class="conditions">
+            @for (c of s.conditions; track c) {
+              <li>{{ c }}</li>
+            }
+          </ul>
+
+          @if (editingId === s.strategyId) {
+            <div class="threshold-edit">
+              <p class="edit-head">Threshold tuning</p>
+              @for (entry of editThresholds | keyvalue; track entry.key) {
+                <label class="thresh-row">
+                  <span>{{ entry.key }}</span>
+                  <input type="number" step="0.1" [(ngModel)]="editThresholds[entry.key]" />
+                </label>
+              }
+              <label class="notes-edit">
+                <span>Notes</span>
+                <textarea rows="2" [(ngModel)]="editNotes"></textarea>
+              </label>
+              <div class="edit-actions">
+                <button type="button" class="save-btn" (click)="saveEdit(s)">Save</button>
+                <button type="button" class="cancel-btn" (click)="cancelEdit()">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            <div class="thresholds-read">
+              @for (entry of s.thresholds | keyvalue; track entry.key) {
+                <span class="thresh-chip">{{ entry.key }}: {{ entry.value }}</span>
+              }
+              <button type="button" class="edit-btn" (click)="startEdit(s)">Tune thresholds</button>
+            </div>
+          }
+
+          @if (s.governanceTags?.length) {
+            <div class="tags">
+              @for (t of s.governanceTags; track t) {
+                <span class="tag">{{ t }}</span>
+              }
+            </div>
+          }
+          @if (s.replayExamples?.length) {
+            <div class="replay-links">
+              @for (sym of s.replayExamples; track sym) {
+                <button type="button" class="replay-btn" (click)="openReplay(sym)">{{ sym }} replay</button>
+              }
+            </div>
+          }
+          @if (s.notes && editingId !== s.strategyId) {
+            <p class="notes">{{ s.notes }}</p>
+          }
+        </article>
+      }
+    </div>
+  }
+</section>

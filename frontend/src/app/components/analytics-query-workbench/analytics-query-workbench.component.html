@@ -1,0 +1,174 @@
+<section class="analytics-workbench">
+  <header class="wb-header">
+    <div>
+      <h2>Autonomous Analytics Workbench</h2>
+      <p class="sub">Hydrated snapshots · autonomous conviction scoring · decisions · narratives · suppression regret</p>
+    </div>
+    <div class="header-meta">
+      @if (symbol) {
+        <span class="badge">{{ symbol }}</span>
+      }
+      <span class="badge muted">{{ dbSnapshotCount }} snapshots in DB</span>
+      @if (workbench) {
+        <span class="badge">{{ workbench.totalRows }} rows matched</span>
+      }
+      <button type="button" class="btn" (click)="refresh()" [disabled]="loading">
+        {{ loading ? 'Loading…' : 'Refresh' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="filters">
+    <label>
+      Decision
+      <select [(ngModel)]="filterDecision" (ngModelChange)="onFilterChange()">
+        <option value="ALL">ALL</option>
+        <option value="ENTER">ENTER</option>
+        <option value="ADD">ADD</option>
+        <option value="WATCH">WATCH</option>
+        <option value="AVOID">AVOID</option>
+        <option value="EXIT">EXIT</option>
+      </select>
+    </label>
+    <label>
+      Conviction band
+      <select [(ngModel)]="filterConviction" (ngModelChange)="onFilterChange()">
+        <option value="ALL">ALL</option>
+        <option value="ELITE">ELITE</option>
+        <option value="HIGH">HIGH</option>
+        <option value="MODERATE">MODERATE</option>
+        <option value="LOW">LOW</option>
+        <option value="AVOID">AVOID</option>
+      </select>
+    </label>
+  </div>
+
+  @if (error) {
+    <div class="error-box">{{ error }}</div>
+  }
+
+  @if (workbench) {
+    <div class="panel-grid">
+      <!-- 1. Conviction histogram -->
+      <section class="panel">
+        <h3>Conviction Distribution</h3>
+        <ul class="band-list">
+          @for (b of bandRows(); track b.id) {
+            <li>
+              <div class="band-label">
+                <span>{{ b.label }}</span>
+                <strong>{{ b.metrics.count }}</strong>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" [style.width.%]="barWidth(b.metrics.count, workbench.totalRows || 1)"></div>
+              </div>
+              <div class="band-meta">
+                WR {{ dist.formatPct(b.metrics.winRate) }} ·
+                Avg {{ dist.formatR(b.metrics.avgR) }} ·
+                Conv {{ b.metrics.avgConviction.toFixed(0) }}%
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- 2. Decision distribution -->
+      <section class="panel">
+        <h3>Autonomous Action Distribution</h3>
+        <ul class="stat-list">
+          @for (s of workbench.decisionStats; track s.group) {
+            <li>
+              <span class="name">{{ formatGroup(s.group) }}</span>
+              <div class="bar-track"><div class="bar-fill decision" [style.width.%]="barWidth(s.count, maxStatCount(workbench.decisionStats))"></div></div>
+              <span class="val">{{ s.count }}</span>
+              <span class="meta">WR {{ dist.formatPct(s.winRate) }} · FE {{ dist.formatPct(s.fullExecutionRate) }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- 3. Narrative heatmap table -->
+      <section class="panel wide">
+        <h3>Opportunity Type Stats</h3>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Opportunity</th><th>Count</th><th>Avg R</th><th>WR</th><th>Fakeout</th><th>Cont %</th><th>Conv</th><th>Full Exec %</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (n of topNarratives(); track n.group) {
+              <tr [class.hot]="n.avgR >= 1.5" [class.cold]="n.avgR <= -0.5">
+                <td>{{ formatGroup(n.group) }}</td>
+                <td>{{ n.count }}</td>
+                <td>{{ dist.formatR(n.avgR) }}</td>
+                <td>{{ dist.formatPct(n.winRate) }}</td>
+                <td>{{ dist.formatPct(n.fakeoutRate) }}</td>
+                <td>{{ n.continuationRate.toFixed(0) }}%</td>
+                <td>{{ n.avgConviction.toFixed(0) }}%</td>
+                <td>{{ dist.formatPct(n.fullExecutionRate) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 4. Diagnostics / suppression regret -->
+      <section class="panel wide">
+        <h3>Diagnostic Insights (A–J)</h3>
+        <ul class="insights">
+          @for (i of workbench.diagnostics.insights; track i.id) {
+            <li [class]="dist.severityClass(i.severity)">
+              <span class="qid">{{ i.id }}</span>
+              <div>
+                <strong>{{ i.question }}</strong>
+                <p>{{ i.answer }}</p>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- 5. Quality + Result -->
+      <section class="panel">
+        <h3>Entry Quality Stats</h3>
+        <ul class="stat-list compact">
+          @for (s of workbench.qualityStats; track s.group) {
+            <li><span class="name">{{ s.group }}</span><span class="val">{{ s.count }}</span><span class="meta">{{ dist.formatR(s.avgR) }}</span></li>
+          }
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h3>Result Stats</h3>
+        <ul class="stat-list compact">
+          @for (s of workbench.resultStats; track s.group) {
+            <li><span class="name">{{ s.group }}</span><span class="val">{{ s.count }}</span><span class="meta">WR {{ dist.formatPct(s.winRate) }}</span></li>
+          }
+        </ul>
+      </section>
+
+      <!-- 6. Cross matrix -->
+      <section class="panel wide">
+        <h3>Decision × Narrative Cross Matrix</h3>
+        <table class="matrix compact">
+          <thead>
+            <tr><th>Decision</th><th>Narrative</th><th>N</th><th>Avg R</th><th>WR</th><th>Conv</th></tr>
+          </thead>
+          <tbody>
+            @for (c of matrixCells(); track c.decision + c.narrative) {
+              <tr>
+                <td>{{ c.decision }}</td>
+                <td>{{ c.narrative }}</td>
+                <td>{{ c.count }}</td>
+                <td>{{ dist.formatR(c.avgR) }}</td>
+                <td>{{ dist.formatPct(c.winRate) }}</td>
+                <td>{{ c.avgConviction.toFixed(0) }}%</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
+    </div>
+  }
+</section>

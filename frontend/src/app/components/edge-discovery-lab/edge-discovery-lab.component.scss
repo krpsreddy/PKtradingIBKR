@@ -1,0 +1,143 @@
+.discovery-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(48, 54, 61, 0.4);
+  border-radius: 4px;
+  background: rgba(19, 23, 34, 0.72);
+}
+
+.lab-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+
+  h3 { margin: 0; font-size: 0.9375rem; color: #e6edf3; }
+  .sub { font-size: 0.625rem; color: #6e7681; text-transform: uppercase; letter-spacing: 0.04em; }
+}
+
+.refresh-btn {
+  background: rgba(56, 139, 253, 0.12);
+  border: 1px solid rgba(56, 139, 253, 0.35);
+  color: #79c0ff;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled { opacity: 0.5; }
+}
+
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.6875rem;
+  color: #8b949e;
+}
+
+.ai-block {
+  padding: 12px;
+  background: rgba(56, 139, 253, 0.06);
+  border: 1px solid rgba(56, 139, 253, 0.18);
+  border-radius: 4px;
+
+  h4 { margin: 0 0 8px; font-size: 0.6875rem; color: #79c0ff; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ai-summary { margin: 0 0 8px; font-size: 0.8125rem; color: #c9d1d9; line-height: 1.4; }
+  .ai-line { margin: 4px 0; font-size: 0.75rem; color: #b8c4d0; }
+  .suppress-line { margin: 3px 0; font-size: 0.6875rem; color: #d29922; }
+  .provider-tag { font-size: 0.5625rem; color: #6e7681; }
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.panel {
+  padding: 10px 12px;
+  border: 1px solid rgba(48, 54, 61, 0.35);
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.5);
+
+  h4 { margin: 0 0 8px; font-size: 0.625rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.06em; }
+  &.toxic h4 { color: #f85149; }
+}
+
+.cluster-line {
+  margin-bottom: 6px;
+  .label { display: block; font-size: 0.6875rem; font-weight: 600; color: #b8c4d0; }
+  .meta { font-size: 0.625rem; color: #6e7681; }
+  &.pos .label { color: #7ee787; }
+  &.neg .label { color: #ffa198; }
+}
+
+.elim-line { margin: 4px 0; font-size: 0.6875rem; color: #d29922; }
+.decay-line { margin: 4px 0; font-size: 0.6875rem; color: #8b949e; &.warn { color: #d29922; } }
+.muted { color: #6e7681; font-size: 0.6875rem; }
+.empty { color: #8b949e; font-size: 0.8125rem; }
+
+.rank-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.6875rem;
+
+  th { text-align: left; padding: 4px 8px; color: #6e7681; border-bottom: 1px solid rgba(48,54,61,0.4); }
+  td { padding: 5px 8px; color: #b8c4d0; border-bottom: 1px solid rgba(48,54,61,0.2); }
+  tr.active td { background: rgba(56,139,253,0.08); }
+  .sym { font-weight: 700; color: #e6edf3; }
+  .pos { color: #3fb950; }
+  .neg { color: #f85149; }
+}
+
+.cap-badge {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(110,118,129,0.2);
+  &.high { background: rgba(46,160,67,0.15); color: #3fb950; }
+  &.moderate { background: rgba(56,139,253,0.15); color: #79c0ff; }
+  &.reduced { background: rgba(210,153,34,0.15); color: #d29922; }
+  &.avoid { background: rgba(248,81,73,0.15); color: #f85149; }
+}
+
+.heatmap-section h4 {
+  margin: 0 0 8px;
+  font-size: 0.6875rem;
+  color: #79c0ff;
+  text-transform: uppercase;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.heatmap.compact {
+  font-size: 0.5625rem;
+  th { font-size: 0.5625rem; }
+}
+
+.heatmap-wrap { overflow-x: auto; }
+
+.heatmap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.625rem;
+
+  th { padding: 4px; color: #6e7681; text-align: center; }
+  .setup { font-weight: 700; color: #b8c4d0; text-align: left; white-space: nowrap; }
+  .cell {
+    text-align: center;
+    padding: 6px 4px;
+    color: #8b949e;
+    &.pos { background: rgba(46,160,67,0.12); color: #3fb950; font-weight: 700; }
+    &.neg { background: rgba(248,81,73,0.1); color: #f85149; font-weight: 700; }
+    &.insuf { color: #484f58; }
+  }
+}

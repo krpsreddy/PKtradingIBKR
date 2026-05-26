@@ -1,0 +1,51 @@
+.debug-panel {
+  background: #161b22 !important;
+  border: 1px solid #30363d;
+  color: #e6edf3;
+}
+
+.debug-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.debug-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+
+  .label {
+    color: #8b949e;
+    font-weight: 600;
+  }
+}
+
+.debug-logs {
+  .label {
+    display: block;
+    color: #8b949e;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  li {
+    margin-bottom: 2px;
+    font-family: monospace;
+    font-size: 0.72rem;
+    color: #8b949e;
+  }
+}
+
+.empty {
+  color: #8b949e;
+  margin: 0;
+}

@@ -1,0 +1,13 @@
+# Default Watchlist Configuration
+# Stocks to monitor for trading signals
+
+watchlist:
+  name: "My Trading Watch"
+  symbols:
+    - NVDA
+    - AVGO
+    - AMAT
+    - NOW
+    - META
+    - PLTR
+

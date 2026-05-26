@@ -1,0 +1,64 @@
+<section class="autonomous-scanner">
+  <header class="scanner-head">
+    <div>
+      <h3>Autonomous Opportunity Scanner</h3>
+      <p class="sub">Ranked by continuation persistence · expansion probability · trigger integrity · advisory only</p>
+    </div>
+    <button type="button" class="btn refresh" (click)="refresh(true)" [disabled]="loading">
+      {{ loading ? 'Scanning…' : 'Refresh Scanner' }}
+    </button>
+  </header>
+
+  @if (snapshot?.risingSymbols?.length) {
+    <div class="rising-bar">
+      <span class="label">Rising conviction</span>
+      @for (sym of snapshot!.risingSymbols; track sym) {
+        <button type="button" class="chip rising" (click)="onSelect(sym)">{{ sym }} ▲</button>
+      }
+    </div>
+  }
+
+  @if (error) {
+    <p class="error">{{ error }}</p>
+  }
+
+  @if (snapshot?.topOpportunities?.length) {
+    <section class="top-strip">
+      <h4>Top Ranked · Autonomous Conviction</h4>
+      <cdk-virtual-scroll-viewport itemSize="108" class="top-viewport">
+        <div class="top-grid">
+          @for (card of snapshot!.topOpportunities; track trackCard($index, card)) {
+            <app-autonomous-execution-card [card]="card" (symbolSelect)="onSelect($event)" />
+          }
+        </div>
+      </cdk-virtual-scroll-viewport>
+    </section>
+  }
+
+  @for (sec of sections; track sec.id) {
+    @if (sectionCards(sec.id).length) {
+      <section class="scanner-section">
+        <h4>{{ sec.title }}</h4>
+        <cdk-virtual-scroll-viewport itemSize="96" class="section-viewport">
+          <div class="card-grid">
+            @for (card of sectionCards(sec.id); track trackCard($index, card)) {
+              <app-autonomous-execution-card [card]="card" [compact]="true" (symbolSelect)="onSelect($event)" />
+            }
+          </div>
+        </cdk-virtual-scroll-viewport>
+      </section>
+    }
+  }
+
+  @if (!loading && !snapshot?.topOpportunities?.length) {
+    <p class="empty">No autonomous opportunities — load watchlist symbols and hydrate history.</p>
+  }
+
+  @if (snapshot?.summaryInsights?.length) {
+    <footer class="insights">
+      @for (line of snapshot!.summaryInsights; track line) {
+        <span>{{ line }}</span>
+      }
+    </footer>
+  }
+</section>

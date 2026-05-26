@@ -1,0 +1,54 @@
+.state-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 10px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: rgba(6, 9, 15, 0.94);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(120, 140, 180, 0.1);
+}
+
+.pill {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  color: #697586;
+  background: rgba(20, 26, 36, 0.65);
+  border: 1px solid transparent;
+  transition: all 0.35s ease;
+
+  &.past {
+    color: #9aa4b2;
+    background: rgba(114, 230, 255, 0.06);
+    opacity: 0.72;
+  }
+
+  &.active {
+    color: #f3f6fa;
+    background: rgba(70, 120, 255, 0.2);
+    border-color: rgba(114, 230, 255, 0.45);
+    box-shadow: 0 0 14px rgba(70, 120, 255, 0.22), 0 0 24px rgba(70, 120, 255, 0.1);
+  }
+
+  &.future {
+    opacity: 0.38;
+    color: #697586;
+  }
+}
+
+.arrow {
+  font-size: 0.5rem;
+  color: #4a5568;
+  transition: color 0.3s;
+
+  &.lit {
+    color: #697586;
+  }
+}

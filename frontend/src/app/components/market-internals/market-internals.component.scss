@@ -1,0 +1,61 @@
+.internals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 7px;
+  padding: 3px 2px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.65rem;
+}
+
+.lbl {
+  color: #6e7681;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.58rem;
+}
+
+.val {
+  font-weight: 700;
+  color: #c9d1d9;
+
+  &.bullish { color: #3fb950; }
+  &.bearish { color: #f85149; }
+  &.neutral { color: #8b949e; }
+  &.regime { color: #58a6ff; text-transform: uppercase; font-size: 0.58rem; }
+  &.risk-on { color: #3fb950; }
+  &.risk-off { color: #f85149; }
+  &.open { color: #3fb950; }
+  &.breadth-strong { color: #3fb950; }
+  &.breadth-weak { color: #f85149; }
+}
+
+.persist {
+  font-size: 0.55rem;
+  color: #6e7681;
+  margin-left: 4px;
+}
+
+.personality-block {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  padding-top: 3px;
+  border-top: 1px solid #21262d;
+}
+
+.personality {
+  color: #d2a8ff !important;
+  text-transform: capitalize;
+  font-size: 0.62rem;
+}
+
+.personality-desc {
+  margin: 4px 0 0;
+  font-size: 0.58rem;
+  color: #8b949e;
+  line-height: 1.35;
+}

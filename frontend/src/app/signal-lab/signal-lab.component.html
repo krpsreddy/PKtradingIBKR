@@ -1,0 +1,144 @@
+<div class="signal-lab">
+  <header class="lab-header">
+    <div class="title-row">
+      <h1>Signal Lab</h1>
+      <span class="subtitle">Verify engines, debug conditions, replay timeline</span>
+    </div>
+    <nav class="nav-links">
+      <a routerLink="/dashboard" class="nav-btn">← Dashboard</a>
+      <a routerLink="/symbols" class="nav-btn">Symbols</a>
+      <button type="button" class="nav-btn primary" (click)="refreshAll()" [disabled]="loadingAll">
+        {{ loadingAll ? 'Running…' : 'Refresh all' }}
+      </button>
+    </nav>
+  </header>
+
+  @if (health) {
+    <section class="health-bar">
+      <span class="chip" [ngClass]="health.ibkrConnected ? 'ok' : 'bad'">IBKR {{ health.ibkrConnected ? 'OK' : 'DOWN' }}</span>
+      <span class="chip" [ngClass]="health.liveSignalsEnabled ? 'ok' : 'warn'">
+        Live signals {{ health.liveSignalsEnabled ? 'ON' : 'OFF' }}
+      </span>
+      <span class="chip" [ngClass]="health.marketOpen ? 'ok' : 'muted'">{{ health.marketStatus }}</span>
+      <span class="chip muted">{{ health.estTime }}</span>
+      @if (lastRun) {
+        <span class="chip muted">Last test {{ lastRun }}</span>
+      }
+    </section>
+
+    <section class="engines-grid">
+      @for (e of health.engines; track e.code) {
+        <div class="engine-card" [class.active]="e.activeNow">
+          <div class="engine-top">
+            <strong>{{ e.label }}</strong>
+            <span class="window-badge" [class.on]="e.activeNow">{{ e.activeNow ? 'ACTIVE NOW' : 'INACTIVE' }}</span>
+          </div>
+          <div class="engine-meta">{{ e.windowEt }} ET · {{ e.triggerMode }}</div>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="symbol-row">
+    <label>
+      Test symbol
+      <input type="text" [(ngModel)]="symbol" (change)="onSymbolChange()" placeholder="QCOM" spellcheck="false" />
+    </label>
+    <button type="button" class="run-btn" (click)="runAllTests()" [disabled]="loadingAll">Run all tests</button>
+  </section>
+
+  <p class="hint">
+    Debug endpoints evaluate <strong>current/latest bar</strong> — not historical backfill.
+    Empty replay/signals after close is normal. Use this page during 9:30–11:00 ET for live verification.
+    Backend logs show <code>Signal generated:</code> when alerts actually fire.
+  </p>
+
+  <section class="tests-grid">
+    @for (t of tests; track t.key) {
+      <div class="test-card" [class.is-loading]="t.loading">
+        <div class="test-head">
+          <h3>{{ t.label }}</h3>
+          @if (t.loading) {
+            <span class="status loading">Updating…</span>
+          } @else if (t.error) {
+            <span class="status bad">Error</span>
+          } @else if (t.fired === true) {
+            <span class="status fire">WOULD FIRE</span>
+          } @else if (t.data) {
+            <span class="status pass">Not firing now</span>
+          } @else {
+            <span class="status muted">No data yet</span>
+          }
+          <button type="button" class="mini-btn" (click)="runSingle(t.key)" [disabled]="t.loading || loadingAll">Retest</button>
+        </div>
+        @if (t.error) {
+          <p class="err">{{ t.error }}</p>
+        }
+        <div class="json-wrap">
+          @if (t.data) {
+            <pre class="json-out" [class.dimmed]="t.loading">{{ t.data | json }}</pre>
+          } @else if (!t.loading) {
+            <p class="json-placeholder">Run tests to load debug output.</p>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <h3>Replay timeline ({{ symbol }})</h3>
+      @if (replay.length === 0) {
+        <p class="empty">No evaluations recorded today</p>
+      } @else {
+        <div class="replay-list">
+          @for (r of replay; track r.timestamp + r.signalType) {
+            <div class="replay-row">
+              <span class="time">{{ r.timestamp | slice:11:19 }}</span>
+              <span class="type">{{ r.signalType }}</span>
+              <span class="score">{{ r.score ?? '—' }}</span>
+              <span class="vwap">{{ r.vwapState }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="panel">
+      <h3>Signals today ({{ symbol }})</h3>
+      @if (signals.length === 0) {
+        <p class="empty">No persisted signals</p>
+      } @else {
+        @for (s of signals; track s.timestamp + s.signalType) {
+          <div class="signal-row">
+            <span>{{ s.signalType }}</span>
+            <span>${{ s.price }}</span>
+            <span class="score">{{ s.confidenceScore }}/{{ s.signalType === 'OPEN_FAIL' ? '7' : s.signalType === 'OPEN_SCOUT' ? '4' : '7' }}</span>
+          </div>
+        }
+      }
+    </div>
+  </section>
+
+  <section class="scanners panel">
+    <h3>Scanner snapshots</h3>
+    <div class="scanner-grid">
+      <div><strong>Hot</strong> {{ hot.length }}</div>
+      <div><strong>Opening</strong> {{ opening.length }}</div>
+      <div><strong>Failed</strong> {{ failed.length }}</div>
+      <div><strong>Continuation</strong> {{ continuation.length }}</div>
+    </div>
+  </section>
+
+  <section class="api-links panel">
+    <h3>Raw API links (opens in new tab)</h3>
+    <div class="link-grid">
+      @for (link of apiLinks; track link.path) {
+        <button type="button" class="api-link" (click)="openApi(link.path)" [title]="link.description">
+          <span class="link-label">{{ link.label }}</span>
+          <span class="link-path">{{ link.path }}</span>
+        </button>
+      }
+    </div>
+  </section>
+</div>

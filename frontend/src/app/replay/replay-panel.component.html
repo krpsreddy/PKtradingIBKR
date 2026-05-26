@@ -1,0 +1,201 @@
+<section class="replay-panel focus-first" [class.loading]="loading" [class.bottom-collapsed]="!bottomExpanded">
+  @if (breadcrumb) {
+    <nav class="replay-breadcrumb" aria-label="Replay context">
+      <span class="crumb sym">{{ breadcrumb.symbol }}</span>
+      <span class="sep">›</span>
+      <span class="crumb">{{ breadcrumb.sessionLabel }}</span>
+      <span class="sep">›</span>
+      <span class="crumb time">{{ breadcrumb.timeLabel }}</span>
+      <span class="crumb decision">{{ breadcrumb.decisionLabel }}</span>
+      @if (breadcrumb.narrativeLabel && breadcrumb.narrativeLabel !== '—') {
+        <span class="crumb narrative">{{ breadcrumb.narrativeLabel }}</span>
+      }
+      @if (breadcrumb.convictionPct != null) {
+        <span class="crumb conv">Conviction {{ breadcrumb.convictionPct }}%</span>
+      }
+    </nav>
+  }
+
+  <div class="replay-status-bar">
+    <span class="status-dot" [class]="statusClass()"></span>
+    <span class="status-label">REPLAY: {{ statusLabel() }}</span>
+    @if (actionFeedback) {
+      <span class="status-action">{{ actionFeedback.message }}</span>
+    }
+    @if (pendingAction) {
+      <span class="status-pending">{{ pendingAction }}</span>
+    }
+    @if (cacheHit) {
+      <span class="cache-badge">Cached</span>
+    }
+  </div>
+
+  <header class="replay-header compact-controls">
+    <div class="session-row">
+      <div class="session-nav">
+        <button type="button" class="btn icon" (click)="sessionNav.emit('prev')" [disabled]="loading" title="Previous session">◀</button>
+        <label class="session-select">
+          <span>Session</span>
+          <select [ngModel]="replayDateInput" (ngModelChange)="onSessionPick($event)" [disabled]="loading">
+            @for (s of sessions; track s.sessionDate) {
+              <option [value]="s.sessionDate">{{ sessionLabel(s) }}</option>
+            }
+            @if (!sessions.length) {
+              <option [value]="replayDateInput">{{ replayDateInput }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="btn icon" (click)="sessionNav.emit('next')" [disabled]="loading" title="Next session">▶</button>
+      </div>
+      <div class="session-jumps">
+        <button type="button" class="btn subtle" (click)="sessionNav.emit('best')" [disabled]="loading">Best</button>
+        <button type="button" class="btn subtle" (click)="sessionNav.emit('conviction')" [disabled]="loading">High conv</button>
+      </div>
+    </div>
+
+    <div class="replay-controls">
+      <button type="button" class="btn primary" (click)="loadReplay.emit()" [disabled]="loading" [class.busy]="loading">
+        {{ loading ? 'Loading…' : 'Reload' }}
+      </button>
+      <button type="button" class="btn" (click)="play.emit()" [disabled]="!history || playing || loading">▶</button>
+      <button type="button" class="btn" (click)="pause.emit()" [disabled]="!playing">⏸</button>
+      <button type="button" class="btn" (click)="stepForward.emit()" [disabled]="!history || loading">⏭</button>
+      <button type="button" class="btn" (click)="jumpToHead.emit()" [disabled]="!history || currentIndex < 0">↩ Head</button>
+      <button type="button" class="btn" [class.active]="reviewMode" (click)="toggleReviewMode()">Study</button>
+      <div class="speed-group">
+        @for (s of speeds; track s) {
+          <button type="button" class="btn speed" [class.active]="speed === s" (click)="speedChange.emit(s)">{{ s }}x</button>
+        }
+      </div>
+      <span class="bar-label">{{ currentBarLabel() }} · {{ currentIndex + 1 }}/{{ history?.totalBars ?? 0 }}</span>
+    </div>
+
+    @if (history && history.totalBars > 0) {
+      <div class="timeline-scrubber">
+        <input type="range" min="0" [max]="history.totalBars - 1" [(ngModel)]="scrubIndex" (input)="onScrubInput()" [disabled]="loading" />
+      </div>
+    }
+
+    <div class="workflow-bar">
+      <button type="button" class="btn subtle" (click)="onWorkflow('PREV_SIGNAL')" [disabled]="loading">◀ Prev Signal</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('NEXT_SIGNAL')" [disabled]="loading">Next Signal ▶</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('PREV_ENTRY')" [disabled]="loading">◀ Prev Entry</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('NEXT_ENTRY')" [disabled]="loading">Next Entry ▶</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('NEXT_TRAP')" [disabled]="loading">Next Trap</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('NEXT_RECLAIM')" [disabled]="loading">Reclaim</button>
+      <button type="button" class="btn subtle" (click)="onWorkflow('NEXT_SECOND_LEG')" [disabled]="loading">Second Leg</button>
+    </div>
+
+    @if (error) {
+      <p class="error">{{ error }}</p>
+    }
+  </header>
+
+  <div class="panel-dock">
+    <div class="panel-tabs">
+      @for (t of tabs; track t.id) {
+        <button type="button" class="tab-btn" [class.active]="activeTab === t.id" (click)="selectTab(t.id)">
+          {{ t.label }}
+        </button>
+      }
+      <button type="button" class="tab-toggle" (click)="toggleBottom.emit()">
+        {{ bottomExpanded ? '▾' : '▸' }} Panels
+      </button>
+    </div>
+
+    @if (bottomExpanded && history) {
+      <div class="panel-body">
+        @switch (activeTab) {
+          @case ('timeline') {
+            <cdk-virtual-scroll-viewport itemSize="28" class="virtual-list-viewport">
+              <ul class="event-list">
+                <li *cdkVirtualFor="let ev of visibleTimeline; trackBy: trackEvent"
+                    [class.selected]="selectedEvent?.timestamp === ev.timestamp && selectedEvent?.signalType === ev.signalType"
+                    (click)="selectEvent(ev)">
+                  <span class="icon">{{ markerIcon(ev.signalType) }}</span>
+                  <span class="time">{{ formatTime(ev.timestamp) }}</span>
+                  <span class="type">{{ ev.signalType }}</span>
+                  @if (ev.score != null) {
+                    <span class="score">{{ ev.score }}</span>
+                  }
+                </li>
+              </ul>
+            </cdk-virtual-scroll-viewport>
+          }
+          @case ('decisions') {
+            @if (decisionRows.length) {
+              <cdk-virtual-scroll-viewport itemSize="32" class="virtual-list-viewport">
+                <ul class="decision-list">
+                  <li *cdkVirtualFor="let row of decisionRows; trackBy: trackDecisionRow" (click)="onDecisionRowClick(row)">
+                    <span class="time">{{ row.timeLabel }}</span>
+                    <span class="decision">{{ row.decisionLabel }}</span>
+                    @if (row.convictionPct != null) {
+                      <span class="conv">{{ row.convictionPct }}%</span>
+                    }
+                    <span class="narrative">{{ row.narrativeLine }}</span>
+                  </li>
+                </ul>
+              </cdk-virtual-scroll-viewport>
+            } @else {
+              <p class="muted">No decision rows for this session.</p>
+            }
+          }
+          @case ('lifecycle') {
+            <div class="lifecycle-path">
+              @for (step of history.lifecyclePath; track $index) {
+                <span class="step">{{ markerIcon(step) }} {{ step }}</span>
+                @if ($index < history.lifecyclePath.length - 1) {
+                  <span class="arrow">→</span>
+                }
+              }
+              @if (!history.lifecyclePath.length) {
+                <span class="muted">No signals simulated</span>
+              }
+            </div>
+          }
+          @case ('inspector') {
+            @if (selectedEvent) {
+              <div class="inspector-head">
+                <strong>{{ markerIcon(selectedEvent.signalType) }} {{ selectedEvent.signalType }}</strong>
+                <span>{{ formatTime(selectedEvent.timestamp) }} · ${{ selectedEvent.price | number:'1.2-2' }}</span>
+              </div>
+              <div class="cond-block passed">
+                @for (c of selectedEvent.passedConditions; track c) {
+                  <div class="cond">✅ {{ c }}</div>
+                }
+              </div>
+              <div class="cond-block failed">
+                @for (c of selectedEvent.failedConditions; track c) {
+                  <div class="cond">❌ {{ c }}</div>
+                }
+              </div>
+            } @else {
+              <p class="muted">Select a timeline event or chart marker.</p>
+            }
+          }
+          @case ('scores') {
+            <cdk-virtual-scroll-viewport itemSize="26" class="virtual-list-viewport">
+              <ul class="score-list">
+                <li *cdkVirtualFor="let pt of visibleScores; trackBy: trackScore">
+                  <span class="time">{{ formatTime(pt.timestamp) }}</span>
+                  <span class="engine">{{ pt.engine }}</span>
+                  <span class="score">{{ pt.score }}</span>
+                </li>
+              </ul>
+            </cdk-virtual-scroll-viewport>
+          }
+        }
+      </div>
+    }
+  </div>
+
+  @if (debugInfo) {
+    <footer class="replay-debug">
+      Index {{ debugInfo.replayIndex }}
+      · Range {{ debugInfo.visibleFrom ?? '—' }}–{{ debugInfo.visibleTo ?? '—' }}
+      · Signal {{ debugInfo.focusedSignal ?? '—' }}
+      · AutoFollow {{ debugInfo.autoFollow ? 'ON' : 'OFF' }}
+      · Lock {{ debugInfo.viewportLock ? 'ACTIVE' : 'OFF' }}
+    </footer>
+  }
+</section>

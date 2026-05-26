@@ -1,0 +1,54 @@
+.coaching-feed {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  overflow: hidden;
+
+  &.collapsed .feed-list { display: none; }
+}
+
+.feed-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 0.65rem;
+
+  &:hover { color: #e6edf3; }
+}
+
+.title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #58a6ff;
+}
+
+.count {
+  background: #21262d;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-size: 0.58rem;
+}
+
+.chev { margin-left: auto; font-size: 0.55rem; }
+
+.feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 10px 6px;
+
+  li {
+    font-size: 0.65rem;
+    padding: 3px 0;
+    color: #c9d1d9;
+
+    &.warn { color: #d29922; }
+    &.good { color: #3fb950; }
+  }
+}

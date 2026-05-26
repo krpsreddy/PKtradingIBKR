@@ -1,0 +1,48 @@
+<div class="sym-switcher">
+  <button #triggerBtn type="button" class="sym-switcher-trigger" (click)="toggle()" title="Switch symbol (/)" [class.open]="open">
+    <span class="lbl">SYMBOL</span>
+    <span class="sym">{{ symbol }}</span>
+    <span class="chev">{{ open ? '▲' : '▼' }}</span>
+  </button>
+</div>
+
+@if (open) {
+  <div #panel class="sym-switcher-panel"
+       [style.top.px]="dropdownTop" [style.left.px]="dropdownLeft"
+       (mousedown)="onPanelPointer($event)" (click)="onPanelPointer($event)"
+       (keydown)="onKeydown($event)">
+    <input #searchInput class="search" type="text" placeholder="Type ticker… (NVDA)" [ngModel]="query"
+           (ngModelChange)="onQueryChange($event)" autocomplete="off" spellcheck="false" />
+    <div class="list">
+      @if (query.trim()) {
+        @if (flatSymbols.length === 0) {
+          <div class="empty-hint">No matches</div>
+        }
+        @for (sym of flatSymbols; track sym; let i = $index) {
+          <button type="button" class="row" [class.hl]="i === highlightIndex"
+                  (mousedown)="onRowSelect($event, sym)">
+            @if (sym.startsWith('__ADD__')) {
+              + Add {{ sym.replace('__ADD__', '') }}
+            } @else {
+              {{ sym }}
+            }
+          </button>
+        }
+      } @else {
+        @if (sections.length === 0) {
+          <div class="empty-hint">Loading symbols…</div>
+        }
+        @for (sec of sections; track sec.label; let si = $index) {
+          <div class="sec-label">{{ sec.label }}</div>
+          @for (sym of sec.symbols; track sym; let ii = $index) {
+            <button type="button" class="row" [class.selected]="sym === symbol"
+                    [class.hl]="flatIdx(si, ii) === highlightIndex"
+                    (mousedown)="onRowSelect($event, sym)">
+              {{ sym }}
+            </button>
+          }
+        }
+      }
+    </div>
+  </div>
+}

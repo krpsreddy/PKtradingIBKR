@@ -1,0 +1,8 @@
+<nav class="workspace-mode-switch" aria-label="Workspace mode">
+  <button type="button" class="mode-btn" [class.active]="mode === 'execution'" (click)="select('execution')">
+    EXECUTION
+  </button>
+  <button type="button" class="mode-btn" [class.active]="mode === 'review'" (click)="select('review')">
+    REVIEW
+  </button>
+</nav>

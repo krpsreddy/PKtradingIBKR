@@ -1,0 +1,65 @@
+<div class="chart-shell" [class.rail-separated]="railSeparated">
+  <div class="chart-zone" #chartZone>
+    <div class="volume-separator"></div>
+    <div class="chart-wrap" [class]="'shade-' + trendShade + ' intensity-' + intensityMode.toLowerCase()" [class.emphasize-live]="(emphasizeLiveCandle || liveCandlePulse) && !stillnessActive" [class.replay-active]="replayMode" [class.calm]="calmMode" [class.silence-mode]="silenceActive" [style.filter]="chartSurfaceFilter()">
+      <div class="chart-overlay">
+        <div class="symbol-block">
+          <span class="sym">{{ symbol }}</span>
+          @if (livePrice != null) {
+            <span class="price">${{ livePrice | number:'1.2-2' }}</span>
+          }
+          <span class="trend" [class]="trendClass()">{{ trendLabel }}</span>
+        </div>
+        @if (stackedPills.length) {
+          <div class="cognition-pills cognition-column" [style.gap.px]="cognitionGapPx" [style.right.px]="cognitionSafeZone.columnRightPx">
+            @for (pill of stackedPills; track pill.id) {
+              <span class="pill" [class]="'tone-' + pill.tone" [style.opacity]="pill.opacity">{{ pill.label }}</span>
+            }
+          </div>
+        } @else if (cognitionPills.length) {
+          <div class="cognition-pills cognition-column" [style.gap.px]="cognitionGapPx" [style.right.px]="cognitionSafeZone.columnRightPx">
+            @for (pill of cognitionPills; track pill.label) {
+              <span class="pill" [class]="'tone-' + pill.tone">{{ pill.label }}</span>
+            }
+          </div>
+        }
+      </div>
+      <div #crosshairInfo class="crosshair-info"></div>
+      <div #tooltip class="signal-tooltip"></div>
+      <canvas #zoneCanvas class="zone-canvas"></canvas>
+      <div #chartContainer class="chart-container"></div>
+      @if (anchorState === 'HISTORY_REVIEW' && !replayMode) {
+        <div class="live-beacon" title="Live candle position"></div>
+      }
+      @if (replayMode) {
+        <div class="replay-badge">REPLAY SESSION</div>
+        @if (replaySimLabel) {
+          <div class="replay-clock">{{ replaySimLabel }}</div>
+        }
+        @if (replayViewportState && !replayViewportState.autoFollowReplay && replayViewportState.detachedFromHead) {
+          <div class="replay-detached-banner">
+            Inspecting historical replay — auto-follow paused
+            <button type="button" class="replay-jump-btn" (click)="focusReplayHead()">Jump to Replay Head</button>
+          </div>
+        }
+        @if (replayMinimap) {
+          <div class="replay-minimap" aria-hidden="true">
+            <div class="replay-minimap-viewport"
+                 [style.left.%]="replayMinimap.viewportFromPct"
+                 [style.width.%]="replayMinimap.viewportToPct - replayMinimap.viewportFromPct"></div>
+            <div class="replay-minimap-head" [style.left.%]="replayMinimap.headPct"></div>
+          </div>
+        }
+      }
+      @if (tradeRrLabel) {
+        <div class="trade-rr-float" [class.active]="emphasizeLiveCandle">{{ tradeRrLabel }}</div>
+      }
+    </div>
+  </div>
+
+  @if (railSeparated) {
+    <div class="execution-rail-lane execution-rail">
+      <ng-content select="[executionRail]"></ng-content>
+    </div>
+  }
+</div>

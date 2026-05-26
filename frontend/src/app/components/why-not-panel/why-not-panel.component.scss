@@ -1,0 +1,25 @@
+.why-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(210, 153, 34, 0.06);
+  border: 1px solid rgba(210, 153, 34, 0.2);
+  font-size: 0.58rem;
+  color: #8b949e;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.no-edge {
+    border-color: rgba(248, 81, 73, 0.3);
+    background: rgba(248, 81, 73, 0.08);
+    color: #f85149;
+    font-weight: 700;
+  }
+
+  .icon { flex-shrink: 0; opacity: 0.85; }
+  .text { overflow: hidden; text-overflow: ellipsis; }
+}

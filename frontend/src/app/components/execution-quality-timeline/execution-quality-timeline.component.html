@@ -1,0 +1,20 @@
+<section class="eq-timeline">
+  <header>
+    <h4>Execution Quality</h4>
+    <span class="sym">{{ symbol }}</span>
+  </header>
+  @if (points.length === 0) {
+    <p class="empty">Quality evolution appears as signals fire</p>
+  } @else {
+    <ol>
+      @for (p of points; track track($index, p); let i = $index) {
+        <li [class]="'phase-' + p.label.toLowerCase()" [style.animation-delay.ms]="i * 50">
+          @if (i > 0) { <span class="arrow">→</span> }
+          <span class="time">{{ p.timestamp | date:'H:mm':'America/New_York' }}</span>
+          <span class="label">{{ p.label }}</span>
+          <span class="score">{{ p.grade || p.score }}</span>
+        </li>
+      }
+    </ol>
+  }
+</section>

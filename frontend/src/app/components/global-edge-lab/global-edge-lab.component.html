@@ -1,0 +1,938 @@
+<section class="global-edge-lab">
+  <header class="lab-head">
+    <div>
+      <h3>Global Edge Lab</h3>
+      <span class="sub">Cross-symbol market intelligence · all evaluated signals · advisory only</span>
+    </div>
+    <div class="head-actions">
+      <button type="button" class="hydrate-btn" (click)="loadAllHistory()" [disabled]="bulkHydrating || bulkRunning || symbolsLoading || !bulkSymbols.length">
+        {{ bulkHydrating ? 'Hydrating…' : 'Load All ' + lookbackDays + 'D History' }}
+      </button>
+      <button type="button" class="bulk-btn" (click)="analyzeWatchlist()" [disabled]="bulkRunning || bulkHydrating || symbolsLoading || !bulkSymbols.length">
+        {{ bulkRunning ? 'Analyzing…' : 'Analyze Active Watchlist' }}
+      </button>
+      <button type="button" class="refresh-btn" (click)="refresh()" [disabled]="loading">Refresh Report</button>
+    </div>
+  </header>
+
+  <div class="execution-mode-bar">
+    <span class="mode-label">Execution framework:</span>
+    <button type="button" class="mode-btn" [class.active]="executionMode === 'AUTONOMOUS_DISCOVERY'" (click)="setExecutionMode('AUTONOMOUS_DISCOVERY')">Autonomous</button>
+    <button type="button" class="mode-btn" [class.active]="executionMode === 'LEGACY_GOVERNANCE'" (click)="setExecutionMode('LEGACY_GOVERNANCE')">Legacy</button>
+    <button type="button" class="mode-btn" [class.active]="executionMode === 'HYBRID_COMPARISON'" (click)="setExecutionMode('HYBRID_COMPARISON')">Hybrid compare</button>
+  </div>
+
+  <nav class="lab-tabs" aria-label="Edge Lab workspace">
+    @for (t of labTabs; track t.id) {
+      <button type="button" class="tab-btn" [class.active]="activeTab === t.id" (click)="selectTab(t.id)">
+        {{ t.label }}
+      </button>
+    }
+  </nav>
+
+  @if (activeTab === 'scanner') {
+    <app-autonomous-scanner-panel [symbols]="bulkSymbols" (symbolSelect)="onScannerSymbol($event)" />
+  }
+
+  @if (activeTab === 'feed') {
+    <div class="panel feed-tab" [class.tab-hidden]="!showSection('feed')">
+      <app-live-execution-feed
+        [selectedSymbol]="focusSymbol ?? bulkSymbols[0] ?? ''"
+        (symbolSelect)="onScannerSymbol($event)">
+      </app-live-execution-feed>
+    </div>
+  }
+
+  @if (activeTab === 'memory') {
+    <div class="panel memory-tab" [class.tab-hidden]="!showSection('memory')">
+      <app-strategy-memory-panel
+        [focusSymbol]="focusSymbol"
+        (replaySymbol)="onMemoryReplay($event)">
+      </app-strategy-memory-panel>
+    </div>
+  }
+
+  @if (activeTab !== 'scanner' && activeTab !== 'feed' && activeTab !== 'memory') {
+  <div class="hydration-toolbar" [class.tab-hidden]="!showSection('hydration')">
+    <header class="rankings-head">
+      <h4>Bulk History Hydration</h4>
+      <span class="rankings-sub">
+        @if (symbolsLoading) {
+          Loading symbols…
+        } @else if (bulkSymbols.length) {
+          {{ bulkSymbols.length }} symbols · parallel replay · incremental · resumable
+        } @else {
+          No watchlist symbols — add symbols from the dashboard
+        }
+        @if (queueDepth > 0) {
+          · {{ queueDepth }} in analysis queue
+        }
+      </span>
+    </header>
+    <label class="auto-analyze-toggle">
+      <input type="checkbox" [checked]="autoAnalyzeAfterLoad" (change)="toggleAutoAnalyze()" [disabled]="bulkHydrating" />
+      Auto Analyze After History Load
+    </label>
+  </div>
+
+  @if (hydrationProgress?.running || (hydrationProgress && hydrationProgress.totalSymbols > 0)) {
+    <div class="hydration-progress" [class.tab-hidden]="!showSection('hydration')">
+      <div class="progress-head">
+        <span class="progress-title">Bulk Hydration</span>
+        @if (hydrationProgress!.currentLabel) {
+          <span class="progress-current">{{ hydrationProgress!.currentLabel }}</span>
+        }
+        @if (hydrationProgress!.parallelism > 1) {
+          <span class="progress-parallel">{{ hydrationProgress!.parallelism }}× parallel</span>
+        }
+      </div>
+      <div class="progress-stats">
+        <span>{{ hydrationProgress!.completed + hydrationProgress!.skipped }}/{{ hydrationProgress!.totalSymbols }} done</span>
+        @if (hydrationProgress!.activeSymbols.length) {
+          <span>{{ hydrationProgress!.activeSymbols.length }} loading</span>
+        }
+        <span>{{ hydrationProgress!.queueSize }} queued</span>
+        @if (hydrationProgress!.skipped) {
+          <span>{{ hydrationProgress!.skipped }} skipped (already loaded)</span>
+        }
+        @if (hydrationProgress!.failed) {
+          <span class="fail-count">{{ hydrationProgress!.failed }} failed</span>
+        }
+        <span>ETA {{ formatEta(hydrationProgress!.estimatedRemainingMs) }}</span>
+      </div>
+      @if (hydrationProgress!.summaryMessage) {
+        <p class="progress-summary">{{ hydrationProgress!.summaryMessage }}</p>
+      }
+    </div>
+  }
+
+  @if (hydrationRows.length) {
+    <div class="hydration-table-section" [class.tab-hidden]="!showSection('hydration')">
+      <header class="rankings-head">
+        <h4>Symbol Hydration Status</h4>
+        <span class="rankings-sub">{{ hydrationRows.length }} symbols</span>
+      </header>
+      <div class="rankings-table-wrap">
+        <table class="rankings-table hydration-table">
+          <thead>
+            <tr>
+              <th class="col-sym">Symbol</th>
+              <th class="col-history">Sessions</th>
+              <th class="col-num">Signals</th>
+              <th class="col-score">Edge</th>
+              <th class="col-status">Status</th>
+              <th class="col-action"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of hydrationRows; track row.symbol) {
+              <tr class="clickable" (click)="goToSymbolDna(row.symbol)">
+                <td class="sym-cell">{{ row.symbol }}</td>
+                <td class="col-history">
+                  <span [class.history-done]="row.historyComplete">{{ row.historyLabel }}</span>
+                  <span class="history-sub">60D lookback</span>
+                </td>
+                <td class="col-num">{{ row.signalCount }}</td>
+                <td class="col-score">
+                  <span class="score-chip" [class.high]="row.edgeScore >= 65" [class.mid]="row.edgeScore >= 40 && row.edgeScore < 65">
+                    {{ formatScore(row.edgeScore) }}
+                  </span>
+                </td>
+                <td class="col-status">
+                  <span class="hydration-badge" [class]="row.status.toLowerCase()">{{ hydrationStatusLabel(row.status) }}</span>
+                  @if (row.statusDetail) {
+                    <span class="status-detail">{{ row.statusDetail }}</span>
+                  }
+                </td>
+                <td>
+                  @if (row.status === 'FAILED' || (row.status === 'PARTIAL' && row.signalCount === 0)) {
+                    <button type="button" class="retry-btn" (click)="retryHydration(row.symbol); $event.stopPropagation()">Retry</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if ((!report || report.discovery.totalEvaluated === 0) && activeTab === 'research') {
+    <p class="empty">No evaluated signals yet. Load 60D history for watchlist symbols to populate global edge discovery.</p>
+  }
+
+  @if (report && report.discovery.totalEvaluated > 0) {
+    <div class="research-tab-content" [class.tab-hidden]="!showSection('research')">
+    <div class="summary-strip">
+      <span>{{ report.discovery.totalEvaluated }} evaluated (all symbols)</span>
+      <span>{{ report.strongestConditions.length }} high-edge conditions</span>
+      <span>{{ report.toxicConditions.length }} toxic environments</span>
+      <span>{{ report.recommendedSuppressions.length }} suppressions</span>
+    </div>
+
+    <!-- TOP: conditions first -->
+    <div class="two-col">
+      <div class="panel">
+        <h4>Strongest Conditions</h4>
+        @for (c of report.strongestConditions; track c.id) {
+          <div class="cluster-line pos">
+            <span class="label">{{ c.label }}</span>
+            <span class="meta">{{ formatR(c.metrics.expectancyR) }} · WR {{ formatPct(c.metrics.winRate) }} · n={{ c.metrics.sampleCount }}</span>
+          </div>
+        } @empty { <p class="muted">—</p> }
+      </div>
+      <div class="panel toxic">
+        <h4>Toxic Conditions</h4>
+        @for (c of report.toxicConditions; track c.id) {
+          <div class="cluster-line neg">
+            <span class="label">{{ c.label }}</span>
+            <span class="meta">{{ formatR(c.metrics.expectancyR) }} · fakeout {{ formatPct(c.metrics.fakeoutRate) }} · n={{ c.metrics.sampleCount }}</span>
+          </div>
+        } @empty { <p class="muted">—</p> }
+      </div>
+    </div>
+
+    <div class="panel">
+      <h4>Best Conditions for Capital</h4>
+      @for (c of report.bestSetups; track c.id) {
+        <p class="condition-line">{{ c.label }} — {{ formatR(c.metrics.expectancyR) }} · n={{ c.metrics.sampleCount }}</p>
+      } @empty {
+        @for (c of report.bestTimeWindows; track c.id) {
+          <p class="condition-line">{{ c.label }} — {{ formatR(c.metrics.expectancyR) }}</p>
+        }
+      }
+    </div>
+
+    <!-- MIDDLE: heatmaps -->
+    <div class="heatmap-section">
+      <h4>Opportunity × Regime (Global)</h4>
+      <div class="heatmap-wrap">
+        <table class="heatmap">
+          <thead>
+            <tr><th>Opportunity</th>@for (reg of regimeDims; track reg) { <th>{{ reg }}</th> }</tr>
+          </thead>
+          <tbody>
+            @for (setup of matrixSetups; track setup) {
+              <tr>
+                <td class="setup">{{ formatLabel(setup) }}</td>
+                @for (reg of regimeDims; track reg) {
+                  @if (heatCell(report.discovery.heatmapRegime, setup, reg); as cell) {
+                    <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                      {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                    </td>
+                  } @else { <td class="cell insuf">—</td> }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="heatmap-grid">
+      <div class="heatmap-section">
+        <h4>Opportunity × RVOL</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Opportunity</th>@for (d of rvolDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ formatLabel(setup) }}</td>
+                  @for (d of rvolDims; track d) {
+                    @if (heatCell(report.discovery.heatmapRvol, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="heatmap-section">
+        <h4>Opportunity × Timing</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Opportunity</th>@for (d of timeDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ formatLabel(setup) }}</td>
+                  @for (d of timeDims; track d) {
+                    @if (heatCell(report.discovery.heatmapTime, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="heatmap-section">
+        <h4>Opportunity × Breadth</h4>
+        <div class="heatmap-wrap">
+          <table class="heatmap compact">
+            <thead><tr><th>Opportunity</th>@for (d of breadthDims; track d) { <th>{{ d }}</th> }</tr></thead>
+            <tbody>
+              @for (setup of matrixSetups; track setup) {
+                <tr>
+                  <td class="setup">{{ formatLabel(setup) }}</td>
+                  @for (d of breadthDims; track d) {
+                    @if (heatCell(report.discovery.heatmapBreadth, setup, d); as cell) {
+                      <td class="cell" [class.pos]="cell.tone === 'POSITIVE'" [class.neg]="cell.tone === 'NEGATIVE'" [class.insuf]="cell.tone === 'INSUFFICIENT'">
+                        {{ cell.tone === 'INSUFFICIENT' ? '—' : formatR(cell.expectancyR) }}
+                      </td>
+                    } @else { <td class="cell insuf">—</td> }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    </div>
+  }
+
+    @if (showSection('winners')) {
+      @if (winnerReport; as wd) {
+      <div class="panel winner-decomp-section">
+        <header class="rankings-head">
+          <h4>Winner Decomposition Analytics</h4>
+          <span class="rankings-sub">Phase 154 · pre-entry expansion discovery · advisory only · {{ wd.largeWinnerCount }} GT_2R+ winners · n={{ wd.sampleCount }}</span>
+        </header>
+
+        @for (insight of wd.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        @if (wd.sampleCount < 10 && wd.largeWinnerCount === 0) {
+          <p class="empty">Load 60D history and evaluate signals to populate historical winner decomposition.</p>
+        }
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Biggest Winners</h4>
+            <table class="rank-table compact">
+              <thead>
+                <tr><th>Symbol</th><th>Date</th><th>Narrative</th><th>Move</th><th>Cont %</th><th>Entry</th></tr>
+              </thead>
+              <tbody>
+                @for (w of wd.biggestWinners.slice(0, 8); track w.signal.id) {
+                  <tr>
+                    <td class="sym">{{ w.signal.symbol }}</td>
+                    <td>{{ w.preEntry.sessionDate }}</td>
+                    <td>{{ w.preEntry.entryLocation.replace('_', ' ') }}</td>
+                    <td class="pos">+{{ w.moveSizeR.toFixed(1) }}R</td>
+                    <td>{{ w.continuationPct }}%</td>
+                    <td>${{ w.bestEntryPrice.toFixed(2) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel inner">
+            <h4>Missed Winners</h4>
+            <table class="rank-table compact">
+              <thead>
+                <tr><th>Symbol</th><th>Decision</th><th>Outcome</th><th>Suppression</th></tr>
+              </thead>
+              <tbody>
+                @for (m of wd.missedWinners.slice(0, 8); track m.timestamp) {
+                  <tr>
+                    <td class="sym">{{ m.symbol }}</td>
+                    <td>{{ m.decision }}</td>
+                    <td class="pos">+{{ m.outcomeR.toFixed(1) }}R</td>
+                    <td class="muted">{{ m.suppressionReason }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="muted">No suppressed GT_2R winners in sample</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel inner">
+          <h4>Elite Entry Profiles</h4>
+          @for (p of wd.eliteEntryConditions.slice(0, 6); track p.profile) {
+            <p class="profile-line">
+              <strong>{{ p.profile }}</strong>
+              <span class="cap-badge" [class]="confidenceClass(p.confidence)">{{ p.confidence }}</span>
+              · n={{ p.count }} · avg +{{ p.avgR }}R · WR {{ p.winRate }}%
+              @if (p.preconditions.length) {
+                <span class="muted"> — {{ p.preconditions.slice(0, 3).join(' · ') }}</span>
+              }
+            </p>
+          }
+        </div>
+
+        <div class="panel inner">
+          <h4>Expansion Condition Matrix</h4>
+          <div class="heatmap-wrap">
+            <table class="heatmap compact">
+              <thead>
+                <tr><th>RVOL</th><th>Breadth</th><th>Narrative</th><th>Pullback</th><th>Cont %</th><th>Avg R</th><th>n</th></tr>
+              </thead>
+              <tbody>
+                @for (row of wd.expansionConditionMatrix.slice(0, 12); track row.rvolBucket + row.breadthBucket) {
+                  <tr>
+                    <td>{{ row.rvolBucket }}</td>
+                    <td>{{ row.breadthBucket }}</td>
+                    <td>{{ row.narrativeStability }}</td>
+                    <td>{{ row.pullbackDepth }}</td>
+                    <td>{{ row.continuationProbability }}%</td>
+                    <td [class.pos]="row.avgR > 0">+{{ row.avgR }}R</td>
+                    <td>{{ row.count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @if (wd.amdCaseStudies.length) {
+          <div class="panel inner amd-cases">
+            <h4>AMD Case Studies</h4>
+            @for (cs of wd.amdCaseStudies; track cs.id) {
+              <div class="amd-case">
+                <p class="case-title">{{ cs.label }} @if (cs.matched) { <span class="matched">matched {{ cs.sessionDate }}</span> } @else { <span class="muted">no exact match</span> }</p>
+                <p class="case-line"><strong>Suppression:</strong> {{ cs.governanceSuppressionCause }}</p>
+                <p class="case-line"><strong>Should enter:</strong> {{ cs.shouldHaveBeenFullExecution }}</p>
+                @if (cs.idealReclaim) {
+                  <p class="case-line muted">Ideal reclaim: {{ cs.idealReclaim.entryLocation }} · {{ formatTime(cs.idealReclaim.timestamp) }} · {{ cs.idealReclaim.governance.decision }}</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+      } @else {
+        <p class="empty">Winner analytics initializing…</p>
+      }
+    }
+
+    @if (continuationParticipationReport; as cp159) {
+      <div class="panel participation-section" [class.tab-hidden]="!showSection('discovery')">
+        <header class="rankings-head">
+          <h4>Continuation Participation Analytics</h4>
+          <span class="rankings-sub">Phase 159 · suppression regret recovery · advisory only</span>
+        </header>
+        @for (insight of cp159.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Participation Signals</h4>
+            @for (s of cp159.participationSignals; track s.signalType) {
+              <p class="profile-line pos"><strong>{{ formatLabel(s.signalType) }}</strong> · n={{ s.count }} · WR {{ s.winRate }}% · +{{ s.avgR }}R</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>Suppression Recoveries</h4>
+            @for (r of cp159.suppressionRecoveries.slice(0, 6); track r.symbol + r.sessionDate) {
+              <p class="profile-line">{{ r.symbol }} {{ r.sessionDate }} · was {{ r.wasDecision }} · +{{ r.recoveredR.toFixed(1) }}R</p>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (autonomousExecutionReport; as ae160) {
+      <div class="panel autonomous-exec-section" [class.tab-hidden]="!showSection('discovery')">
+        <header class="rankings-head">
+          <h4>Autonomous Execution Analytics</h4>
+          <span class="rankings-sub">Phase 160 · legacy vs autonomous · mode {{ ae160.executionMode }}</span>
+        </header>
+        @for (insight of ae160.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Autonomous Entries</h4>
+            @for (e of ae160.autonomousEntries; track e.entryType) {
+              <p class="profile-line pos"><strong>{{ formatLabel(e.entryType) }}</strong> · n={{ e.count }} · WR {{ e.winRate }}% · +{{ e.avgR }}R</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>Legacy Comparison</h4>
+            <p class="profile-line">Autonomous avgR: +{{ ae160.expansionCaptureImprovement.autonomousAvgR }}R</p>
+            <p class="profile-line">Legacy WAIT/AVOID avgR: +{{ ae160.expansionCaptureImprovement.legacyAvgR }}R</p>
+            <p class="profile-line pos">Delta: +{{ ae160.expansionCaptureImprovement.deltaR }}R</p>
+            <p class="profile-line">Regret recoveries: {{ ae160.suppressionRegretRecoveries.count }}</p>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showSection('robustness')) {
+      @if (robustnessReport; as rv161) {
+      <div class="panel robustness-section">
+        <header class="rankings-head">
+          <h4>Robustness Validation Analytics</h4>
+          <span class="rankings-sub">Phase 161 · regime &amp; overfit validation · advisory only · n={{ rv161.totalEvaluated }}</span>
+        </header>
+        @for (insight of rv161.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        @if (rv161.totalEvaluated < 10 && !rv161.strategyRobustness.length) {
+          <p class="empty">Load 60D history and evaluate signals to populate robustness validation.</p>
+        }
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>1 · Robust Strategies</h4>
+            @for (s of rv161.robustStrategies.slice(0, 8); track s.strategyId) {
+              <p class="profile-line pos">
+                <strong>{{ formatLabel(s.strategyName) }}</strong>
+                <span class="robustness-badge" [class]="robustnessClass(s.classification)">{{ formatLabel(s.classification) }}</span>
+                · score {{ s.robustnessScore }} · n={{ s.sampleCount }} · +{{ s.avgR }}R
+              </p>
+            }
+            @if (!rv161.robustStrategies.length) {
+              <p class="profile-line muted">No strategies classified ROBUST/LIKELY_ROBUST yet.</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>8 · Overfit Risk Leaderboard</h4>
+            @for (s of rv161.overfitRiskLeaderboard.slice(0, 8); track s.strategyId) {
+              <p class="profile-line warn">
+                <strong>{{ formatLabel(s.strategyName) }}</strong>
+                <span class="robustness-badge" [class]="robustnessClass(s.classification)">{{ formatLabel(s.classification) }}</span>
+                · score {{ s.robustnessScore }} · outlier {{ s.outlierDependency }}%
+              </p>
+            }
+            @if (!rv161.overfitRiskLeaderboard.length) {
+              <p class="profile-line muted">No overfit/outlier flags in current sample.</p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>2 · Regime-Dependent</h4>
+            @for (s of rv161.regimeDependent.slice(0, 6); track s.strategyId) {
+              <p class="profile-line warn">{{ formatLabel(s.strategyName) }} · regime consistency {{ s.regimeConsistency }}%</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>3 · Symbol-Specific</h4>
+            @for (s of rv161.symbolDependent.slice(0, 6); track s.strategyId) {
+              <p class="profile-line warn">{{ formatLabel(s.strategyName) }} · {{ s.uniqueSymbols }} symbols · top {{ s.topSymbols.join(', ') }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>4 · Walk-Forward Decay</h4>
+            @for (w of rv161.walkforwardValidation.slice(0, 6); track w.strategyName) {
+              <p class="profile-line" [class.warn]="!w.stable">
+                {{ formatLabel(w.strategyName) }} · train +{{ w.trainAvgR }}R → test +{{ w.testAvgR }}R · decay {{ w.expectancyDecay }}%
+              </p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>5 · Outlier Dependency</h4>
+            @for (o of outlierDependentRows(rv161); track o.strategyName) {
+              <p class="profile-line warn">
+                {{ formatLabel(o.strategyName) }} · full +{{ o.fullSampleAvgR }}R → trimmed +{{ o.trimmedAvgR }}R · top3 {{ o.top3ContributionPct }}%
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>6 · Cross-Symbol Consistency</h4>
+            @for (g of generalizingRows(rv161); track g.strategyName) {
+              <p class="profile-line pos">
+                {{ formatLabel(g.strategyName) }} · {{ g.uniqueSymbols }} symbols · {{ g.uniqueSessions }} sessions · conc {{ g.symbolConcentrationPct }}%
+              </p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>7 · Continuation Persistence</h4>
+            @for (c of stableContinuationRows(rv161); track c.strategyName) {
+              <p class="profile-line pos">
+                {{ formatLabel(c.strategyName) }} · cont {{ c.continuationPct }}% · 2R {{ c.hit2RPct }}% · PB hold {{ c.pullbackHoldPct }}%
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="panel inner">
+          <h4>Full Strategy Robustness Table</h4>
+          <table class="rank-table compact">
+            <thead>
+              <tr>
+                <th>Strategy</th><th>Class</th><th>Score</th><th>Gen</th><th>Regime</th><th>Outlier</th><th>WF Decay</th><th>Cont</th><th>n</th><th>WR</th><th>AvgR</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of rv161.strategyRobustness.slice(0, 12); track s.strategyId) {
+                <tr>
+                  <td class="sym">{{ formatLabel(s.strategyName) }}</td>
+                  <td><span class="robustness-badge" [class]="robustnessClass(s.classification)">{{ formatLabel(s.classification) }}</span></td>
+                  <td>{{ s.robustnessScore }}</td>
+                  <td>{{ s.generalizationScore }}</td>
+                  <td>{{ s.regimeConsistency }}</td>
+                  <td>{{ s.outlierDependency }}</td>
+                  <td>{{ s.walkforwardDecay }}</td>
+                  <td>{{ s.continuationPersistenceQuality }}</td>
+                  <td>{{ s.sampleCount }}</td>
+                  <td>{{ s.winRate }}%</td>
+                  <td class="pos">+{{ s.avgR }}R</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+      } @else {
+        <p class="empty">Robustness analytics initializing…</p>
+      }
+    }
+
+    @if (showSection('regime')) {
+      @if (liveRegimeReport; as lr162) {
+      <div class="panel live-regime-section">
+        <header class="rankings-head">
+          <h4>Live Regime Intelligence</h4>
+          <span class="rankings-sub">Phase 162 · continuation detection · advisory only · n={{ lr162.sampleCount }}</span>
+        </header>
+        @for (insight of lr162.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        @if (lr162.sampleCount < 10 && !lr162.activeContinuationRegimes.length) {
+          <p class="empty">Load 60D history and evaluate signals to populate regime analytics.</p>
+        }
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>1 · Active Continuation Regimes</h4>
+            @for (r of lr162.activeContinuationRegimes.slice(0, 8); track r.symbol + r.regimeType) {
+              <p class="profile-line pos">
+                <strong>{{ r.symbol }}</strong> · {{ formatLabel(r.regimeType) }} · persist {{ r.continuationPersistenceScore }} · exp {{ r.expansionProbability }}%
+              </p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>2 · Institutional Persistence</h4>
+            @for (r of lr162.institutionalPersistenceLeaderboard.slice(0, 8); track r.symbol) {
+              <p class="profile-line pos"><strong>{{ r.symbol }}</strong> · {{ formatLabel(r.classification) }} · {{ r.continuationPersistenceScore }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>3 · Shallow Pullback Continuations</h4>
+            @for (r of lr162.shallowPullbackContinuations.slice(0, 6); track r.symbol) {
+              <p class="profile-line pos">{{ r.symbol }} · {{ formatLabel(r.regimeType) }}</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>4 · Expansion Probability</h4>
+            @for (r of lr162.expansionProbabilityLeaders.slice(0, 6); track r.symbol) {
+              <p class="profile-line pos">{{ r.symbol }} · {{ r.expansionProbability }}% · {{ formatLabel(r.regimeType) }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>5 · Exhaustion Probability</h4>
+            @for (r of lr162.exhaustionProbabilityLeaders.slice(0, 6); track r.symbol) {
+              <p class="profile-line warn">{{ r.symbol }} · {{ formatLabel(r.classification) }}</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>6 · Regime Transition Warnings</h4>
+            @for (w of lr162.regimeTransitionWarnings.slice(0, 6); track w.symbol + w.warning) {
+              <p class="profile-line warn">{{ w.symbol }} · {{ w.warning }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>7 · Continuation Persistence Timeline</h4>
+            @for (t of lr162.continuationPersistenceTimeline.slice(0, 8); track t.symbol + t.timestamp) {
+              <p class="profile-line">{{ t.symbol }} {{ t.sessionDate }} · {{ formatLabel(t.regimeType) }} · {{ t.continuationPersistenceScore }}</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>8 · Participation Opportunities</h4>
+            @for (o of lr162.participationOpportunities.slice(0, 8); track o.symbol + o.windowLabel) {
+              <p class="profile-line pos">
+                <strong>{{ o.symbol }}</strong> · {{ formatLabel(o.classification) }} · exp {{ o.expansionProbability }}% · {{ o.windowLabel }}
+              </p>
+            }
+          </div>
+        </div>
+      </div>
+      } @else {
+        <p class="empty">Regime analytics initializing…</p>
+      }
+    }
+
+    @if (executionTriggerReport; as et163) {
+      <div class="panel execution-trigger-section" [class.tab-hidden]="!showSection('execution')">
+        <header class="rankings-head">
+          <h4>Execution Trigger Intelligence</h4>
+          <span class="rankings-sub">Phase 163 · tactical entry timing · advisory only</span>
+        </header>
+        @for (insight of et163.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        <div class="panel inner trigger-cards">
+          <h4>Actionable Execution Cards</h4>
+          @for (card of et163.executionCards.slice(0, 6); track card.symbol + card.action) {
+            <div class="trigger-card-row">
+              <p class="card-head"><strong>{{ card.symbol }}</strong> · {{ formatLabel(card.action) }}</p>
+              <p class="card-line">integrity: {{ card.continuationIntegrity }} · RVOL {{ card.rvolLabel }} · PB {{ card.shallowPbQuality }}</p>
+              <p class="card-line">VWAP {{ card.vwapPersistenceLabel }} · exp {{ card.expansionProbability }}% · risk {{ card.continuationRisk }}</p>
+              @if (card.idealEntryZone) {
+                <p class="card-line pos">ideal entry: {{ card.idealEntryZone.label }} · {{ card.windowLabel }}</p>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Trigger Moments</h4>
+            @for (t of et163.activeTriggers.slice(0, 8); track t.symbol + t.timestamp) {
+              <p class="profile-line pos">
+                <strong>{{ t.symbol }}</strong> {{ t.sessionDate }} · {{ formatLabel(t.traderAction) }} · {{ t.triggerScore }}
+              </p>
+              <p class="profile-line muted">{{ t.whyValid }}</p>
+            }
+          </div>
+          <div class="panel inner">
+            <h4>Add Opportunities</h4>
+            @for (t of et163.addOpportunities.slice(0, 6); track t.symbol + t.timestamp) {
+              <p class="profile-line pos">{{ t.symbol }} · {{ formatLabel(t.entryType) }} · +add</p>
+            }
+            <h4>Exhaustion Moments</h4>
+            @for (t of et163.exhaustionMoments.slice(0, 4); track t.symbol + t.timestamp) {
+              <p class="profile-line warn">{{ t.symbol }} · {{ formatLabel(t.traderAction) }}</p>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showSection('governance')) {
+    @if (openingExpansionReport; as oe) {
+      <div class="panel opening-expansion-section">
+        <header class="rankings-head">
+          <h4>Opening Expansion Analytics</h4>
+          <span class="rankings-sub">Phase 156 · early institutional participation · advisory only · n={{ oe.sampleCount }}</span>
+        </header>
+
+        @for (insight of oe.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        @if (oe.sampleCount < 10 && !oe.institutionalExpansionDays.length) {
+          <p class="empty">Load 60D history to populate opening expansion governance analytics.</p>
+        }
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Institutional vs Retail Opening</h4>
+            @for (a of oe.institutionalExpansionDays; track a.label) {
+              <p class="profile-line pos"><strong>{{ a.label }}</strong> · n={{ a.count }} · WR {{ a.winRate }}% · +{{ a.avgR }}R</p>
+            }
+            @for (a of oe.retailExhaustionDays; track a.label) {
+              <p class="profile-line warn"><strong>{{ a.label }}</strong> · n={{ a.count }} · WR {{ a.winRate }}% · avoid</p>
+            }
+          </div>
+
+          <div class="panel inner">
+            <h4>Missed Opening Winners</h4>
+            <table class="rank-table compact">
+              <thead><tr><th>Symbol</th><th>Was</th><th>Would</th><th>R</th></tr></thead>
+              <tbody>
+                @for (m of oe.missedOpeningWinners.slice(0, 8); track m.symbol + m.sessionDate) {
+                  <tr>
+                    <td class="sym">{{ m.symbol }}</td>
+                    <td>{{ m.waitDecision }}</td>
+                    <td class="pos">{{ formatLabel(m.wouldEntry) }}</td>
+                    <td class="pos">+{{ m.outcomeR.toFixed(1) }}R</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @for (cs of oe.caseStudies; track cs.id) {
+          <div class="panel inner case-study">
+            <h4>{{ cs.label }} Case Study</h4>
+            <p class="case-line"><strong>Earliest:</strong> {{ cs.earliestParticipation }}</p>
+            <p class="case-line"><strong>First 5m:</strong> {{ cs.firstFiveMinQualification }}</p>
+            <p class="case-line"><strong>First PB add:</strong> {{ cs.firstPullbackAddZone }}</p>
+            <p class="case-line muted"><strong>Suppression:</strong> {{ cs.governanceSuppressionCause }}</p>
+            @for (sig of cs.trendPersistenceSignals; track sig) {
+              <p class="case-line muted">· {{ sig }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (continuationReport; as cp) {
+      <div class="panel continuation-promo-section">
+        <header class="rankings-head">
+          <h4>Continuation Promotion Analytics</h4>
+          <span class="rankings-sub">Phase 155 · chart-visible entry promotion · advisory only · n={{ cp.sampleCount }}</span>
+        </header>
+
+        @for (insight of cp.summaryInsights; track insight) {
+          <p class="wd-insight">{{ insight }}</p>
+        }
+
+        @if (cp.sampleCount < 10 && !cp.promotionCandidates.length) {
+          <p class="empty">Load 60D history to populate continuation promotion analytics.</p>
+        }
+
+        <div class="two-col">
+          <div class="panel inner">
+            <h4>Healthy Continuations</h4>
+            @for (h of cp.healthyContinuationStats; track h.label) {
+              <p class="profile-line"><strong>{{ h.label }}</strong> · n={{ h.count }} · WR {{ h.winRate }}% · +{{ h.avgR }}R</p>
+            }
+            @for (p of cp.promotedContinuationProfiles.slice(0, 5); track p.profile) {
+              <p class="profile-line pos"><strong>{{ p.profile }}</strong> · {{ p.promotionReason }}</p>
+            }
+          </div>
+
+          <div class="panel inner">
+            <h4>Governance Suppressed Winners</h4>
+            <table class="rank-table compact">
+              <thead><tr><th>Symbol</th><th>Was</th><th>Now</th><th>R</th></tr></thead>
+              <tbody>
+                @for (c of cp.promotionCandidates.slice(0, 8); track c.symbol + c.sessionDate) {
+                  <tr>
+                    <td class="sym">{{ c.symbol }}</td>
+                    <td>{{ c.originalDecision }}</td>
+                    <td class="pos">{{ formatLabel(c.entryType) }}</td>
+                    <td class="pos">+{{ c.outcomeR.toFixed(1) }}R</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel inner">
+          <h4>Continuation vs Exhaustion Matrix</h4>
+          <table class="heatmap compact">
+            <thead><tr><th>Classification</th><th>n</th><th>WR</th><th>Avg R</th><th>Promotable</th></tr></thead>
+            <tbody>
+              @for (row of cp.continuationVsExhaustion; track row.label) {
+                <tr>
+                  <td>{{ formatLabel(row.label) }}</td>
+                  <td>{{ row.count }}</td>
+                  <td>{{ row.winRate }}%</td>
+                  <td [class.pos]="row.avgR > 0">+{{ row.avgR }}R</td>
+                  <td>{{ row.promotable ? 'YES' : 'NO' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (cp.institutionalReclaimStats.length) {
+          <div class="panel inner">
+            <h4>Best Institutional Reclaims</h4>
+            @for (r of cp.institutionalReclaimStats; track r.profile) {
+              <p class="profile-line">{{ r.profile }} · n={{ r.count }} · WR {{ r.winRate }}% · +{{ r.avgR }}R</p>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (report) {
+    <!-- BOTTOM: AI, suppressions, decay (governance) -->
+    <div class="governance-edge-panel">
+    @if (report.discovery.totalEvaluated === 0 && !report.recommendedSuppressions.length) {
+      <p class="empty">Edge suppressions and decay warnings appear after evaluated signal history is loaded.</p>
+    }
+    @if (report.weakeningEdges.length || report.risingFakeoutEnvironments.length) {
+      <div class="two-col">
+        <div class="panel">
+          <h4>Edge Decay Warnings</h4>
+          @for (d of report.weakeningEdges; track d.message) {
+            <p class="decay-line">{{ d.message }}</p>
+          }
+        </div>
+        <div class="panel">
+          <h4>Fakeout Hotspots</h4>
+          @for (d of report.risingFakeoutEnvironments; track d.message) {
+            <p class="decay-line warn">{{ d.message }}</p>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="panel">
+      <h4>Recommended Suppressions</h4>
+      @for (e of report.recommendedSuppressions.slice(0, 8); track e.id) {
+        <p class="elim-line">{{ e.label }} — <span class="muted">{{ e.reason }}</span></p>
+      }
+    </div>
+
+    @if (report.aiSummary; as ai) {
+      <div class="ai-block">
+        <h4>AI Synthesis</h4>
+        <p class="ai-summary">{{ ai.summary }}</p>
+        <p class="ai-line"><strong>Strongest:</strong> {{ ai.strongestEdge }}</p>
+        <p class="ai-line"><strong>Toxic:</strong> {{ ai.topToxic }}</p>
+        @for (s of ai.suppressions; track s) {
+          <p class="suppress-line">✕ {{ s }}</p>
+        }
+        <span class="provider-tag">{{ ai.provider }} · deterministic analytics authoritative</span>
+      </div>
+    }
+
+    <div class="panel secondary" [class.tab-hidden]="!showSection('research')">
+      <h4>Symbol Focus Rankings <span class="muted">(secondary — see Symbol DNA for execution)</span></h4>
+      <table class="rank-table">
+        <thead>
+          <tr><th>Symbol</th><th>Edge Score</th><th>Expectancy</th><th>Capital Rank</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (r of report.symbolRankings.slice(0, 10); track r.symbol) {
+            <tr>
+              <td class="sym">{{ r.symbol }}</td>
+              <td>{{ r.edgeScore }}</td>
+              <td [class.pos]="r.expectancyR > 0" [class.neg]="r.expectancyR < 0">{{ formatR(r.expectancyR) }}</td>
+              <td><span class="cap-badge" [class]="capitalClass(r.capitalRank)">{{ r.capitalRank }}</span></td>
+              <td><button type="button" class="dna-link" (click)="goToSymbolDna(r.symbol)">DNA →</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    </div>
+    } @else {
+      <p class="empty">Governance edge report initializing…</p>
+    }
+    }
+  }
+</section>

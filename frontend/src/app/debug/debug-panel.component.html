@@ -1,0 +1,30 @@
+<mat-expansion-panel class="debug-panel" [expanded]="!collapsed">
+  <mat-expansion-panel-header>
+    <mat-panel-title>Debug</mat-panel-title>
+  </mat-expansion-panel-header>
+
+  @if (debug) {
+    <div class="debug-grid">
+      <div class="debug-row">
+        <span class="label">Last Candle</span>
+        <span>{{ debug.lastCandleTime || '—' }} · ${{ debug.lastCandleClose | number:'1.2-2' }}</span>
+      </div>
+      <div class="debug-row">
+        <span class="label">Indicators</span>
+        <span>{{ debug.latestIndicators }}</span>
+      </div>
+      <div class="debug-row">
+        <span class="label">Signal Reason</span>
+        <span>{{ debug.latestSignalReason }}</span>
+      </div>
+      <div class="debug-logs">
+        <span class="label">IBKR Logs</span>
+        <ul>
+          @for (line of debug.connectionLogs; track line) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+</mat-expansion-panel>

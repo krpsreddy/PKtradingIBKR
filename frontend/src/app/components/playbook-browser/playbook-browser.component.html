@@ -1,0 +1,51 @@
+<div class="playbook-browser" [class.flyout]="flyoutMode" [class.expanded]="expanded">
+  @if (!playbooks.length) {
+    <p class="muted">No playbooks loaded.</p>
+  } @else {
+    <div class="flyout-header" (click)="toggleExpanded()">
+      <span class="label">Autonomous Playbooks</span>
+      @if (activePlaybook(); as ap) {
+        <span class="active-name" [class]="tabClass(ap)">{{ ap.name }}</span>
+        <span class="live-status" [class]="contextClass(liveStatus(ap))">{{ liveStatus(ap) }}</span>
+      }
+      <span class="chev">{{ expanded ? '▾' : '▸' }}</span>
+    </div>
+
+    @if (expanded) {
+      <div class="tabs">
+        @for (p of playbooks; track p.id) {
+          <button type="button" class="tab" [ngClass]="[tabClass(p), active()?.id === p.id ? 'active' : '']" (click)="select(p.id)">
+            {{ p.name }}
+          </button>
+        }
+      </div>
+      @if (active(); as pb) {
+        <div class="detail" [ngClass]="detailClass(pb)">
+          <header>
+            <h4>{{ pb.name }}</h4>
+            <span class="live-status" [class]="contextClass(liveStatus(pb))">{{ liveStatus(pb) }}</span>
+            @if (pb.contextualStatus) {
+              <span class="context-badge" [class]="contextClass(pb.contextualStatus)">{{ pb.contextualStatus }}</span>
+            }
+            @if (pb.historicalWinRate != null) {
+              <app-confidence-badge [percent]="winRatePercent(pb)" label="historical"></app-confidence-badge>
+            }
+          </header>
+          @if (pb.contextualReason) {
+            <p class="context-reason">{{ pb.contextualReason }}</p>
+          }
+          <div class="cols">
+            <section>
+              <h5>Ideal conditions</h5>
+              <ul>@for (c of pb.idealConditions; track c) { <li>{{ c }}</li> }</ul>
+            </section>
+            <section>
+              <h5>Avoid</h5>
+              <ul class="avoid">@for (c of pb.avoidConditions; track c) { <li>{{ c }}</li> }</ul>
+            </section>
+          </div>
+        </div>
+      }
+    }
+  }
+</div>

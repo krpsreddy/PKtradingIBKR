@@ -1,0 +1,49 @@
+<button type="button" class="autonomous-card" [class]="toneClass()" [class.compact]="compact"
+        [class.hero]="hero" [class.selected]="selected"
+        [class.rising]="urgencyPulse()" [class.fade-exhaustion]="fadeExhaustion || enriched?.fadeExhaustion"
+        (click)="onClick()">
+  <header class="card-head">
+    <span class="sym">{{ card.symbol }}</span>
+    <span class="action-badge" [class]="actionClass()">{{ primaryLabel() }}</span>
+    @if (secondaryLabel()) {
+      <span class="action-secondary">{{ secondaryLabel() }}</span>
+    }
+    @if (rarityLabel()) {
+      <span class="rarity-badge">{{ rarityLabel() }}</span>
+    }
+    @if (urgencyPulse()) {
+      <span class="pop-badge">▲ RISING</span>
+    }
+  </header>
+  <div class="card-core">
+    <span class="conviction" [class.elite]="conviction() >= 90" [class.strong]="conviction() >= 78">{{ conviction() }}</span>
+    <span class="conviction-label">conviction</span>
+    @if (enriched) {
+      <span class="urgency">urgency {{ enriched.urgencyScore }}</span>
+      <span class="persist-meter">persist {{ enriched.persistenceScore }}%</span>
+    }
+    <span class="entry">Entry {{ entryLabel() }}</span>
+    @if (entryBandLabel(); as band) {
+      <span class="entry-band">{{ band }}</span>
+    }
+    @if (planRr(); as rr) {
+      <span class="rr-tag">RR {{ rr }}</span>
+    }
+    <span class="risk" [class]="'risk-' + (enriched?.riskLabel ?? card.riskLabel).toLowerCase()">
+      Risk {{ enriched?.riskLabel ?? card.riskLabel }}
+    </span>
+  </div>
+  @if (enriched && !compact) {
+    <app-execution-lifecycle-bar [timeline]="enriched.lifecycle" />
+  }
+  @if (!compact) {
+    <p class="why-head">Why now</p>
+    <ul class="why-list">
+      @for (line of (enriched?.whyNow ?? card.whyNow); track line) {
+        <li>{{ line }}</li>
+      }
+    </ul>
+  } @else {
+    <p class="why-compact">{{ (enriched?.whyNow ?? card.whyNow)[0] ?? '—' }}</p>
+  }
+</button>

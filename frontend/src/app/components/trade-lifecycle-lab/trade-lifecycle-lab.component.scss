@@ -1,0 +1,189 @@
+.lifecycle-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #b8c4d0;
+}
+
+.lab-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+
+  h3 { margin: 0; font-size: 1rem; color: #e6edf3; }
+  .sub { font-size: 0.625rem; color: #6e7681; text-transform: uppercase; letter-spacing: 0.04em; }
+}
+
+.refresh-btn {
+  background: rgba(56, 139, 253, 0.12);
+  border: 1px solid rgba(56, 139, 253, 0.35);
+  color: #79c0ff;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.6875rem;
+  color: #8b949e;
+}
+
+.panel {
+  padding: 10px 12px;
+  border: 1px solid rgba(48, 54, 61, 0.45);
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.55);
+
+  h4, h5 { margin: 0 0 8px; font-size: 0.75rem; color: #e6edf3; }
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  font-size: 0.6875rem;
+}
+
+.coach-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.25);
+  font-size: 0.6875rem;
+
+  &.warn .coach-head { color: #d29922; }
+  &.positive .coach-head { color: #3fb950; }
+  &.info .coach-head { color: #79c0ff; }
+}
+
+.coach-head { font-weight: 700; letter-spacing: 0.02em; }
+.coach-detail { color: #8b949e; font-size: 0.625rem; }
+
+.trade-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 10px;
+}
+
+.trade-list { max-height: 420px; overflow-y: auto; }
+
+.trade-row {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  grid-template-areas:
+    'sym type'
+    'state health';
+  gap: 2px 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #b8c4d0;
+  cursor: pointer;
+  font-size: 0.625rem;
+
+  &.active { border-color: rgba(56, 139, 253, 0.45); background: rgba(56, 139, 253, 0.08); }
+  .sym { grid-area: sym; font-weight: 700; color: #e6edf3; }
+  .type { grid-area: type; color: #8b949e; }
+  .state { grid-area: state; font-weight: 600; }
+  .health { grid-area: health; color: #6e7681; }
+}
+
+.timeline { margin-top: 8px; }
+.entry-efficiency-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.625rem;
+  color: #79c0ff;
+  margin: 6px 0 8px;
+}
+.calibration-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.625rem;
+  color: #d2a8ff;
+  margin: 0 0 8px;
+}
+.market-state-timeline {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(48, 54, 61, 0.4);
+  .ms-event .tl-state { color: #79c0ff; font-size: 0.625rem; }
+}
+
+.tl-event {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.625rem;
+
+  .tl-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 4px;
+    background: #6e7681;
+    flex-shrink: 0;
+  }
+
+  &.expansion .tl-dot, &.extension .tl-dot { background: #3fb950; }
+  &.failure .tl-dot { background: #f85149; }
+  &.exhaustion .tl-dot { background: #d29922; }
+  &.exit .tl-dot { background: #79c0ff; }
+}
+
+.tl-body { display: flex; flex-direction: column; gap: 1px; }
+.tl-state { font-weight: 700; color: #e6edf3; }
+.tl-label { color: #8b949e; }
+
+.quality-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.6875rem;
+  margin-bottom: 8px;
+}
+
+.badge {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  background: rgba(110, 118, 129, 0.2);
+  color: #8b949e;
+}
+
+.detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.muted { color: #6e7681; font-size: 0.625rem; }
+.warn-line { color: #d29922; font-size: 0.625rem; margin: 4px 0; }
+.empty { color: #8b949e; font-size: 0.8125rem; }
+
+@media (max-width: 900px) {
+  .two-col, .trade-layout { grid-template-columns: 1fr; }
+}

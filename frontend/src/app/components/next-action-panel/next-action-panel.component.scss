@@ -1,0 +1,95 @@
+@use '../../styles/guidance-whisper' as gw;
+
+.tactical-bar {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  max-height: 36px;
+  padding: 5px 14px 6px;
+  margin-top: 0;
+  background: rgba(19, 23, 34, 0.28);
+  border-top: 1px solid rgba(48, 54, 61, 0.22);
+  font-size: 0.75rem;
+  opacity: 0.68;
+  transition: opacity 0.24s ease;
+  gap: 6px;
+  min-width: 0;
+
+  .ai-hint {
+    flex-shrink: 0;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: rgba(121, 192, 255, 0.72);
+    opacity: 0.85;
+  }
+
+  .sep {
+    flex-shrink: 0;
+    color: rgba(110, 118, 129, 0.55);
+    font-size: 0.625rem;
+  }
+
+  .line {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  &.tone-wait, &.calm, &.mode-chop, &.mode-calm, &.silence {
+    .line { @include gw.guidance-whisper; opacity: 0.68; font-size: 0.75rem; }
+  }
+
+  &.tone-enter .line { color: rgba(63, 185, 80, 0.72); font-weight: 500; font-size: 0.75rem; opacity: 0.68; }
+  &.tone-exit:not(.urgent) .line { color: rgba(154, 164, 174, 0.72); font-weight: 500; font-size: 0.75rem; opacity: 0.68; }
+  &.tone-exit.urgent .line { color: rgba(184, 149, 144, 0.78); font-weight: 500; font-size: 0.75rem; opacity: 0.72; }
+  &.tone-partials .line { @include gw.guidance-whisper; opacity: 0.68; }
+  &.tone-hold .line { color: rgba(121, 192, 255, 0.68); font-weight: 500; font-size: 0.75rem; }
+  &.tone-add .line { color: rgba(88, 166, 255, 0.68); font-weight: 500; font-size: 0.75rem; }
+
+  &.mode-failure.urgent,
+  &.mode-failure.tone-exit.urgent {
+    background: rgba(19, 23, 34, 0.42);
+    opacity: 0.72;
+    box-shadow: none;
+
+    .line {
+      color: rgba(201, 176, 170, 0.82);
+      font-weight: 500;
+      font-size: 0.75rem;
+      opacity: 0.72;
+      text-transform: none;
+      letter-spacing: 0.01em;
+    }
+  }
+
+  &.mode-failure, &.tone-exit.urgent:not(.mode-failure) {
+    background: rgba(19, 23, 34, 0.38);
+    opacity: 0.7;
+
+    .line {
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: none;
+    }
+  }
+
+  &.mode-breakout, &.mode-trigger {
+    .line { color: rgba(201, 209, 217, 0.72); font-weight: 500; font-size: 0.75rem; }
+  }
+
+  .line {
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.35;
+    color: rgba(154, 164, 174, 0.72);
+  }
+}

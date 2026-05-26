@@ -1,0 +1,409 @@
+<div class="workspace" [class]="regimeTintClass()"
+     [class.focus-mode]="focusMode || miniMode"
+     [class.mini-mode]="miniMode"
+     [class.active-trade]="activeTradeMode"
+     [class.chart-dominant]="adaptiveLayout.chartDominant"
+     [class.adaptive-fill]="adaptiveLayout.fillMode"
+     [class.replay-mode]="chartMode === 'REPLAY'"
+     [class.replay-priority]="chartMode === 'REPLAY'"
+     [class.discipline-mode]="disciplineModeClass()"
+     [class.calm-mode]="calmMode"
+     [class.intensity-calm]="intensity.mode === 'CALM'"
+     [class.intensity-focus]="intensity.mode === 'FOCUS'"
+     [class.intensity-trigger]="intensity.mode === 'TRIGGER'"
+     [class.intensity-breakout]="intensity.mode === 'BREAKOUT'"
+     [class.intensity-failure]="intensity.mode === 'FAILURE'"
+     [class.intensity-chop]="intensity.mode === 'CHOP'"
+     [class.silence-discipline]="gravity.silenceActive"
+     [class.execution-stillness]="priority.stillness"
+     [class.terminal-consciousness]="activeTradeMode"
+     [class.pressure-heavy]="breathing.environmentalPressure > 0.04"
+     [class.pressure-lift]="breathing.environmentalPressure < -0.01"
+     [class.expand-intel]="!hasLiveOpportunities() && !activeTradeMode"
+     [class.workspace-execution]="workspaceMode.isExecution()"
+     [class.workspace-review]="workspaceMode.isReview()"
+     [style.--ws-saturation]="intensity.saturation"
+     [style.--sidebar-opacity]="executionSidebarOpacity()"
+     [style.--ws-breathing]="breathing.workspaceBreathing"
+     [style.--ws-pressure]="breathing.environmentalPressure"
+     [style.--ws-drift]="breathing.ambientDrift"
+     [style.--ws-compression]="breathing.focusCompression"
+     [style.--ws-luminance]="workspaceLuminance()">
+  @if (!miniMode) {
+    <div class="workspace-header">
+      <div class="header-mode-row">
+        <app-workspace-mode-switch
+          [mode]="workspaceMode.mode()"
+          (modeChange)="onWorkspaceModeChange($event)">
+        </app-workspace-mode-switch>
+        <button
+          type="button"
+          class="header-discovery-btn"
+          (click)="openAutonomousDiscoveryLab()"
+          title="Autonomous Strategy Discovery Lab — EXPANSION cluster mining">
+          Strategy Discovery Lab
+        </button>
+      </div>
+
+      <app-metrics-bar
+        [symbol]="selectedSymbol"
+        [price]="livePrice"
+        [indicators]="headerIndicators"
+        [status]="status"
+        [trendLabel]="trendLabel"
+        [marketTrend]="marketTrend"
+        [sessionTemperature]="cognition.sessionTemperature"
+        [disciplineScore]="cognition.discipline?.score ?? null"
+        [watchlist]="watchlist"
+        [recentSymbols]="recentSymbols"
+        [hotMomentum]="hotMomentum"
+        [emergingSetups]="emergingSetups"
+        [activeSignals]="filteredActiveSignals"
+        (symbolSelected)="selectSymbol($event)"
+        (symbolAdded)="onSymbolAdded($event)">
+      </app-metrics-bar>
+
+      @if (workspaceMode.isExecution() && !focusMode) {
+        <app-market-environment-ribbon
+          [marketTrend]="marketTrend"
+          [sessionTemperature]="cognition.sessionTemperature"
+          [marketPersonality]="cognition.marketPersonality"
+          [marketTrust]="probabilisticExecution.marketTrust"
+          [strongestSector]="strongestSector()"
+          [breadthQuality]="breadthQuality()"
+          [topPriorities]="probabilisticExecution.topPriorities"
+          [heartbeatPulses]="heartbeatPulses"
+          [marketEmotion]="heartbeatEmotion ?? probabilisticExecution.optionsExecution?.marketEmotion ?? null"
+          [sessionPriority]="cognition.sessionPriority"
+          [coachingHighlights]="coachingRibbonHighlights()"
+          [premarketNote]="cognition.premarket?.active ? (cognition.premarket?.notes?.[0] ?? cognition.premarket?.likelyRegime ?? null) : null"
+          [intelligenceSummary]="cognition.summary">
+        </app-market-environment-ribbon>
+      }
+
+      @if (workspaceMode.isExecution() && !focusMode && !activeTradeMode) {
+        <app-filter-bar [filters]="workflowFilters" (filtersChange)="onFiltersChange($event)"></app-filter-bar>
+      }
+    </div>
+  }
+
+  @if (workspaceMode.isExecution() && !miniMode && chartMode === 'LIVE') {
+    <app-execution-state-banner [activeState]="executionState"></app-execution-state-banner>
+  }
+
+  @if (workspaceMode.isExecution()) {
+  <div class="workspace-body" [class.sidebar-collapsed]="sidebarCollapsed"
+       [style.gridTemplateColumns]="sidebarCollapsed ? null : 'minmax(0, 1fr) ' + sidebarWidth + 'px'">
+    <main class="chart-main">
+      <div class="chart-toolbar">
+        <button type="button" class="toolbar-btn mobile-only" (click)="toggleMobileSidebar()">☰</button>
+        @if (sidebarCollapsed) {
+          <button type="button" class="toolbar-btn" (click)="toggleSidebar()">▶</button>
+        }
+        <button type="button" class="toolbar-btn" [class.active]="miniMode" (click)="toggleMiniMode()">Mini</button>
+        <button type="button" class="toolbar-btn" [class.active]="focusMode && !activeTradeMode" (click)="toggleFocusMode()">Focus</button>
+        <button type="button" class="toolbar-btn" [class.active]="activeTradeMode" (click)="toggleActiveTradeMode()">Trade</button>
+        <div class="timeframe-toggle">
+          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'TODAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('TODAY')">TODAY</button>
+          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'MULTI_DAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('MULTI_DAY')">MULTI-DAY</button>
+          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'REPLAY' || chartMode === 'REPLAY'" (click)="setChartTimeframe('REPLAY')">REPLAY</button>
+        </div>
+        @if (chartMode === 'REPLAY') {
+          <div class="replay-controls">
+            <button type="button" class="toolbar-btn" [class.active]="replayPlaying" (click)="replayPlaying ? replayPause() : replayPlay()">
+              {{ replayPlaying ? 'Pause' : 'Play' }}
+            </button>
+            @if (replayViewportState && !replayViewportState.autoFollowReplay) {
+              <button type="button" class="toolbar-btn replay-jump-toolbar" (click)="jumpToReplayHead()">Jump to Replay Head</button>
+            }
+            @for (sp of replaySpeeds; track sp) {
+              <button type="button" class="toolbar-btn speed-btn" [class.active]="replaySpeed === sp" (click)="replaySpeedChange(sp)">{{ sp }}x</button>
+            }
+          </div>
+        }
+        <button type="button" class="toolbar-btn discovery-link" (click)="openAutonomousDiscoveryLab()" title="Autonomous Strategy Discovery Lab">
+          Discovery Lab
+        </button>
+        @if (!miniMode) {
+          <button type="button" class="toolbar-btn" (click)="openCommandPalette()">⌘K</button>
+          <button type="button" class="toolbar-btn review-link" (click)="openReviewWorkspace('intelligence')">Review</button>
+        }
+      </div>
+
+      @if (!miniMode) {
+        <app-quick-action-bar
+          [symbol]="selectedSymbol"
+          [pinned]="isSelectedSymbolPinned"
+          (focusSymbol)="selectSymbol($event)"
+          (pinSymbol)="onQuickPin($event)"
+          (openReplay)="selectSymbol($event); onQuickReplay()"
+          (scrollTimeline)="openReviewWorkspace('history')">
+        </app-quick-action-bar>
+      }
+
+      <div class="chart-panel" [class.execution-overlay]="adaptiveLayout.executionOverlay" [style.height]="adaptiveLayout.chartHeight">
+        <app-best-setup-cta
+          [bestSetup]="bestSetup"
+          [selectedSymbol]="selectedSymbol"
+          [visible]="showBestSetupCta()"
+          (switchTo)="onSwitchToBestSetup($event)"
+          (dismiss)="dismissBestSetupCta()">
+        </app-best-setup-cta>
+        @if (chartLoading) {
+          <div class="chart-loading"><div class="spinner"></div><span>{{ loadingMessage }}</span></div>
+        }
+        @if (chartAnchorState === 'HISTORY_REVIEW' && chartMode === 'LIVE') {
+          <button type="button" class="return-live-btn" (click)="returnToLive()">RETURN TO LIVE</button>
+        }
+        <app-trading-chart
+          [candles]="candles" [signals]="signals" [indicators]="indicators"
+          [symbol]="selectedSymbol" [livePrice]="livePrice" [trendLabel]="trendLabel" [trendShade]="trendShade"
+          [loading]="chartLoading || replayLoading" [replayMode]="chartMode === 'REPLAY'"
+          [replayEvents]="visibleReplayTimeline" [selectedReplayEvent]="selectedReplayEvent"
+          [executionLevels]="chartExecutionLevels"
+          [anchorState]="chartAnchorState"
+          [emphasizeLiveCandle]="emphasizeLiveCandle"
+          [tradeRrLabel]="tradeRrLabel"
+          [sessionPrevClose]="sessionPrevClose"
+          [tradeOverlay]="tradeStructureOverlay"
+          [liveCandlePulse]="liveCandlePulse"
+          [disableLivePulse]="chartMode === 'REPLAY' || calmMode"
+          [replaySimLabel]="replaySimLabel()"
+          [triggerLine]="triggerLine"
+          [cognitionPills]="chartCognitionPills"
+          [calmMode]="calmMode"
+          [focusPulse]="focusPulse"
+          [chartDominant]="adaptiveLayout.chartDominant"
+          [replayCandleIndex]="replayChartCursor"
+          [replayPlaying]="replayPlaying"
+          [replaySessionDate]="replayHistory?.replayDate ?? replayDate"
+          [replayReviewMode]="replayReviewMode"
+          [replayMaskFuture]="!replayReviewMode && replayWorkstationState?.displayMode !== 'TRAINING'"
+          [replayStudyMode]="replayStudyMode"
+          [replaySessionStartIndex]="replaySessionStartIndex"
+          [replayNarrativeBands]="replayNarrativeBands"
+          [replayFocusBarIndex]="replayFocusBarIndex"
+          [viewportFocusEnabled]="true"
+          [chartFocusMode]="chartFocusMode()"
+          [overlayIntel]="overlayIntelContext"
+          [urgencyEscalation]="urgencyEscalation"
+          [intensityMode]="intensity.mode"
+          [liveEnergy]="intensity.liveEnergy + tension.liveBoost"
+          [gridHorzOpacity]="intensity.gridHorz"
+          [gridVertOpacity]="intensity.gridVert"
+          [tensionScore]="tension.score"
+          [failurePressure]="intensity.failurePressure"
+          [labelSharpness]="intensity.labelSharpness"
+          [volumePulse]="tension.volumePulse"
+          [chartTightness]="tension.chartTightness"
+          [failureBias]="tension.failureBias"
+          [volumeContrast]="tension.volumeContrast"
+          [staleTrigger]="staleTrigger"
+          [maDepth]="intensity.maDepth"
+          [historyFade]="intensity.historyFade"
+          [candleEmphasis]="intensity.candleEmphasis"
+          [corridorBias]="gravity.corridorBias"
+          [corridorStrength]="liquidity.corridorSharpness * pressure.corridorNarrow"
+          [forwardPressure]="pressure.forwardPressure"
+          [pressureBrightness]="pressure.brightnessSteer"
+          [temporalTriggerOpacity]="temporal.triggerOpacity"
+          [stillnessActive]="priority.stillness"
+          [volumeLiquidity]="liquidity.volumeOpacity"
+          [labelGravity]="gravity.labelWeights"
+          [depthLayers]="depth"
+          [silenceActive]="gravity.silenceActive"
+          [triggerSoftness]="gravity.triggerSoftness * liquidity.triggerClarity"
+          [gridDepth]="depth.grid"
+          [chartContrast]="intensity.chartContrast * pressure.contrastCompression"
+          [executionRailActive]="!miniMode"
+          [railSeparated]="!miniMode"
+          (replayEventClick)="onChartReplayEvent($event)"
+          (followLatestChange)="onFollowLatestChange($event)">
+          @if (!miniMode) {
+            <div executionRail ngProjectAs="[executionRail]">
+              <app-execution-panel
+                [symbol]="selectedSymbol" [signalType]="selectedSignalType" [source]="executionSource"
+                [guidance]="executionGuidance" [executionPlan]="executionPlan" [snapshot]="executionSnapshot" [deterioration]="setupDeterioration"
+                [confidence]="executionConfidence" [rankingNotes]="rankingNotes"
+                [probabilistic]="cognition.probabilisticGuidance"
+                [probabilisticExecution]="chartMode === 'REPLAY' && replayProbabilistic ? mergeReplayProbabilistic(replayProbabilistic) : probabilisticExecution"
+                [memoryNarrative]="cognition.memoryNarrative"
+                [historicalNotes]="historicalNotes()"
+                [immersive]="true"
+                [railLane]="true"
+                [intensityMode]="intensity.mode"
+                [railDim]="executionRailDim()"
+                [gravity]="gravity"
+                [priority]="priority"
+                [signalAgeMinutes]="signalAgeMinutes()"
+                [advisory]="executionAdvisory"
+                [class]="emphasisClass('execution-panel')">
+              </app-execution-panel>
+            </div>
+          }
+        </app-trading-chart>
+        @if (!miniMode) {
+          <div class="execution-dock">
+            @if (nextAction) {
+              <app-next-action-panel [action]="nextAction" [aiHint]="aiCompactLine()" [calmMode]="calmMode" [intensityMode]="intensity.mode" [silenceActive]="gravity.silenceActive"></app-next-action-panel>
+            }
+          </div>
+        }
+      </div>
+
+      @if (chartMode === 'REPLAY' && replayCoaching && !miniMode) {
+        <div class="replay-coaching-strip">
+          @if (replayNarrative?.narrative) {
+            <span class="marker-info">◆ {{ replayNarrative!.narrative }}</span>
+          }
+          @for (a of replayCoaching.idealActions; track a) {
+            <span class="marker-good">✓ {{ a }}</span>
+          }
+          @for (d of replayCoaching.dangerousSignals; track d) {
+            <span class="marker-bad">⚠ {{ d }}</span>
+          }
+        </div>
+      }
+
+      @if (!miniMode && qualityTimeline.length > 0 && chartMode === 'REPLAY') {
+        <app-execution-quality-timeline [symbol]="selectedSymbol" [points]="qualityTimeline">
+        </app-execution-quality-timeline>
+      }
+
+      @if (chartMode === 'REPLAY' && replayReviewSummary && !miniMode) {
+        <div class="replay-review-summary">
+          <span class="pill">SESSION: {{ replayReviewSummary.sessionType }}</span>
+          <span>Best setup: {{ replayReviewSummary.bestSetup }}</span>
+          @if (replayReviewSummary.bestEntryTime) {
+            <span>Best entry: {{ replayReviewSummary.bestEntryTime }}</span>
+          }
+          @if (replayReviewSummary.bestExitTime) {
+            <span>Best exit: {{ replayReviewSummary.bestExitTime }}</span>
+          }
+          <span>Narrative: {{ replayReviewSummary.narrativeStability }}</span>
+          <span class="pill quality">Replay: {{ replayReviewSummary.replayQuality }}</span>
+        </div>
+      }
+
+      @if (chartMode === 'REPLAY' && !miniMode && !activeTradeMode) {
+        <div class="signal-explorer-dock">
+          <button type="button" class="btn explorer-toggle" (click)="toggleSignalExplorerDock()">
+            {{ signalExplorerDockOpen ? '▾ Signal Explorer' : '▸ Signal Explorer' }}
+          </button>
+          @if (signalExplorerDockOpen) {
+            <app-signal-explorer-panel
+              [symbol]="selectedSymbol"
+              [docked]="true"
+              (openReplay)="selectSymbol($event)">
+            </app-signal-explorer-panel>
+          }
+        </div>
+        <app-replay-panel
+          [symbol]="selectedSymbol" [loading]="replayLoading" [error]="replayError"
+          [history]="replayHistory" [currentIndex]="replayIndex" [playing]="replayPlaying" [speed]="replaySpeed"
+          [visibleTimeline]="visibleReplayTimeline" [visibleScores]="visibleReplayScores"
+          [selectedEvent]="selectedReplayEvent" [replayDateInput]="replayDate"
+          [sessions]="replayWorkstationState?.sessions ?? []"
+          [cacheHit]="replayWorkstationState?.cacheHit ?? false"
+          [displayMode]="replayWorkstationState?.displayMode ?? 'PLAYBACK'"
+          [workstationMode]="replayWorkstationState?.workstationMode ?? 'SINGLE_SESSION'"
+          [startMode]="replayWorkstationState?.startMode ?? 'SMART'"
+          [reviewMode]="replayReviewMode"
+          [decisionRows]="replayDecisionRows"
+          [contextMode]="replayWorkstationState?.contextMode ?? 'PREVIOUS_DAY'"
+          [uxStatus]="replayUxStatus"
+          [actionFeedback]="replayActionFeedback"
+          [breadcrumb]="replayBreadcrumb"
+          [debugInfo]="replayDebugInfo"
+          [activeTab]="replayPanelTab"
+          [bottomExpanded]="replayBottomExpanded"
+          [pendingAction]="pendingReplayAction"
+          (dateChange)="onReplayDateChange($event)" (loadReplay)="loadHistoricalReplay()"
+          (play)="replayPlay()" (pause)="replayPause()" (stepForward)="replayStep()"
+          (speedChange)="replaySpeedChange($event)" (eventSelected)="onReplayEventSelected($event)"
+          (jumpToHead)="jumpToReplayHead()"
+          (sessionSelect)="onReplaySessionSelect($event)"
+          (sessionNav)="onReplaySessionNav($event)"
+          (seekIndex)="onReplayScrub($event)"
+          (signalJump)="onReplaySignalJump($event)"
+          (workflowJump)="onReplayWorkflowJump($event)"
+          (tabChange)="onReplayPanelTab($event)"
+          (toggleBottom)="toggleReplayBottomPanel()"
+          (displayModeChange)="onReplayDisplayModeChange($event)"
+          (workstationModeChange)="onReplayWorkstationModeChange($event)"
+          (startModeChange)="onReplayStartModeChange($event)"
+          (contextModeChange)="onReplayContextModeChange($event)"
+          (seekToDecision)="onReplayDecisionScrub($event)">
+        </app-replay-panel>
+      }
+    </main>
+
+    <div class="sidebar-resize" (mousedown)="startSidebarResize($event)"></div>
+
+    <app-trading-sidebar
+      [symbols]="watchlist"
+      [activeSignals]="filteredActiveSignals"
+      [bestSetup]="bestSetup"
+      [bestSetupWeak]="bestSetupWeak"
+      [emergingSetups]="emergingSetups" [focusMode]="focusMode || miniMode || activeTradeMode"
+      [radarCompact]="adaptiveLayout.sidebarCompact"
+      [sidebarLift]="gravity.sidebarLift"
+      [silenceActive]="gravity.silenceActive"
+      [temporalForget]="temporal.globalForget"
+      [intensityMode]="intensity.mode"
+      [scannerSnapshot]="scannerSnapshot"
+      [autonomousCards]="autonomousCards"
+      [topEnriched]="topEnrichedOpportunity"
+      [executionMode]="rtExecutionMode"
+      [marketTrend]="marketTrend" [status]="status" [selectedSymbol]="selectedSymbol"
+      [marketPersonality]="cognition.marketPersonality"
+      [loadingSymbols]="loadingSymbols" [symbolErrors]="symbolErrors" [searchLoading]="searchLoading"
+      [collapsed]="sidebarCollapsed" [mobileOpen]="mobileSidebarOpen"
+      (symbolSelected)="selectSymbol($event)" (symbolAdded)="onSymbolAdded($event)"
+      (symbolRemoved)="onSymbolRemoved($event)" (activeSignalSelected)="selectSymbol($event)"
+      (executionFocus)="onSidebarExecutionFocus($event)"
+      (executionModeChange)="onRtExecutionModeChange($event)"
+      (toggleCollapse)="toggleSidebar()" (closeMobile)="mobileSidebarOpen = false">
+    </app-trading-sidebar>
+  </div>
+  }
+
+  @if (workspaceMode.isReview()) {
+    <app-review-workspace
+      [symbol]="selectedSymbol"
+      [watchlist]="watchlistSymbolNames"
+      [signals]="signals"
+      [marketTrend]="marketTrend"
+      [regimeWinRates]="regimeWinRates"
+      [signalAnalytics]="signalAnalytics"
+      [sessionReview]="sessionReview"
+      [sessionReviewLoading]="sessionReviewLoading"
+      [behavior]="behaviorInsights"
+      [cognition]="cognition"
+      [traderEdge]="traderEdge"
+      [playbooks]="playbooks"
+      [journalEntries]="journalEntries"
+      [rankingNotes]="rankingNotes"
+      [selectedSignalType]="selectedSignalType"
+      [emptySignals]="emptySignals"
+      [initialTab]="reviewTab"
+      [edgeLabInitialTab]="edgeLabInitialTab"
+      [edgeLabFocusSymbol]="edgeLabFocusSymbol"
+      (journalSave)="onJournalSave($event)"
+      (journalReview)="onJournalReview($event)"
+      (signalSelected)="onSignalRowSelected($event)"
+      (symbolSelect)="selectSymbol($event)">
+    </app-review-workspace>
+  }
+
+  <app-command-palette [open]="commandPaletteOpen" [symbol]="selectedSymbol" [actions]="commandActions"
+    (closed)="commandPaletteOpen = false" (actionSelected)="onCommand($event)">
+  </app-command-palette>
+
+  <app-debug-panel [debug]="debug" [collapsed]="true"></app-debug-panel>
+  <app-network-diagnostics-panel></app-network-diagnostics-panel>
+</div>
+
+@if (mobileSidebarOpen) {
+  <div class="mobile-backdrop" (click)="mobileSidebarOpen = false"></div>
+}

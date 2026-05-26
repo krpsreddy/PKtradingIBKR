@@ -1,0 +1,33 @@
+<section class="live-feed">
+  <header class="feed-head">
+    <h4>Live Autonomous Execution Feed</h4>
+    <span class="gen">gen {{ generation }}</span>
+  </header>
+  <div class="mode-bar">
+    <span class="mode-label">Mode:</span>
+    <button type="button" class="mode-chip" [class.active]="executionMode === 'CONFIRMED'"
+            (click)="setMode('CONFIRMED')">Confirmed</button>
+    <button type="button" class="mode-chip" [class.active]="executionMode === 'EARLY'"
+            (click)="setMode('EARLY')">Early</button>
+  </div>
+  @if (feed.length === 0) {
+    <p class="empty">Scanning nano anomalies…</p>
+  }
+  <div class="feed-list">
+    @for (item of feed; track item.symbol + item.rank; let i = $index) {
+      <app-live-execution-feed-row
+        [enriched]="item"
+        [rankIndex]="i"
+        [selected]="item.symbol === selectedSymbol"
+        (symbolSelect)="onSelect($event)">
+      </app-live-execution-feed-row>
+    }
+  </div>
+  @if (insights.length) {
+    <footer class="feed-insights">
+      @for (line of insights; track line) {
+        <span>{{ line }}</span>
+      }
+    </footer>
+  }
+</section>

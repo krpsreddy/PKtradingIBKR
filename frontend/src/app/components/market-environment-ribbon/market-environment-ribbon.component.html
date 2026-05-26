@@ -1,0 +1,16 @@
+<div class="env-ribbon intelligence-ribbon">
+  <span class="chip regime static" [class]="regimeClass()">{{ regimeLabel() }}</span>
+  <div class="ribbon-line" [title]="headline">{{ headline }}</div>
+  @if (scrollItems.length > 1) {
+    <div class="heartbeat-scroll" aria-hidden="true">
+      <div class="heartbeat-track">
+        @for (item of scrollItems; track item) {
+          <span class="pulse-item">{{ item }}</span>
+        }
+        @for (item of scrollItems; track item + '-dup') {
+          <span class="pulse-item">{{ item }}</span>
+        }
+      </div>
+    </div>
+  }
+</div>

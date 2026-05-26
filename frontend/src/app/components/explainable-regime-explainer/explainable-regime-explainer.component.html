@@ -1,0 +1,147 @@
+<section class="explainer">
+  <header class="explainer-head">
+    <div>
+      <h2>Explainable Regime Intelligence</h2>
+      <p class="sub">Phase 170 · exact thresholds, formulas, and numeric contributions — no vague bucket labels</p>
+    </div>
+    <button type="button" class="debug-toggle" [class.on]="debugMode" (click)="toggleDebug()">
+      {{ debugMode ? 'Explainable debug ON' : 'Explainable debug' }}
+    </button>
+  </header>
+
+  @if (!rows.length) {
+    <p class="empty">Re-mine patterns to generate explainable regime breakdowns.</p>
+  } @else {
+    <table class="regime-table">
+      <thead>
+        <tr>
+          <th>Cluster</th>
+          <th>Pre-expansion (numeric)</th>
+          <th>Avg R</th>
+          <th>Symbols</th>
+          <th>Regime</th>
+          <th>Conviction</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows; track row.strategy.id) {
+          <tr
+            class="regime-row"
+            [class.active]="activeExplanation?.strategySpec?.strategyId === row.strategy.id"
+            (click)="selectStrategy(row.strategy)">
+            <td class="name">{{ row.strategy.name }}</td>
+            <td class="cond-cell">
+              @for (c of row.numericConditions; track c.dimension) {
+                <span class="cond-chip"><strong>{{ c.label }}:</strong> {{ c.value }}</span>
+              }
+            </td>
+            <td class="pos">{{ formatR(row.strategy.avgR) }}</td>
+            <td>{{ (row.strategy.topSymbols ?? []).join(', ') }}</td>
+            <td>{{ row.explanation.regimeLabel }}</td>
+            <td>{{ row.explanation.finalConviction }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    @if (activeExplanation; as ex) {
+      <div class="why-panel">
+        <h3>WHY THIS ENTRY? — {{ ex.strategySpec?.strategyName ?? ex.regimeLabel }}</h3>
+
+        <div class="why-grid">
+          <div class="why-block">
+            <h4>Triggered because</h4>
+            <ul>
+              @for (line of ex.whyEntryValid; track line) {
+                <li>{{ line }}</li>
+              }
+              @for (t of ex.entryConditions; track t.feature) {
+                <li class="check" [class.pass]="t.passed">
+                  {{ t.feature }}: {{ t.actual }} {{ t.operator }} {{ t.threshold }}
+                  <span class="formula">{{ t.formula }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+
+          <div class="why-block invalid">
+            <h4>Invalidates if</h4>
+            <ul>
+              @for (rule of ex.exhaustionRules; track rule) {
+                <li>{{ rule }}</li>
+              }
+              @for (t of ex.invalidationConditions; track t.feature) {
+                @if (!t.passed) {
+                  <li>{{ t.feature }}: actual {{ t.actual }} fails {{ t.operator }} {{ t.threshold }}</li>
+                }
+              }
+            </ul>
+          </div>
+
+          <div class="why-block">
+            <h4>Confidence contributors</h4>
+            <p class="conviction-line">Base {{ ex.convictionBase }} → Final <strong>{{ ex.finalConviction }}</strong></p>
+            <ul>
+              @for (c of ex.featureContributions; track c.feature + c.runningTotal) {
+                <li [class.neg]="c.delta < 0">
+                  {{ c.feature }}: {{ c.delta >= 0 ? '+' : '' }}{{ c.delta }} → {{ c.runningTotal }}
+                  <span class="formula">{{ c.formula }}</span>
+                </li>
+              }
+            </ul>
+            @if (ex.whyConfidenceIncreased.length) {
+              <h4 class="sub-h">Why confidence increased</h4>
+              <ul>
+                @for (l of ex.whyConfidenceIncreased; track l) { <li>{{ l }}</li> }
+              </ul>
+            }
+            @if (ex.whyConfidenceDropped.length) {
+              <h4 class="sub-h">Why confidence dropped</h4>
+              <ul>
+                @for (l of ex.whyConfidenceDropped; track l) { <li class="warn">{{ l }}</li> }
+              </ul>
+            }
+          </div>
+
+          <div class="why-block">
+            <h4>Persistence logic</h4>
+            <ul>
+              @for (l of ex.persistenceLogic; track l) { <li>{{ l }}</li> }
+            </ul>
+            <h4 class="sub-h">Extension / exhaustion</h4>
+            <ul>
+              @for (l of ex.whyExtensionHealthy; track l) { <li class="pos">{{ l }}</li> }
+              @for (l of ex.whyExhaustionDetected; track l) { <li class="warn">{{ l }}</li> }
+            </ul>
+          </div>
+        </div>
+
+        <h4>Trigger sequence (replay)</h4>
+        <ol class="timeline">
+          @for (ev of ex.triggerSequence; track ev.timestampMs) {
+            <li>
+              <span class="time">{{ ev.time }}</span>
+              <span class="evt">{{ ev.event }}</span>
+              @if (ev.detail || ev.actual != null) {
+                <span class="detail">{{ ev.detail ?? (ev.actual + ' vs ' + ev.threshold) }}</span>
+              }
+            </li>
+          }
+        </ol>
+
+        @if (ex.strategySpec && debugMode) {
+          <div class="debug-panel">
+            <h4>Developer mode — raw metrics + thresholds live</h4>
+            <pre>{{ ex.rawMetrics | json }}</pre>
+            <h4>Formulas</h4>
+            <pre>{{ ex.formulas | json }}</pre>
+            <h4>Threshold refs</h4>
+            <pre>{{ ex.strategySpec.thresholdRefs | json }}</pre>
+            <h4>Feature weights</h4>
+            <pre>{{ ex.strategySpec.featureWeights | json }}</pre>
+          </div>
+        }
+      </div>
+    }
+  }
+</section>

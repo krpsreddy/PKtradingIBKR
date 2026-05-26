@@ -1,0 +1,39 @@
+@if (coach; as c) {
+  <div class="exec-coach">
+    <header class="coach-head">
+      <span class="coach-title">Execution Coach</span>
+      <span class="coach-tag">advisory only</span>
+    </header>
+    <div class="coach-metrics">
+      <span class="cm-item">
+        <span class="cm-k">Lifecycle</span>
+        <span class="cm-v" [class]="stateClass(c.lifecycleState)">{{ c.lifecycleState }}</span>
+      </span>
+      <span class="cm-item">
+        <span class="cm-k">Cont</span>
+        <span class="cm-v" [class]="healthClass(c.continuationHealth)">{{ c.continuationHealth.replace('_', ' ') }}</span>
+      </span>
+      <span class="cm-item">
+        <span class="cm-k">Exec</span>
+        <span class="cm-v">{{ c.executionQuality }}</span>
+      </span>
+      <span class="cm-item">
+        <span class="cm-k">Mgmt</span>
+        <span class="cm-v">{{ c.managementQuality }}</span>
+      </span>
+      <span class="cm-item">
+        <span class="cm-k">Exit</span>
+        <span class="cm-v">{{ c.exitQuality }}</span>
+      </span>
+    </div>
+    @if (c.failureReason) {
+      <p class="coach-attr">{{ formatFailure(c.failureReason) }} · {{ c.attributionConfidence }}% conf</p>
+    }
+    @for (insight of c.coaching.slice(0, 2); track insight.headline) {
+      <p class="coach-insight" [class]="severityClass(insight.severity)">{{ insight.headline }}</p>
+    }
+    @if (!c.coaching.length && c.lifecycleNotes.length) {
+      <p class="coach-note">{{ c.lifecycleNotes[0] }}</p>
+    }
+  </div>
+}

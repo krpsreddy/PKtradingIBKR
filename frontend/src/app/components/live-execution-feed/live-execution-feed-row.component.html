@@ -1,0 +1,33 @@
+<button type="button" class="feed-row" [class]="toneClass()" [class.selected]="selected"
+        [class.rank-top]="rankIndex === 0" [class.rising]="rising()"
+        [class.fade-exhaustion]="enriched.fadeExhaustion"
+        (click)="onClick()">
+  <header class="row-head">
+    <span class="sym">{{ enriched.symbol }}</span>
+    <span class="action-badge" [class]="enriched.primaryAction.cssClass">{{ enriched.primaryAction.primaryLabel }}</span>
+    @if (rising()) {
+      <span class="velocity-badge">▲ +{{ enriched.convictionVelocity }}</span>
+    }
+    @if (enriched.percentileRank === 'TOP_1' || enriched.percentileRank === 'TOP_5') {
+      <span class="rarity">{{ enriched.percentileLabel }}</span>
+    }
+  </header>
+  <div class="row-core">
+    <span class="conviction" [class.elite]="enriched.convictionScore >= 90">{{ enriched.convictionScore }}</span>
+    <span class="conviction-tag">conv</span>
+    <span class="urgency">urg {{ enriched.urgencyScore }}</span>
+    @if (enriched.preConfirmation) {
+      <span class="pre-tag">pre-confirmation</span>
+    }
+  </div>
+  <app-execution-lifecycle-bar [timeline]="enriched.lifecycle" />
+  <div class="row-meta">
+    <span class="maturity">{{ maturity() }}</span>
+    @if (enriched.opportunityAge > 0) {
+      <span class="persist">{{ enriched.opportunityAge }}s age</span>
+    }
+    @if (enriched.primaryAction.secondaryLabel) {
+      <span class="secondary">{{ enriched.primaryAction.secondaryLabel }}</span>
+    }
+  </div>
+</button>

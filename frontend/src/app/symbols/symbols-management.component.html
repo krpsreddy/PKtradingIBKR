@@ -1,0 +1,105 @@
+<div class="symbols-page">
+  <header class="page-header">
+    <div>
+      <h1>Symbol Management</h1>
+      <p>Runtime-configurable trading universe — no restart required</p>
+    </div>
+    <div class="header-actions">
+      <a mat-button routerLink="/dashboard">← Dashboard</a>
+      <a mat-button routerLink="/signal-lab">🧪 Signal Lab</a>
+      <button mat-flat-button color="primary" (click)="openAddDialog()">+ Add Symbol</button>
+      <button mat-button (click)="refresh()">Refresh</button>
+    </div>
+  </header>
+
+  @if (loading) {
+    <p class="loading">Loading symbols...</p>
+  }
+
+  <div class="table-wrap">
+    <table mat-table [dataSource]="symbols" cdkDropList (cdkDropListDropped)="drop($event)" class="symbols-table">
+      <ng-container matColumnDef="drag">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let row" cdkDragHandle class="drag-handle">⋮⋮</td>
+      </ng-container>
+
+      <ng-container matColumnDef="symbol">
+        <th mat-header-cell *matHeaderCellDef>Symbol</th>
+        <td mat-cell *matCellDef="let row">
+          <strong>{{ row.symbol }}</strong>
+          @if (row.pinned) { <span class="badge pin">PINNED</span> }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="watchlist">
+        <th mat-header-cell *matHeaderCellDef>Watchlist</th>
+        <td mat-cell *matCellDef="let row">
+          @if (row.enabled) {
+            <span class="badge watchlist">ON WATCHLIST</span>
+            <button mat-button class="watchlist-remove" (click)="removeFromWatchlist(row)">Remove</button>
+          } @else {
+            <button mat-flat-button color="primary" class="watchlist-add" (click)="addToWatchlist(row)">
+              Add to Watchlist
+            </button>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="group">
+        <th mat-header-cell *matHeaderCellDef>Group</th>
+        <td mat-cell *matCellDef="let row">
+          <select class="group-select" [ngModel]="row.groupName" (ngModelChange)="updateGroup(row, $event)">
+            @for (g of groups; track g) {
+              <option [value]="g">{{ g }}</option>
+            }
+          </select>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="scan">
+        <th mat-header-cell *matHeaderCellDef>Scan</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-slide-toggle [checked]="row.scanEnabled" (change)="toggleScan(row)"></mat-slide-toggle>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="live">
+        <th mat-header-cell *matHeaderCellDef>Live</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-slide-toggle [checked]="row.subscribeLive" (change)="toggleLive(row)"></mat-slide-toggle>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="preload">
+        <th mat-header-cell *matHeaderCellDef>Preload</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-slide-toggle [checked]="row.preloadOnStartup" (change)="togglePreload(row)"></mat-slide-toggle>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="enabled">
+        <th mat-header-cell *matHeaderCellDef>Enabled</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-slide-toggle [checked]="row.enabled" (change)="toggleEnabled(row)"></mat-slide-toggle>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="pinned">
+        <th mat-header-cell *matHeaderCellDef>Pin</th>
+        <td mat-cell *matCellDef="let row">
+          <button mat-icon-button (click)="togglePinned(row)" [class.active]="row.pinned">★</button>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let row">
+          <button mat-button color="warn" (click)="remove(row)">Remove</button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" cdkDrag [cdkDragData]="row"></tr>
+    </table>
+  </div>
+</div>

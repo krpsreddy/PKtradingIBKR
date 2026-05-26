@@ -1,0 +1,43 @@
+<section class="plan-compare">
+  <header class="compare-head">
+    <h3>Execution plan</h3>
+    <div class="mode-tabs" role="tablist" aria-label="Execution plan mode">
+      @for (m of modes; track m.id) {
+        <button
+          type="button"
+          role="tab"
+          class="mode-tab"
+          [class.active]="planMode.mode() === m.id"
+          (click)="setMode(m.id)">
+          {{ m.label }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (planMode.compareEnabled() && (legacy || autonomous)) {
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Legacy RR</th>
+          <th>Autonomous Template</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.label) {
+          <tr [class.delta]="row.delta">
+            <td>{{ row.label }}</td>
+            <td>{{ row.legacy }}</td>
+            <td>{{ row.autonomous }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else if (planMode.useAutonomous() && autonomous) {
+    <p class="mode-hint">Chart uses <strong>Autonomous Template</strong> · {{ autonomous.canonicalRegime }}</p>
+  } @else {
+    <p class="mode-hint">Chart uses <strong>Legacy RR</strong>. Switch to Compare to diff autonomous templates.</p>
+  }
+
+</section>

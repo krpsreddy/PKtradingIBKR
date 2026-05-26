@@ -1,0 +1,51 @@
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #0a0e14;
+  border: 1px solid rgba(120, 140, 180, 0.16);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  min-height: 32px;
+}
+
+.filter-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #697586;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+.filter-chip {
+  border: 1px solid rgba(120, 140, 180, 0.22);
+  background: #06090f;
+  color: #9aa4b2;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+
+  &.active {
+    border-color: rgba(114, 230, 255, 0.5);
+    background: rgba(114, 230, 255, 0.12);
+    color: #72e6ff;
+    box-shadow: 0 0 10px rgba(70, 120, 255, 0.12);
+  }
+
+  &:hover {
+    color: #f3f6fa;
+    border-color: rgba(120, 140, 180, 0.35);
+  }
+}
+
+.clear-btn {
+  color: #ff6b6b;
+  font-weight: 600;
+}

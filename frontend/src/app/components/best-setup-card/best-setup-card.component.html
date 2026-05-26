@@ -1,0 +1,36 @@
+<div class="best-setup" [class]="accentClass()" [class.weak]="weak" role="button" tabindex="0"
+     (click)="setup.symbol !== '—' && selectSetup.emit(setup.symbol)">
+  <div class="setup-header">
+    <span class="setup-title">Best Current Setup</span>
+    @if (weak) {
+      <span class="weak-tag">Low conviction</span>
+    }
+  </div>
+  <div class="setup-main">
+    <span class="signal-type">{{ displayType(setup.signalType) }}</span>
+    <span class="symbol">{{ setup.symbol }}</span>
+    <span class="rank-big">{{ setup.rankScore ?? attentionScore() }}</span>
+  </div>
+  <div class="bars">
+    <app-confidence-bar [value]="setup.rankScore ?? attentionScore()" label="Rank" size="sm"></app-confidence-bar>
+    <app-confidence-bar [value]="attentionScore()" label="Focus" size="sm"></app-confidence-bar>
+    @if (winRatePercent != null) {
+      <app-confidence-badge [percent]="winRatePercent" label="historical"></app-confidence-badge>
+    }
+  </div>
+  <div class="setup-metrics">
+    <span class="metric fresh">{{ freshnessLabel() }}</span>
+    <span class="metric health" [class]="healthClass()">{{ healthLabel() }}</span>
+    <span class="metric rvol">RVOL {{ setup.relativeVolume != null ? (setup.relativeVolume | number:'1.1-1') + 'x' : '—' }}</span>
+  </div>
+  @if (setup.mtfSummary) {
+    @let mtf = mtfResolved();
+    <div class="mtf mtf-chips" [title]="mtf?.fullTitle ?? setup.mtfSummary">
+      {{ mtf?.plain ?? setup.mtfSummary }}
+    </div>
+  }
+  <div class="regime">Market: {{ regimeLabel() }}</div>
+  @if (hasOptionsRisk()) {
+    <div class="options-risk">⚠ OPTIONS RISK</div>
+  }
+</div>

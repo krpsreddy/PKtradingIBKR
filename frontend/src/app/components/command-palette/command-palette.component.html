@@ -1,0 +1,16 @@
+@if (open) {
+  <div class="palette-backdrop" (click)="close()">
+    <div class="palette" (click)="$event.stopPropagation()" (keydown)="onKeydown($event)" tabindex="0">
+      <input class="palette-input" placeholder="Command… switch symbol, replay, focus…" [(ngModel)]="query"
+             (ngModelChange)="highlight = 0" autofocus />
+      <ul>
+        @for (a of filtered(); track a.id; let i = $index) {
+          <li [class.hl]="i === highlight" (click)="pick(a.id)">
+            <span class="label">{{ a.label }}</span>
+            <span class="group">{{ a.group }}</span>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}
