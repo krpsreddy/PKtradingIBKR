@@ -4,7 +4,9 @@ Canonical project memory for the Adaptive Execution Intelligence Platform.
 
 ## Start here
 
-**[PROJECT_INTELLIGENCE_README.md](../PROJECT_INTELLIGENCE_README.md)** — master reference for all Cursor sessions.
+1. **[PROJECT_INTELLIGENCE_README.md](../PROJECT_INTELLIGENCE_README.md)** — master reference for all Cursor sessions  
+2. **[AUTONOMOUS_EXECUTION_TERMINOLOGY.md](architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md)** — canonical trader/regime/execution labels (read before UI or scanner changes)  
+3. Latest **[phases/](phases/)** doc for the subsystem you are touching
 
 ## Directories
 
@@ -37,13 +39,17 @@ Canonical project memory for the Adaptive Execution Intelligence Platform.
 | 153 Signal Explorer + Replay Navigation | [PHASE_153.md](phases/PHASE_153.md) |
 | 154 Replay UX Stabilization | [PHASE_154.md](phases/PHASE_154.md) |
 
-## Architecture index
+## Architecture Docs
 
-- [execution-flow.md](architecture/execution-flow.md)
-- [analytics-persistence.md](architecture/analytics-persistence.md)
-- [replay-cache.md](architecture/replay-cache.md)
-- [decision-engine.md](architecture/decision-engine.md)
-- [narrative-system.md](architecture/narrative-system.md)
+| Document | Classification | Description |
+|----------|----------------|-------------|
+| [**AUTONOMOUS_EXECUTION_TERMINOLOGY.md**](architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md) | **Execution language · Governance** | Canonical trader-facing labels, regime IDs, source-of-truth file ownership, terminology governance, hybrid vs autonomous migration status, cheat sheet |
+| [execution-flow.md](architecture/execution-flow.md) | Pipeline | End-to-end execution intelligence flow |
+| [decision-engine.md](architecture/decision-engine.md) | Decision | Live decision orchestration |
+| [replay-cache.md](architecture/replay-cache.md) | Replay | Incremental replay and cache |
+| [analytics-persistence.md](architecture/analytics-persistence.md) | Persistence | PostgreSQL analytics storage |
+| [narrative-system.md](architecture/narrative-system.md) | Narrative | Market state and narrative paths |
+| [DASHBOARD_NETWORK_ARCHITECTURE.md](architecture/DASHBOARD_NETWORK_ARCHITECTURE.md) | Network | Dashboard API and hydration topology |
 
 ## Discoveries index
 

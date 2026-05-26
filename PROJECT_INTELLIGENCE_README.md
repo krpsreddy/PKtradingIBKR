@@ -239,10 +239,20 @@ Qualification floors (Phase 139): `n ≥ 10`, expectancy ≥ 0.35R, fakeout ≤ 
 
 ## Section 10 — Session Continuity Guide
 
+### Future session startup order
+
+Read in this order before modifying scanner, execution, replay, sidebar, regime, or execution-plan systems:
+
+1. **`PROJECT_INTELLIGENCE_README.md`** (this file) — vision, phases, constraints, hubs
+2. **`docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md`** — canonical trader labels, regime language, source-of-truth ownership, migration status
+3. **Latest PHASE docs** — `docs/phases/` for the subsystem you are extending (highest phase number first)
+4. **Relevant architecture docs** — `docs/architecture/` (execution-flow, decision-engine, replay-cache, etc.)
+
 **When starting a new Cursor session:**
 
 1. **Read `PROJECT_INTELLIGENCE_README.md` first** (this file)
-2. **Read the relevant phase doc** in `docs/phases/` if extending a specific system
+2. **Read `docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md`** before any trader-facing label or regime naming work
+3. **Read the relevant phase doc** in `docs/phases/` if extending a specific system
 3. **Use existing architecture patterns:**
    - `*.models.ts` → `*.engine.ts` (pure) → `*-synthesis.service.ts` (injectable)
    - `refresh()` for lab reports · `liveIntel()` for execution rail
@@ -278,6 +288,19 @@ src/main/java/com/tradingbot/replay/HistoricalReplayEngine.java  # Bulk replay
 | [`docs/phases/`](docs/phases/) | Per-phase architecture, engines, integrations |
 | [`docs/architecture/`](docs/architecture/) | System flow, persistence, decision engine, narratives |
 | [`docs/discoveries/`](docs/discoveries/) | Analytical findings over time |
+
+### Architecture / docs references
+
+| Document | Purpose |
+|----------|---------|
+| [Autonomous Execution Terminology](docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md) | **Canonical** trader terminology, regime language, execution labels, governance, migration status |
+| [execution-flow.md](docs/architecture/execution-flow.md) | End-to-end execution intelligence pipeline |
+| [decision-engine.md](docs/architecture/decision-engine.md) | Live decision orchestration |
+| [replay-cache.md](docs/architecture/replay-cache.md) | Incremental replay and cache |
+| [analytics-persistence.md](docs/architecture/analytics-persistence.md) | PostgreSQL analytics storage |
+| [narrative-system.md](docs/architecture/narrative-system.md) | Market state and narrative paths |
+
+**Cursor agents:** Future sessions should read [AUTONOMOUS_EXECUTION_TERMINOLOGY.md](docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md) before modifying scanner, execution, replay, sidebar, regime, or execution-plan systems.
 
 ---
 
