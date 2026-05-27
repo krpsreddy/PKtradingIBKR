@@ -1,8 +1,8 @@
 package com.tradingbot.ibkr;
 
 import com.ib.client.Bar;
-import com.ib.client.DefaultEWrapper;
 import com.ib.client.Decimal;
+import com.ib.client.DefaultEWrapper;
 import com.ib.client.TickAttrib;
 import com.ib.client.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,17 @@ public class IBKRWrapper extends DefaultEWrapper {
     @Override
     public void nextValidId(int orderId) {
         log.info("IBKR nextValidId={}", orderId);
+        clientService.onNextValidId(orderId);
         clientService.onReady();
+    }
+
+    @Override
+    public void orderStatus(int orderId, String status, Decimal filled, Decimal remaining,
+                            double avgFillPrice, long permId, int parentId, double lastFillPrice,
+                            int clientId, String whyHeld, double mktCapPrice) {
+        if ("Filled".equalsIgnoreCase(status) && avgFillPrice > 0) {
+            clientService.onOrderFilled(orderId, avgFillPrice);
+        }
     }
 
     @Override

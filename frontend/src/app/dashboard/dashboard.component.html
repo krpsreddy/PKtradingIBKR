@@ -36,6 +36,7 @@
           [mode]="workspaceMode.mode()"
           (modeChange)="onWorkspaceModeChange($event)">
         </app-workspace-mode-switch>
+        <app-auto-execution-switch></app-auto-execution-switch>
         <button
           type="button"
           class="header-discovery-btn"
@@ -123,6 +124,12 @@
         }
         <button type="button" class="toolbar-btn discovery-link" (click)="openAutonomousDiscoveryLab()" title="Autonomous Strategy Discovery Lab">
           Discovery Lab
+        </button>
+        <button type="button" class="toolbar-btn" (click)="openExecutionConsole()" title="Trader operations console (Phase 184)">
+          Execution Console
+        </button>
+        <button type="button" class="toolbar-btn" (click)="openExecutionMonitor()" title="Paper execution lifecycle">
+          Monitor
         </button>
         @if (!miniMode) {
           <button type="button" class="toolbar-btn" (click)="openCommandPalette()">⌘K</button>

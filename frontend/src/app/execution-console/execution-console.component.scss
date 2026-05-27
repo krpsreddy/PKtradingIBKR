@@ -1,0 +1,139 @@
+.exec-console {
+  min-height: 100vh;
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 1rem 1.25rem 2rem;
+  font-size: 0.85rem;
+}
+
+.console-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  h1 { margin: 0.2rem 0 0; font-size: 1.35rem; }
+  .sub { display: block; color: #8b949e; font-size: 0.78rem; }
+  .back { color: #58a6ff; text-decoration: none; font-size: 0.8rem; }
+  .nav a {
+    margin-left: 0.75rem;
+    color: #8b949e;
+    text-decoration: none;
+    &:hover { color: #e6edf3; }
+  }
+}
+
+.panel {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  h2 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    color: #f0f6fc;
+  }
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 0.75rem;
+  @media (max-width: 900px) { grid-template-columns: 1fr; }
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  @media (max-width: 800px) { grid-template-columns: 1fr; }
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.65rem;
+}
+
+.opp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.opp-chip {
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  border: 1px solid #30363d;
+  &.green { border-color: #238636; color: #3fb950; }
+  &.yellow { border-color: #9e6a03; color: #d29922; }
+  &.orange { color: #d29922; }
+  &.red { border-color: #da3633; color: #f85149; }
+}
+
+.advisory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  li {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #21262d;
+    font-size: 0.75rem;
+    span { display: block; color: #8b949e; margin-top: 0.15rem; }
+    &.tone-red strong { color: #f85149; }
+    &.tone-orange strong { color: #d29922; }
+    &.tone-green strong { color: #3fb950; }
+  }
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  .stat {
+    background: #0d1117;
+    border-radius: 6px;
+    padding: 0.5rem;
+    span { display: block; color: #8b949e; font-size: 0.7rem; }
+    strong { font-size: 1rem; }
+  }
+}
+
+.mini-line {
+  font-size: 0.75rem;
+  padding: 0.2rem 0;
+  color: #8b949e;
+}
+
+.rank-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rank-card {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 0.5rem;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: #8b949e;
+}
+
+.table-wrap {
+  overflow: auto;
+  table {
+    width: 100%;
+    font-size: 0.75rem;
+    th, td { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid #21262d; }
+    th { color: #8b949e; }
+  }
+}
+
+.muted, .loading { color: #8b949e; }

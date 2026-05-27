@@ -1,0 +1,381 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PKtradingIBKR — mirrors Phase 162 live-regime + Phase 167 autonomous execution scoring (approximation)
+//@version=5
+indicator("PK Autonomous Regime Engine", "PK Autonomous Regime", overlay=true, max_labels_count=50, max_lines_count=50, max_boxes_count=20)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS
+// ═══════════════════════════════════════════════════════════════════════════════
+groupCore   = "Core Engine"
+groupVis    = "Visuals"
+groupAlert  = "Alerts"
+groupSess   = "Session"
+
+rvolLen         = input.int(20, "RVOL baseline length", minval=5, group=groupCore)
+emaFastLen      = input.int(9, "EMA fast (structure)", minval=3, group=groupCore)
+emaSlowLen      = input.int(20, "EMA slow (structure)", minval=5, group=groupCore)
+atrLen          = input.int(14, "ATR length", minval=5, group=groupCore)
+persistMinBars  = input.int(8, "Persistence min bars above VWAP", minval=3, group=groupCore)
+dominantThresh  = input.int(72, "Dominant NOW threshold", minval=50, maxval=95, group=groupCore)
+
+showVwap        = input.bool(true, "Show VWAP", group=groupVis)
+showZones       = input.bool(true, "Entry / Stop / Target zones", group=groupVis)
+showDashboard   = input.bool(true, "Status dashboard table", group=groupVis)
+showHeroLabels  = input.bool(true, "Large regime labels", group=groupVis)
+mobileLabels    = input.bool(true, "Compact mobile labels", group=groupVis)
+labelCooldown   = input.int(12, "Label cooldown (bars)", minval=1, group=groupVis)
+
+sessTz          = input.string("America/New_York", "Session timezone", group=groupSess)
+earlyWindowEnd  = input.int(45, "Early window end (minutes from open)", minval=15, group=groupSess)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE SERIES — volume, VWAP, structure (no heavy loops)
+// ═══════════════════════════════════════════════════════════════════════════════
+vwapVal = ta.vwap(hlc3)
+vwapDist = close > 0 ? (close - vwapVal) / close : 0.0
+vwapDistAbs = math.abs(vwapDist)
+
+volBase = ta.sma(volume, rvolLen)
+rvol = volBase > 0 ? volume / volBase : 1.0
+volAccel = ta.sma(volume, 5) > 0 ? volume / ta.sma(volume, 5) : 1.0
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+atrVal = ta.atr(atrLen)
+
+// Structure / trend alignment proxy (0–100) — mirrors trendAlignment / structureScore usage
+emaSpread = emaSlow > 0 ? (emaFast - emaSlow) / emaSlow : 0.0
+structureScore = math.max(0.0, math.min(100.0,
+     (close > emaFast ? 22.0 : 0.0) +
+     (close > emaSlow ? 22.0 : 0.0) +
+     (emaFast > emaSlow ? 28.0 : 0.0) +
+     (close > vwapVal ? 18.0 : 0.0) +
+     math.min(10.0, rvol * 4.0)))
+
+// Session minutes from RTH open (9:30 ET default)
+sessHour   = hour(time, sessTz)
+sessMinute = minute(time, sessTz)
+minsFromMidnight = sessHour * 60 + sessMinute
+rthOpenMins = 9 * 60 + 30
+sessionTimeMinutes = math.max(0, minsFromMidnight - rthOpenMins)
+inEarlyWindow = sessionTimeMinutes <= earlyWindowEnd
+inContinuationWindow = sessionTimeMinutes >= 5 and sessionTimeMinutes <= 90
+
+// Extended — price stretched above recent range with elevated RVOL context
+rangeHigh20 = ta.highest(high, 20)
+extended = close >= rangeHigh20 * 0.995 and sessionTimeMinutes > 15
+
+// Chop proxy — low ATR expansion + whipsaw around VWAP
+atrPct = close > 0 ? atrVal / close : 0.0
+chopRegime = atrPct < 0.008 and vwapDistAbs > 0.012 and rvol < 1.4
+
+// Compression — ATR contraction + tight range (IntelligenceScoringEngine.compressionEnergy)
+range10 = ta.highest(high, 10) - ta.lowest(low, 10)
+rangePct = close > 0 ? range10 / close : 0.0
+compressionEnergy = math.max(0.0, math.min(100.0,
+     30.0 +
+     (atrPct < 0.015 ? 22.0 : atrPct < 0.025 ? 15.0 : 0.0) +
+     (rangePct < 0.012 ? 20.0 : 0.0) +
+     (rvol >= 2.0 ? 15.0 : 0.0)))
+
+// Pullback depth proxy (PullbackDepthEngine / pullbackEfficiency)
+pullbackDepth = vwapDistAbs
+shallowPullbackQuality = math.max(0.0, math.min(100.0,
+     35.0 +
+     (pullbackDepth < 0.004 ? 30.0 : pullbackDepth < 0.01 ? 25.0 : pullbackDepth < 0.018 ? 18.0 : pullbackDepth < 0.028 ? 8.0 : -15.0) +
+     (vwapDist >= 0 ? 12.0 : 0.0) +
+     (structureScore >= 55 ? 10.0 : 0.0) +
+     (pullbackDepth > 0.04 ? -20.0 : 0.0)))
+
+// PersistenceDetectionEngine.continuationPersistenceScore
+continuationPersistence = math.max(0.0, math.min(100.0,
+     25.0 +
+     (vwapDist >= 0 ? 18.0 : 0.0) +
+     (vwapDist >= 0.005 and vwapDist < 0.025 ? 12.0 : 0.0) +
+     (rvol >= 2.0 ? 20.0 : rvol >= 1.5 ? 12.0 : 0.0) +
+     (structureScore >= 60 ? 18.0 : structureScore >= 48 ? 10.0 : 0.0) +
+     (extended and rvol >= 2 and structureScore >= 55 ? 10.0 : 0.0) +
+     (vwapDistAbs > 0.04 ? -12.0 : 0.0)))
+
+// VelocityPersistenceEngine.accelerationIntegrity
+accelerationIntegrity = math.max(0.0, math.min(100.0,
+     30.0 +
+     (rvol >= 4 ? 28.0 : rvol >= 2.5 ? 22.0 : rvol >= 1.8 ? 15.0 : rvol >= 1.3 ? 8.0 : 0.0) +
+     (structureScore >= 70 ? 22.0 : structureScore >= 55 ? 14.0 : structureScore >= 45 ? 6.0 : 0.0) +
+     (extended and rvol >= 2 ? 8.0 : 0.0)))
+
+// InstitutionalAccelerationEngine + BreadthConfirmationEngine proxy
+institutionalPressure = math.max(0.0, math.min(100.0,
+     28.0 +
+     (rvol >= 3 ? 25.0 : rvol >= 2 ? 18.0 : 0.0) +
+     (structureScore >= 65 ? 20.0 : structureScore >= 52 ? 12.0 : 0.0) +
+     (vwapDist >= 0.008 ? 10.0 : 0.0) +
+     (inContinuationWindow ? 10.0 : 0.0) +
+     (extended and rvol >= 2.2 and structureScore >= 58 ? 8.0 : 0.0)))
+
+institutionalParticipation = math.max(0.0, math.min(100.0,
+     35.0 +
+     (structureScore >= 70 ? 25.0 : structureScore >= 55 ? 18.0 : structureScore >= 45 ? 10.0 : 0.0) +
+     (not chopRegime ? 12.0 : -18.0)))
+
+// ExpansionProbabilityEngine
+expansionProbability = math.max(0.0, math.min(100.0,
+     continuationPersistence * 0.3 + accelerationIntegrity * 0.25 + shallowPullbackQuality * 0.2 + institutionalParticipation * 0.25 +
+     (inContinuationWindow ? 8.0 : 0.0) +
+     (rvol >= 2.5 ? 6.0 : 0.0) +
+     (chopRegime ? -15.0 : 0.0)))
+
+// ExhaustionProbabilityEngine
+exhaustionProbability = math.max(0.0, math.min(100.0,
+     20.0 +
+     (extended and rvol < 1.5 ? 25.0 : 0.0) +
+     (accelerationIntegrity < 40 and continuationPersistence < 45 ? 20.0 : 0.0) +
+     (chopRegime ? 18.0 : 0.0) +
+     (vwapDist > 0.045 ? 15.0 : 0.0) +
+     (continuationPersistence >= 70 and accelerationIntegrity >= 60 ? -15.0 : 0.0)))
+
+// IntelligenceScoringEngine exhaustionDrift (bar proxy)
+exhaustionDrift = math.max(0.0, math.min(100.0,
+     18.0 +
+     (extended and rvol < 1.5 ? 28.0 : 0.0) +
+     (vwapDist > 0.045 ? 20.0 : 0.0) +
+     (chopRegime ? 15.0 : 0.0)))
+
+// Bars holding above VWAP (continuation persistence bars)
+var int barsAboveVwap = 0
+if close > vwapVal
+    barsAboveVwap += 1
+else
+    barsAboveVwap := 0
+
+persistencePassed = barsAboveVwap >= persistMinBars
+structuralPassed = close > vwapVal and emaFast > emaSlow and structureScore >= 48
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONVICTION — AutonomousExecutionScorer + trigger integrity proxy
+// ═══════════════════════════════════════════════════════════════════════════════
+anomalyScore = math.max(0.0, math.min(100.0,
+     accelerationIntegrity * 0.45 + continuationPersistence * 0.35 + (structuralPassed ? 12.0 : 0.0)))
+
+persistenceBoost = persistencePassed ? math.min(25, barsAboveVwap * 2) : 0
+conviction = math.max(0.0, math.min(100.0, anomalyScore + persistenceBoost + (structuralPassed ? 12.0 : 0.0)))
+
+var float convictionPrev = conviction
+convictionVelocity = math.round(conviction - convictionPrev)
+convictionPrev := conviction
+
+triggerIntegrity = math.max(0.0, math.min(1.0, (structuralPassed ? 0.55 : 0.25) + (persistencePassed ? 0.25 : 0.0) + rvol * 0.05))
+
+// Dominance — LiveTraderRankingService.fromFeed approximation
+dominanceScore = math.round(
+     conviction +
+     triggerIntegrity * 20.0 +
+     math.min(30.0, barsAboveVwap * 1.5) +
+     convictionVelocity * 2.0)
+
+isDominant = dominanceScore >= dominantThresh and not (exhaustionProbability >= 60)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CANONICAL REGIME DETECTION — ContinuationRegimeEngine + scanner mapping
+// 1 EARLY_EXPANSION  2 INSTITUTIONAL_PERSISTENCE  3 SHALLOW_PULLBACK_CONTINUATION
+// 4 VWAP_ACCEPTANCE  5 COMPRESSION_BREAKOUT  6 HEALTHY_EXTENSION
+// 7 EXHAUSTION_DRIFT  8 FAILED_EXPANSION
+// ═══════════════════════════════════════════════════════════════════════════════
+failedExpansion = chopRegime and continuationPersistence < 45
+exhaustionRegime = exhaustionProbability >= 72 or exhaustionDrift >= 72
+explosiveEarly = expansionProbability >= 78 and accelerationIntegrity >= 70
+earlyExpansion = accelerationIntegrity >= 65 and inEarlyWindow
+institutionalRegime = institutionalParticipation >= 62 and continuationPersistence >= 60
+shallowRegime = shallowPullbackQuality >= 62 and continuationPersistence >= 55
+vwapRegime = vwapDist >= 0 and continuationPersistence >= 58
+compressionRegime = compressionEnergy >= 62 or (accelerationIntegrity >= 55 and shallowPullbackQuality >= 50)
+healthyExtension = extended and continuationPersistence >= 58 and not exhaustionRegime
+
+regimeCode =
+     failedExpansion or (exhaustionDrift >= 75 and continuationPersistence < 50) ? 8 :
+     exhaustionRegime ? 7 :
+     explosiveEarly or earlyExpansion ? 1 :
+     compressionRegime and compressionEnergy >= 62 ? 5 :
+     shallowRegime ? 3 :
+     vwapRegime ? 4 :
+     healthyExtension ? 6 :
+     institutionalRegime or continuationPersistence >= 50 ? 2 :
+     8
+
+regimeName =
+     regimeCode == 1 ? "EARLY_EXPANSION" :
+     regimeCode == 2 ? "INSTITUTIONAL_PERSISTENCE" :
+     regimeCode == 3 ? "SHALLOW_PULLBACK_CONTINUATION" :
+     regimeCode == 4 ? "VWAP_ACCEPTANCE" :
+     regimeCode == 5 ? "COMPRESSION_BREAKOUT" :
+     regimeCode == 6 ? "HEALTHY_EXTENSION" :
+     regimeCode == 7 ? "EXHAUSTION_DRIFT" :
+     "FAILED_EXPANSION"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LIFECYCLE — ExecutionMaturityState (AutonomousExecutionScorer)
+// ═══════════════════════════════════════════════════════════════════════════════
+exhaustionType = regimeCode == 7 or regimeCode == 8
+lifecycleBase =
+     exhaustionType and conviction >= 50 ? 5 :
+     exhaustionType ? 6 :
+     not persistencePassed ? 1 :
+     not structuralPassed ? 2 :
+     conviction >= 78 ? 3 :
+     conviction >= 65 ? 2 : 1
+
+lifecycleCode =
+     conviction >= 85 and barsAboveVwap >= 20 ? 4 :
+     convictionVelocity >= 20 and lifecycleBase == 2 ? 3 :
+     lifecycleBase
+
+lifecycleName =
+     lifecycleCode == 1 ? "DEVELOPING" :
+     lifecycleCode == 2 ? "CONFIRMING" :
+     lifecycleCode == 3 ? "CONFIRMED" :
+     lifecycleCode == 4 ? "EXTENDED" :
+     lifecycleCode == 5 ? "EXHAUSTING" : "FAILED"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTRY SIGNALS — trader actions from IntelligenceScoringEngine / scanner
+// ═══════════════════════════════════════════════════════════════════════════════
+directScore = continuationPersistence * 0.35 + accelerationIntegrity * 0.35 + (extended ? 60.0 : 80.0) * 0.2 + (rvol >= 2.5 ? 10.0 : 0.0) + (vwapDist >= 0 ? 8.0 : 0.0)
+triggerScore = math.max(directScore, shallowPullbackQuality, compressionEnergy)
+
+earlyEntry = triggerScore >= 55 and lifecycleCode <= 2 and regimeCode <= 4
+confirmedEntry = lifecycleCode == 3 and regimeCode >= 1 and regimeCode <= 6
+secondLeg = regimeCode == 5 and compressionEnergy >= 65 and rvol >= 2
+persistenceHold = persistencePassed and regimeCode == 2 and lifecycleCode >= 3
+reduceRisk = exhaustionProbability >= 55 or lifecycleCode >= 5
+exitWarning = exhaustionDrift >= 68 or regimeCode == 7
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ZONES — entry / stop / target / long / risk
+// ═══════════════════════════════════════════════════════════════════════════════
+zoneAtrMult =
+     regimeCode == 1 ? 1.8 :
+     regimeCode == 5 ? 2.2 :
+     regimeCode == 7 ? 0.8 : 1.5
+
+entryPrice = vwapDist >= 0 ? math.max(vwapVal, close) : close
+stopPrice  = math.min(vwapVal - atrVal * 0.6, ta.lowest(low, 8))
+targetPrice = entryPrice + atrVal * zoneAtrMult
+longZoneTop = entryPrice + atrVal * 0.15
+longZoneBot = entryPrice - atrVal * 0.08
+riskZoneTop = stopPrice + atrVal * 0.25
+riskZoneBot = stopPrice - atrVal * 0.15
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COLORS
+// ═══════════════════════════════════════════════════════════════════════════════
+colorRegime =
+     regimeCode == 2 ? color.new(#58a6ff, 0) :      // institutional blue
+     regimeCode == 1 or regimeCode == 3 or regimeCode == 4 ? color.new(#3fb950, 0) :  // continuation green
+     regimeCode == 5 ? color.new(#d29922, 0) :      // compression yellow
+     regimeCode == 6 ? color.new(#db6d28, 0) :      // extension orange
+     color.new(#f85149, 0)                          // exhaustion red
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLOTS — VWAP + zones
+// ═══════════════════════════════════════════════════════════════════════════════
+plot(showVwap ? vwapVal : na, "VWAP", color=color.new(#58a6ff, 35), linewidth=2)
+
+var line lnEntry = na
+var line lnStop = na
+var line lnTarget = na
+if showZones and barstate.islast
+    line.delete(lnEntry)
+    line.delete(lnStop)
+    line.delete(lnTarget)
+    lnEntry := line.new(bar_index - 40, entryPrice, bar_index + 5, entryPrice, color=color.new(#3fb950, 0), width=2, style=line.style_solid)
+    lnStop := line.new(bar_index - 40, stopPrice, bar_index + 5, stopPrice, color=color.new(#f85149, 0), width=2, style=line.style_dashed)
+    lnTarget := line.new(bar_index - 40, targetPrice, bar_index + 5, targetPrice, color=color.new(#58a6ff, 0), width=2, style=line.style_dotted)
+
+var box bxLong = na
+var box bxRisk = na
+if showZones and barstate.islast
+    box.delete(bxLong)
+    box.delete(bxRisk)
+    bxLong := box.new(bar_index - 30, longZoneTop, bar_index + 3, longZoneBot, bgcolor=color.new(#3fb950, 88), border_color=color.new(#3fb950, 60), text="LONG ZONE")
+    bxRisk := box.new(bar_index - 30, riskZoneTop, bar_index + 3, riskZoneBot, bgcolor=color.new(#f85149, 90), border_color=color.new(#f85149, 60), text="RISK ZONE")
+
+bgcolor(isDominant ? color.new(#3fb950, 93) : na)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LABELS — large institutional markers (cooldown to limit objects)
+// ═══════════════════════════════════════════════════════════════════════════════
+var int lastLabelBar = -1000
+canLabel = bar_index - lastLabelBar >= labelCooldown
+
+heroText =
+     isDominant ? "DOMINANT NOW" :
+     regimeCode == 2 ? "INSTITUTIONAL FLOW" :
+     regimeCode == 1 ? "EARLY EXPANSION" :
+     regimeCode == 5 ? "COMPRESSION READY" :
+     secondLeg ? "SECOND LEG ACTIVE" :
+     regimeCode == 7 ? "EXHAUSTION RISK" :
+     regimeName
+
+if showHeroLabels and canLabel and (isDominant or regimeCode != regimeCode[1] or lifecycleCode != lifecycleCode[1])
+    lastLabelBar := bar_index
+    labelSize = mobileLabels ? size.normal : size.large
+    label.new(bar_index, high, heroText + "\n" + regimeName + " · C" + str.tostring(math.round(conviction)) + " · D" + str.tostring(dominanceScore),
+         style=label.style_label_down, color=colorRegime, textcolor=color.white, size=labelSize)
+
+if showHeroLabels and canLabel and earlyEntry and not earlyEntry[1]
+    label.new(bar_index, low, "EARLY ENTRY", style=label.style_label_up, color=color.new(#3fb950, 0), textcolor=color.white, size=size.small)
+
+if showHeroLabels and canLabel and confirmedEntry and not confirmedEntry[1]
+    label.new(bar_index, low, "CONFIRMED ENTRY", style=label.style_label_up, color=color.new(#58a6ff, 0), textcolor=color.white, size=size.small)
+
+if showHeroLabels and canLabel and secondLeg and not secondLeg[1]
+    label.new(bar_index, low, "SECOND LEG", style=label.style_label_up, color=color.new(#d29922, 0), textcolor=color.black, size=size.small)
+
+if showHeroLabels and canLabel and persistenceHold and not persistenceHold[1]
+    label.new(bar_index, low, "PERSISTENCE HOLD", style=label.style_label_up, color=color.new(#58a6ff, 20), textcolor=color.white, size=size.tiny)
+
+if showHeroLabels and canLabel and reduceRisk and not reduceRisk[1]
+    label.new(bar_index, high, "REDUCE RISK", style=label.style_label_down, color=color.new(#db6d28, 0), textcolor=color.white, size=size.small)
+
+if showHeroLabels and canLabel and exitWarning and not exitWarning[1]
+    label.new(bar_index, high, "EXIT WARNING", style=label.style_label_down, color=color.new(#f85149, 0), textcolor=color.white, size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD TABLE
+// ═══════════════════════════════════════════════════════════════════════════════
+var table dash = table.new(position.top_right, 2, 10, bgcolor=color.new(#0d1117, 10), border_width=1, border_color=color.new(#30363d, 0))
+
+if showDashboard and barstate.islast
+    table.cell(dash, 0, 0, "PK Autonomous", text_color=color.white, text_size=size.small)
+    table.cell(dash, 1, 0, regimeName, text_color=colorRegime, text_size=size.small)
+    table.cell(dash, 0, 1, "Conviction", text_color=color.gray)
+    table.cell(dash, 1, 1, str.tostring(math.round(conviction)), text_color=color.white)
+    table.cell(dash, 0, 2, "Dominance", text_color=color.gray)
+    table.cell(dash, 1, 2, str.tostring(dominanceScore), text_color=isDominant ? color.lime : color.white)
+    table.cell(dash, 0, 3, "Persistence", text_color=color.gray)
+    table.cell(dash, 1, 3, str.tostring(math.round(continuationPersistence)), text_color=color.white)
+    table.cell(dash, 0, 4, "RVOL", text_color=color.gray)
+    table.cell(dash, 1, 4, str.tostring(rvol, "#.##"), text_color=rvol >= 2 ? color.lime : color.white)
+    table.cell(dash, 0, 5, "Velocity", text_color=color.gray)
+    table.cell(dash, 1, 5, str.tostring(convictionVelocity), text_color=convictionVelocity > 0 ? color.lime : convictionVelocity < 0 ? color.red : color.white)
+    table.cell(dash, 0, 6, "Lifecycle", text_color=color.gray)
+    table.cell(dash, 1, 6, lifecycleName, text_color=colorRegime)
+    table.cell(dash, 0, 7, "Inst. Pressure", text_color=color.gray)
+    table.cell(dash, 1, 7, str.tostring(math.round(institutionalPressure)), text_color=color.white)
+    table.cell(dash, 0, 8, "Exhaustion", text_color=color.gray)
+    table.cell(dash, 1, 8, str.tostring(math.round(exhaustionProbability)), text_color=exhaustionProbability >= 55 ? color.red : color.white)
+    table.cell(dash, 0, 9, "Expansion", text_color=color.gray)
+    table.cell(dash, 1, 9, str.tostring(math.round(expansionProbability)), text_color=color.white)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+alertcondition(isDominant, "DOMINANT_NOW", "PK: DOMINANT NOW — {{ticker}} dominance {{plot_0}}")
+alertcondition(regimeCode == 1 and regimeCode[1] != 1, "EARLY_EXPANSION", "PK: EARLY EXPANSION on {{ticker}}")
+alertcondition(regimeCode == 2 and regimeCode[1] != 2, "INSTITUTIONAL_PERSISTENCE", "PK: INSTITUTIONAL PERSISTENCE on {{ticker}}")
+alertcondition(secondLeg and not secondLeg[1], "SECOND_LEG", "PK: SECOND LEG ACTIVE on {{ticker}}")
+alertcondition(exitWarning and not exitWarning[1], "EXIT_WARNING", "PK: EXIT WARNING on {{ticker}}")
+alertcondition(regimeCode == 7 and regimeCode[1] != 7, "EXHAUSTION_DRIFT", "PK: EXHAUSTION DRIFT on {{ticker}}")
+
+// Hidden plots for alert message placeholders
+plot(dominanceScore, "Dominance", display=display.none)

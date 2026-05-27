@@ -12,4 +12,12 @@ public class IBKRProperties {
     private String symbol = "NVDA";
     /** 1=live, 2=frozen, 3=delayed, 4=delayed frozen — use 3 without a live API subscription */
     private int marketDataType = 3;
+    /** TWS paper API port. */
+    private int paperPort = 7497;
+    /** TWS live API port. */
+    private int livePort = 7496;
+    /** IB Gateway paper (simulated) API port. */
+    private int paperGatewayPort = 4002;
+    /** IB Gateway live API port. */
+    private int liveGatewayPort = 4001;
 }

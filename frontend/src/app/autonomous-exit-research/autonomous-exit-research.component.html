@@ -1,0 +1,80 @@
+<div class="exit-research-page">
+  <header>
+    <a routerLink="/execution-console" class="back">← Execution Console</a>
+    <h1>Autonomous Exit Research</h1>
+    <p class="sub">Phase 183 · shadow exit models only · no broker exits</p>
+  </header>
+
+  @if (loading) {
+    <p class="muted">Running shadow simulations…</p>
+  }
+
+  @if (research) {
+    <section class="panel">
+      <h2>Best-performing exit models (continuation monetization)</h2>
+      <div class="rank-grid">
+        @for (r of research.rankings; track r.modelId) {
+          <div class="rank-card" [class.top]="$first">
+            <strong>{{ r.modelId }}</strong>
+            <span>Score {{ r.score | number:'1.1-1' }}</span>
+            <span>Cont. eff. {{ r.avgContinuationEfficiency | number:'1.0-0' }}</span>
+            <span>MFE retained {{ r.avgMfeRetainedPct | number:'1.0-0' }}%</span>
+            <span>Avg sim R {{ r.avgRealizedR | number:'1.4-4' }}</span>
+            <span>n={{ r.sampleCount }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Continuation survival curve</h2>
+      <div class="curve">
+        @for (b of research.continuationSurvivalCurve; track b.bucket) {
+          <div class="curve-bar">
+            <div class="fill" [style.height.%]="b.survivalPct"></div>
+            <span>{{ b.bucket }}</span>
+            <em>{{ b.survivalPct | number:'1.0-0' }}%</em>
+          </div>
+        }
+      </div>
+      <p class="muted">Persistence half-life estimate: {{ research.persistenceHalfLifeMin }} min</p>
+    </section>
+
+    <section class="panel">
+      <h2>Second-leg capture rankings</h2>
+      <div class="leg-row">
+        @for (s of research.secondLegRankings; track s.modelId) {
+          <span class="leg-chip">{{ s.modelId }}: {{ s.capturePct | number:'1.0-0' }}%</span>
+        }
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Regime-specific exit learnings</h2>
+      @for (insight of research.regimeInsights; track insight.regime) {
+        <div class="regime-block">
+          <h3>{{ insight.regime }} → best: {{ insight.bestModel }}</h3>
+          <table>
+            <thead>
+              <tr><th>Model</th><th>Cont. eff.</th><th>MFE %</th><th>Score</th></tr>
+            </thead>
+            <tbody>
+              @for (r of insight.rankings.slice(0, 4); track r.modelId) {
+                <tr>
+                  <td>{{ r.modelId }}</td>
+                  <td>{{ r.avgContinuationEfficiency | number:'1.0-0' }}</td>
+                  <td>{{ r.avgMfeRetainedPct | number:'1.0-0' }}</td>
+                  <td>{{ r.score | number:'1.1-1' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel disclaimer">
+      <strong>Research only</strong> — shadow paths do not place orders. Human/manual exit remains authoritative until a future gated phase enables assisted or autonomous live exits.
+    </section>
+  }
+</div>

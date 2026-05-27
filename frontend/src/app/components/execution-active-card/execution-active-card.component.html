@@ -1,0 +1,48 @@
+<article class="exec-card" [ngClass]="'tone-' + toneClass()">
+  <header class="card-head">
+    <div>
+      <strong class="sym">{{ view.record.symbol }}</strong>
+      <span class="regime">{{ view.record.regime }}</span>
+    </div>
+    <span class="lifecycle">{{ view.lifecycleState }}</span>
+  </header>
+  <div class="advisory">{{ view.primaryAdvisory.message }}</div>
+  <div class="pnl-row">
+    <span>Unrealized R</span>
+    <strong [ngClass]="view.unrealizedR != null && view.unrealizedR > 0 ? 'pos' : 'neg'">
+      {{ view.unrealizedR != null ? (view.unrealizedR | number:'1.3-4') : '—' }}
+    </strong>
+  </div>
+  <div class="bar-metrics">
+    <div class="bar-row">
+      <span>Hold quality</span>
+      <div class="bar"><div class="fill" [style.width.%]="view.metrics.holdQuality"></div></div>
+      <em>{{ view.metrics.holdQuality | number:'1.0-0' }}</em>
+    </div>
+    <div class="bar-row">
+      <span>Continuation</span>
+      <div class="bar"><div class="fill green" [style.width.%]="view.metrics.continuationHealth"></div></div>
+      <em>{{ view.metrics.continuationHealth | number:'1.0-0' }}</em>
+    </div>
+    <div class="bar-row">
+      <span>2nd leg</span>
+      <div class="bar"><div class="fill" [style.width.%]="view.metrics.secondLegProbability"></div></div>
+      <em>{{ view.metrics.secondLegProbability | number:'1.0-0' }}%</em>
+    </div>
+    <div class="bar-row">
+      <span>Exit pressure</span>
+      <div class="bar"><div class="fill warn" [style.width.%]="view.metrics.exitPressure"></div></div>
+      <em>{{ view.metrics.exitPressure | number:'1.0-0' }}</em>
+    </div>
+  </div>
+  <div class="mini-stats">
+    <span>MFE {{ view.record.mfeR ?? '—' }}</span>
+    <span>MAE {{ view.record.maeR ?? '—' }}</span>
+    <span>Conv {{ view.record.convictionScore ?? '—' }}</span>
+    <span>Dom {{ view.record.dominanceScore ?? '—' }}</span>
+  </div>
+  <div class="close-row">
+    <input type="number" step="0.01" placeholder="Exit price" [ngModel]="exitPrice" (ngModelChange)="onExitInput($event)" />
+    <button type="button" (click)="manualClose.emit()">Manual Exit</button>
+  </div>
+</article>

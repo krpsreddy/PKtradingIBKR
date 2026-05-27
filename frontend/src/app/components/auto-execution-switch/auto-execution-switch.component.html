@@ -1,0 +1,21 @@
+<div class="auto-exec" [class.research-on]="mode === 'PAPER_RESEARCH'" [class.disabled-env]="!researchEnabled()">
+  <span class="label">AUTO EXECUTION</span>
+  <div class="mode-toggle" role="group" aria-label="Auto execution mode">
+    @for (m of modes; track m) {
+      <button
+        type="button"
+        class="mode-btn"
+        [class.active]="mode === m"
+        [disabled]="!researchEnabled() && m === 'PAPER_RESEARCH'"
+        (click)="select(m)">
+        {{ m === 'OFF' ? 'OFF' : 'PAPER RESEARCH' }}
+      </button>
+    }
+  </div>
+  <span class="safety" [class.blocked]="status && !status.safety.allowed">{{ safetyLabel() }}</span>
+  @if (researchEnabled()) {
+    <a routerLink="/execution-console" class="monitor-link">Console</a>
+    <a routerLink="/execution-monitor" class="monitor-link">Monitor</a>
+    <a routerLink="/exit-research" class="monitor-link">Exit Research</a>
+  }
+</div>

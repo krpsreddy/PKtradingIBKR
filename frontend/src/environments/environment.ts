@@ -1,5 +1,8 @@
 export const environment = {
   production: false,
+  appVariant: 'stable' as const,
+  storagePrefix: 'pk-stable-',
+  paperExecutionResearch: false,
   apiUrl: 'http://localhost:8080/api',
   ngrokMode: false,
   /** Dashboard light poll (status, momentum, symbols config). */

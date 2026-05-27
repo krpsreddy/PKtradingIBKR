@@ -1,0 +1,218 @@
+.execution-monitor {
+  min-height: 100vh;
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 1rem 1.25rem 2rem;
+  font-size: 0.85rem;
+}
+
+.mon-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+
+  h1 {
+    margin: 0.25rem 0 0;
+    font-size: 1.35rem;
+  }
+  .subtitle {
+    display: block;
+    color: #8b949e;
+    font-size: 0.78rem;
+  }
+}
+
+.back-link {
+  color: #58a6ff;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.mon-nav a {
+  margin-right: 0.75rem;
+  color: #58a6ff;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.intel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.intel-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  h2 { font-size: 0.8rem; margin: 0 0 0.35rem; }
+  &.tone-green { border-left: 3px solid #238636; }
+  &.tone-yellow { border-left: 3px solid #9e6a03; }
+  &.tone-orange { border-left: 3px solid #d29922; }
+  &.tone-red { border-left: 3px solid #da3633; }
+}
+
+.intel-line {
+  font-size: 0.72rem;
+  color: #8b949e;
+  padding: 0.15rem 0;
+  &.green { color: #3fb950; }
+  &.yellow { color: #d29922; }
+  &.orange { color: #d29922; }
+  &.red { color: #f85149; }
+  &.warn { color: #d29922; }
+}
+
+.section {
+  margin-bottom: 1.5rem;
+  h2 {
+    font-size: 0.95rem;
+    margin: 0 0 0.5rem;
+    color: #f0f6fc;
+  }
+}
+
+.hint, .empty, .loading {
+  color: #8b949e;
+  font-size: 0.8rem;
+}
+
+.error {
+  color: #f85149;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #161b22;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  th, td {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid #21262d;
+    text-align: left;
+  }
+  th {
+    color: #8b949e;
+    font-weight: 600;
+  }
+  .note {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.position-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.65rem;
+
+  .pos-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .regime {
+    color: #8b949e;
+    font-size: 0.72rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    span:first-child {
+      color: #8b949e;
+      margin-right: 0.35rem;
+    }
+  }
+  .lifecycle {
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    color: #d29922;
+  }
+  .close-row {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    input {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 4px;
+      padding: 0.25rem 0.4rem;
+    }
+    .close-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      padding: 0.25rem 0.5rem;
+      &:hover {
+        background: #30363d;
+      }
+    }
+  }
+}
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.stat {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  span {
+    display: block;
+    color: #8b949e;
+    font-size: 0.72rem;
+  }
+  strong {
+    font-size: 0.95rem;
+  }
+}
+
+.badge {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid #30363d;
+  &.ok { color: #3fb950; border-color: #238636; }
+  &.warn { color: #d29922; border-color: #9e6a03; }
+  &.bad { color: #f85149; border-color: #da3633; }
+  &.muted { color: #8b949e; }
+}
+
+.pos { color: #3fb950; }
+.neg { color: #f85149; }
+.muted { color: #8b949e; }

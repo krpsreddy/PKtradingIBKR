@@ -1,0 +1,124 @@
+<div class="exec-console">
+  <header class="console-header">
+    <div>
+      <a routerLink="/dashboard" class="back">← Dashboard</a>
+      <h1>Execution Console</h1>
+      <span class="sub">Phase 184 · operational center · human exits only</span>
+    </div>
+    <app-auto-execution-switch></app-auto-execution-switch>
+    <nav class="nav">
+      <a routerLink="/execution-monitor">Monitor</a>
+      <a routerLink="/exit-research">Exit Research</a>
+    </nav>
+  </header>
+
+  @if (loading) {
+    <p class="loading">Syncing executions…</p>
+  }
+
+  <section class="panel">
+    <h2>Dominant Opportunities</h2>
+    <div class="opp-row">
+      @for (f of dominantFeed; track f.symbol) {
+        <span class="opp-chip" [ngClass]="f.tone.toLowerCase()">{{ f.symbol }} · {{ f.opportunityType }}</span>
+      }
+      @if (!dominantFeed.length) {
+        <span class="muted">No feed items — scanner discovers here</span>
+      }
+    </div>
+  </section>
+
+  <section class="panel grid-2">
+    <div>
+      <h2>Active Executions</h2>
+      <div class="cards">
+        @for (v of activeViews(); track v.record.id) {
+          <app-execution-active-card
+            [view]="v"
+            [exitPrice]="closePrices[v.record.id] ?? ''"
+            (exitPriceChange)="closePrices[v.record.id] = $event"
+            (manualClose)="manualClose(v)">
+          </app-execution-active-card>
+        }
+        @if (!activeViews().length) {
+          <p class="muted">No active paper positions.</p>
+        }
+      </div>
+    </div>
+    <div>
+      <h2>Exit Advisories</h2>
+      <ul class="advisory-list">
+        @for (v of advisories(); track v.record.id) {
+          <li [ngClass]="'tone-' + v.healthTone.toLowerCase()">
+            <strong>{{ v.record.symbol }}</strong> — {{ v.primaryAdvisory.kind }}
+            <span>{{ v.primaryAdvisory.message }}</span>
+          </li>
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel stats-row">
+    <div class="stat"><span>Paper P&amp;L (open MFE Σ)</span><strong>{{ paperPnl().open | number:'1.3-4' }}</strong></div>
+    <div class="stat"><span>Realized R (closed)</span><strong>{{ paperPnl().closed | number:'1.3-4' }}</strong></div>
+    <div class="stat"><span>Premature exits</span><strong>{{ assisted?.learning?.prematureExitCount ?? 0 }}</strong></div>
+    <div class="stat"><span>Trail efficiency</span><strong>{{ (assisted?.learning?.trailingContinuationEfficiency ?? 0) | percent:'1.0-1' }}</strong></div>
+  </section>
+
+  <section class="panel grid-3">
+    <div>
+      <h2>Persistence Health</h2>
+      @for (v of activeViews(); track v.record.id) {
+        <div class="mini-line">{{ v.record.symbol }}: {{ v.metrics.persistenceSurvival | number:'1.0-0' }}%</div>
+      }
+    </div>
+    <div>
+      <h2>Continuation Survival</h2>
+      @for (v of activeViews(); track v.record.id) {
+        <div class="mini-line">{{ v.record.symbol }}: {{ v.metrics.continuationHealth | number:'1.0-0' }}</div>
+      }
+    </div>
+    <div>
+      <h2>Second-Leg Monitor</h2>
+      @for (v of activeViews(); track v.record.id) {
+        <div class="mini-line">{{ v.record.symbol }}: {{ v.metrics.secondLegProbability | number:'1.0-0' }}% prob</div>
+      }
+    </div>
+  </section>
+
+  @if (exitResearch) {
+    <section class="panel">
+      <h2>Autonomous Research Insights (shadow only)</h2>
+      <div class="rank-row">
+        @for (r of exitResearch.rankings.slice(0, 4); track r.modelId) {
+          <div class="rank-card">
+            <strong>{{ r.modelId }}</strong>
+            <span>Cont. eff. {{ r.avgContinuationEfficiency | number:'1.0-0' }}</span>
+            <span>MFE ret. {{ r.avgMfeRetainedPct | number:'1.0-0' }}%</span>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (monitor?.analytics; as analytics) {
+    <section class="panel">
+      <h2>Regime Performance</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Regime</th><th>N</th><th>Avg R</th><th>MFE</th></tr></thead>
+          <tbody>
+            @for (row of (analytics.byRegime | keyvalue); track row.key) {
+              <tr>
+                <td>{{ row.key }}</td>
+                <td>{{ row.value.count }}</td>
+                <td>{{ row.value.avgRealizedR ?? '—' }}</td>
+                <td>{{ row.value.avgMfeR ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

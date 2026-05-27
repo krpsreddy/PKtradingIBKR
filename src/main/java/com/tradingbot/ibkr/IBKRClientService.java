@@ -38,6 +38,7 @@ public class IBKRClientService {
     private final HistoricalDataService historicalDataService;
     private final ObjectProvider<SubscriptionManagerService> subscriptionManagerProvider;
     private final ObjectProvider<TradingSymbolService> tradingSymbolServiceProvider;
+    private final ObjectProvider<com.tradingbot.paper.PaperExecutionMetricsService> paperMetricsProvider;
 
     private final EJavaSignal signal = new EJavaSignal();
     private IBKRWrapper wrapper;
@@ -47,6 +48,7 @@ public class IBKRClientService {
 
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicBoolean ready = new AtomicBoolean(false);
+    private final AtomicInteger nextOrderId = new AtomicInteger(0);
     private final AtomicBoolean liveSubscribed = new AtomicBoolean(false);
     private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
     private static final int MAX_RECONNECT_ATTEMPTS = 10;
@@ -55,6 +57,8 @@ public class IBKRClientService {
     private final Map<String, Integer> symbolToTickerId = new ConcurrentHashMap<>();
     private final Map<Integer, Double> lastPrices = new ConcurrentHashMap<>();
     private final Map<Integer, Long> lastVolumes = new ConcurrentHashMap<>();
+    private final Map<Integer, Long> lastTickEpochMs = new ConcurrentHashMap<>();
+    private final Map<Integer, Double> referenceClosePrices = new ConcurrentHashMap<>();
     private final Deque<String> connectionLogs = new ArrayDeque<>();
     private static final int MAX_LOGS = 50;
 
@@ -63,13 +67,15 @@ public class IBKRClientService {
                              CandleAggregatorService candleAggregatorService,
                              HistoricalDataService historicalDataService,
                              ObjectProvider<SubscriptionManagerService> subscriptionManagerProvider,
-                             ObjectProvider<TradingSymbolService> tradingSymbolServiceProvider) {
+                             ObjectProvider<TradingSymbolService> tradingSymbolServiceProvider,
+                             ObjectProvider<com.tradingbot.paper.PaperExecutionMetricsService> paperMetricsProvider) {
         this.properties = properties;
         this.tradingProperties = tradingProperties;
         this.candleAggregatorService = candleAggregatorService;
         this.historicalDataService = historicalDataService;
         this.subscriptionManagerProvider = subscriptionManagerProvider;
         this.tradingSymbolServiceProvider = tradingSymbolServiceProvider;
+        this.paperMetricsProvider = paperMetricsProvider;
     }
 
     public EClientSocket getApiClient() {
@@ -146,6 +152,11 @@ public class IBKRClientService {
 
     void onConnected() {
         log.info("IBKR connectAck received");
+    }
+
+    void onNextValidId(int orderId) {
+        nextOrderId.set(orderId);
+        log.info("IBKR next order id baseline={}", orderId);
     }
 
     void onReady() {
@@ -338,8 +349,11 @@ public class IBKRClientService {
 
         if (isLastPriceField(field)) {
             lastPrices.put(tickerId, price);
+            lastTickEpochMs.put(tickerId, System.currentTimeMillis());
             log.debug("Tick price {} LAST={}", symbol, price);
             candleAggregatorService.onTick(symbol, price, lastVolumes.getOrDefault(tickerId, 0L));
+        } else if (field == TickType.CLOSE.index() || field == TickType.DELAYED_CLOSE.index()) {
+            referenceClosePrices.put(tickerId, price);
         }
     }
 
@@ -381,17 +395,74 @@ public class IBKRClientService {
         return connected.get() && client != null && client.isConnected();
     }
 
+    public boolean isReadyForOrders() {
+        return isConnected() && ready.get() && nextOrderId.get() > 0;
+    }
+
+    public int allocateOrderId() {
+        return nextOrderId.getAndIncrement();
+    }
+
+    void onOrderFilled(int orderId, double avgFillPrice) {
+        paperMetricsProvider.ifAvailable(m -> m.onOrderFilled(orderId, avgFillPrice));
+    }
+
     public boolean isLiveStreaming() {
         return liveSubscribed.get() && isConnected();
     }
 
     public Double getLastPrice(String symbol) {
+        Integer tickerId = symbolToTickerId.get(symbol.toUpperCase());
+        if (tickerId != null) {
+            return lastPrices.get(tickerId);
+        }
         for (Map.Entry<Integer, String> entry : tickerSymbols.entrySet()) {
             if (symbol.equalsIgnoreCase(entry.getValue())) {
                 return lastPrices.get(entry.getKey());
             }
         }
         return null;
+    }
+
+    public Long getLastVolume(String symbol) {
+        Integer tickerId = symbolToTickerId.get(symbol.toUpperCase());
+        if (tickerId == null) {
+            for (Map.Entry<Integer, String> entry : tickerSymbols.entrySet()) {
+                if (symbol.equalsIgnoreCase(entry.getValue())) {
+                    tickerId = entry.getKey();
+                    break;
+                }
+            }
+        }
+        return tickerId != null ? lastVolumes.get(tickerId) : null;
+    }
+
+    public Long getLastTickEpochMs(String symbol) {
+        Integer tickerId = symbolToTickerId.get(symbol.toUpperCase());
+        if (tickerId == null) {
+            for (Map.Entry<Integer, String> entry : tickerSymbols.entrySet()) {
+                if (symbol.equalsIgnoreCase(entry.getValue())) {
+                    tickerId = entry.getKey();
+                    break;
+                }
+            }
+        }
+        return tickerId != null ? lastTickEpochMs.get(tickerId) : null;
+    }
+
+    public Double getReferenceClose(String symbol) {
+        Integer tickerId = symbolToTickerId.get(symbol.toUpperCase());
+        if (tickerId != null) {
+            Double ref = referenceClosePrices.get(tickerId);
+            if (ref != null && ref > 0) {
+                return ref;
+            }
+        }
+        return null;
+    }
+
+    public boolean isConnectedAndStreaming() {
+        return isConnected() && liveSubscribed.get();
     }
 
     public void cancelSymbolSubscription(String symbol, int tickerId) {

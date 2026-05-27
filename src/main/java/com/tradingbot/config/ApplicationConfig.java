@@ -6,7 +6,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 
 @Configuration
-@EnableConfigurationProperties({IBKRProperties.class, TelegramProperties.class, TradingProperties.class, AiProperties.class})
+@EnableConfigurationProperties({
+        IBKRProperties.class,
+        TelegramProperties.class,
+        TradingProperties.class,
+        AiProperties.class,
+        PaperExecutionProperties.class
+})
 public class ApplicationConfig {
 
     @Bean

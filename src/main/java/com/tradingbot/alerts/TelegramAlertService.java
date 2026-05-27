@@ -343,6 +343,11 @@ public class TelegramAlertService {
         return sendConfiguredMessage(message);
     }
 
+    /** Phase 185 — operational screener/trader alerts (deduped by caller). */
+    public boolean sendOperationalAlert(String message) {
+        return sendConfiguredMessage(message);
+    }
+
     private boolean sendConfiguredMessage(String message) {
         String token = telegramProperties.getBotToken();
         String chatId = telegramProperties.getChatId();

@@ -1,0 +1,206 @@
+<div class="execution-monitor">
+  <header class="mon-header">
+    <div>
+      <a routerLink="/dashboard" class="back-link">← Dashboard</a>
+      <h1>Execution Monitor</h1>
+      <span class="subtitle">Phases 181–182 · assisted exit intelligence · human exits only</span>
+      <nav class="mon-nav">
+        <a routerLink="/execution-console">Execution Console →</a>
+        <a routerLink="/exit-research">Exit Research →</a>
+      </nav>
+    </div>
+    <app-auto-execution-switch></app-auto-execution-switch>
+  </header>
+
+  @if (loading && !snapshot) {
+    <p class="loading">Loading execution data…</p>
+  }
+  @if (error) {
+    <p class="error">{{ error }}</p>
+  }
+
+  @if (snapshot) {
+    <section class="section">
+      <h2>Active Orders</h2>
+      @if (!snapshot.activeOrders.length) {
+        <p class="empty">No pending orders.</p>
+      } @else {
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th><th>Regime</th><th>Status</th><th>Qty</th><th>Latency</th><th>Order</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of snapshot.activeOrders; track r.id) {
+                <tr>
+                  <td>{{ r.symbol }}</td>
+                  <td>{{ r.regime }}</td>
+                  <td><span class="badge" [ngClass]="statusBadge(r.status)">{{ r.status }}</span></td>
+                  <td>{{ r.quantity }}</td>
+                  <td>{{ r.entryLatencyMs ?? '—' }}ms</td>
+                  <td>{{ r.ibkrOrderId ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    @if (assisted) {
+      <section class="section intel-grid">
+        <div class="intel-card" [ngClass]="'tone-' + healthClass(assisted.positions[0]?.healthTone ?? 'YELLOW')">
+          <h2>Active Hold Quality</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line">{{ v.record.symbol }}: {{ v.metrics.holdQuality | number:'1.0-0' }}</div>
+          }
+        </div>
+        <div class="intel-card">
+          <h2>Continuation Health</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line" [ngClass]="healthClass(v.healthTone)">{{ v.record.symbol }}: {{ v.metrics.continuationHealth | number:'1.0-0' }}</div>
+          }
+        </div>
+        <div class="intel-card">
+          <h2>Second Leg Probability</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line">{{ v.record.symbol }}: {{ v.metrics.secondLegProbability | number:'1.0-0' }}%</div>
+          }
+        </div>
+        <div class="intel-card">
+          <h2>Exit Pressure</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line warn">{{ v.record.symbol }}: {{ v.metrics.exitPressure | number:'1.0-0' }}</div>
+          }
+        </div>
+        <div class="intel-card">
+          <h2>Persistence Survival</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line">{{ v.record.symbol }}: {{ v.metrics.persistenceSurvival | number:'1.0-0' }}</div>
+          }
+        </div>
+        <div class="intel-card">
+          <h2>Post-Entry MFE Analytics</h2>
+          @for (v of assisted.positions; track v.record.id) {
+            <div class="intel-line">{{ v.record.symbol }}: capture {{ v.metrics.postEntryMfeCapture | number:'1.0-0' }} · MFE {{ v.record.mfeR ?? '—' }}</div>
+          }
+        </div>
+      </section>
+    }
+
+    <section class="section">
+      <h2>Active Positions (assisted)</h2>
+      <p class="hint">Advisory only — you execute all exits manually</p>
+      @if (!snapshot.activePositions.length) {
+        <p class="empty">No open paper positions.</p>
+      } @else {
+        <div class="position-grid">
+          @for (p of snapshot.activePositions; track p.id) {
+            @if (positionView(p); as v) {
+              <app-execution-active-card
+                [view]="v"
+                [exitPrice]="closeExitPrice[p.id] ?? ''"
+                (exitPriceChange)="closeExitPrice[p.id] = $event"
+                (manualClose)="manualClose(p)">
+              </app-execution-active-card>
+            }
+          }
+        </div>
+      }
+    </section>
+
+    @if (assisted?.learning) {
+      <section class="section two-col">
+        <div>
+          <h2>Exit Quality Learning</h2>
+          <div class="stat"><span>Missed continuation after exit</span><strong>{{ assisted!.learning.missedContinuationAfterExit }}</strong></div>
+          <div class="stat"><span>Premature exits</span><strong>{{ assisted!.learning.prematureExitCount }}</strong></div>
+          <div class="stat"><span>Second-leg captures</span><strong>{{ assisted!.learning.secondLegCaptureCount }}</strong></div>
+        </div>
+        <div>
+          <h2>Statistical outputs</h2>
+          <div class="stat"><span>Trail continuation efficiency</span><strong>{{ assisted!.learning.trailingContinuationEfficiency | number:'1.2-2' }}</strong></div>
+          <div class="stat"><span>Exhaustion false positives</span><strong>{{ assisted!.learning.exhaustionFalsePositiveCount }}</strong></div>
+          <div class="stat"><span>Avg post-exit expansion</span><strong>{{ assisted!.learning.avgPostExitExpansionPct | number:'1.2-2' }}%</strong></div>
+        </div>
+      </section>
+    }
+
+    <section class="section two-col">
+      <div>
+        <h2>Execution Quality</h2>
+        <div class="stat-cards">
+          <div class="stat"><span>Avg slippage</span><strong>{{ analytics()?.avgSlippage ?? '—' }}</strong></div>
+          <div class="stat"><span>Avg realized R</span><strong [ngClass]="pnlClass(analytics()?.avgRealizedR)">{{ analytics()?.avgRealizedR ?? '—' }}</strong></div>
+          <div class="stat"><span>Avg MFE R</span><strong>{{ analytics()?.avgMfeR ?? '—' }}</strong></div>
+          <div class="stat"><span>Avg MAE R</span><strong>{{ analytics()?.avgMaeR ?? '—' }}</strong></div>
+        </div>
+      </div>
+      <div>
+        <h2>Continuation Survival</h2>
+        <p class="empty">Open positions with MFE &gt; 0 marked as survival on close.</p>
+        <div class="stat"><span>Total probes</span><strong>{{ analytics()?.totalProbes ?? 0 }}</strong></div>
+        <div class="stat"><span>Open / Closed / Blocked</span>
+          <strong>{{ analytics()?.openCount }} / {{ analytics()?.closedCount }} / {{ analytics()?.blockedCount }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Regime Performance</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Regime</th><th>Count</th><th>Closed</th><th>Avg R</th><th>Avg MFE</th><th>Avg MAE</th><th>Survival</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of regimeRows(); track row.regime) {
+              <tr>
+                <td>{{ row.regime }}</td>
+                <td>{{ row.stats.count }}</td>
+                <td>{{ row.stats.closed }}</td>
+                <td [ngClass]="pnlClass(row.stats.avgRealizedR)">{{ row.stats.avgRealizedR ?? '—' }}</td>
+                <td>{{ row.stats.avgMfeR ?? '—' }}</td>
+                <td>{{ row.stats.avgMaeR ?? '—' }}</td>
+                <td>{{ row.stats.continuationSurvivalCount }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Paper Execution History</h2>
+      <div class="table-wrap history">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Symbol</th><th>Regime</th><th>Status</th><th>Fill</th><th>Slip</th><th>R</th><th>MFE</th><th>MAE</th><th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (h of snapshot.history.slice(0, 80); track h.id) {
+              <tr>
+                <td>{{ h.submittedAt | date:'short' }}</td>
+                <td>{{ h.symbol }}</td>
+                <td>{{ h.regime }}</td>
+                <td><span class="badge" [ngClass]="statusBadge(h.status)">{{ h.status }}</span></td>
+                <td>{{ h.fillPrice ?? '—' }}</td>
+                <td>{{ h.slippage ?? '—' }}</td>
+                <td [ngClass]="pnlClass(h.realizedR)">{{ h.realizedR ?? '—' }}</td>
+                <td>{{ h.mfeR ?? '—' }}</td>
+                <td>{{ h.maeR ?? '—' }}</td>
+                <td class="note">{{ h.blockedReason ?? h.exitSuggestion ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

@@ -162,6 +162,8 @@ import { AutonomousRegimeScannerService } from '../services/autonomous-regime-sc
 import { ScannerOpportunityCard, ScannerSnapshot } from '../services/autonomous-regime-scanner/autonomous-regime-scanner.models';
 import { buildCompactSuggestion } from '../services/autonomous-regime-scanner/autonomous-suggestions.engine';
 import { RealTimeExecutionService } from '../services/real-time-execution/real-time-execution.service';
+import { AutoExecutionSwitchComponent } from '../components/auto-execution-switch/auto-execution-switch.component';
+import { PaperExecutionResearchHookService } from '../services/paper-execution-research-hook.service';
 import { ExecutionFrameworkMode167 } from '../services/real-time-execution/real-time-execution.models';
 import { EnrichedOpportunity } from '../services/execution-intelligence/enriched-opportunity.model';
 import { SignalReplayLaunchPlan } from '../services/signal-explorer/signal-explorer.models';
@@ -200,7 +202,8 @@ function safeApi<T>(obs: Observable<T>, fallback: T): Observable<T> {
     WorkspaceModeSwitchComponent,
     ReviewWorkspaceComponent,
     SignalExplorerPanelComponent,
-    NetworkDiagnosticsPanelComponent
+    NetworkDiagnosticsPanelComponent,
+    AutoExecutionSwitchComponent
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
@@ -492,7 +495,8 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private dashboardOrchestrator: DashboardOrchestratorService,
     private dashboardStore: DashboardStateStoreService,
     private enrichQueue: SymbolEnrichmentQueueService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private paperResearchHook: PaperExecutionResearchHookService
   ) {}
 
   ngOnInit(): void {
@@ -528,6 +532,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardStore.setChartMode(this.chartMode);
     this.dashboardStore.setMiniMode(this.miniMode);
     this.dashboardOrchestrator.start();
+    this.paperResearchHook.connect();
     this.rtExecution.enriched$.pipe(takeUntil(this.destroy$)).subscribe(items => {
       this.topEnrichedOpportunity = this.attachPlansToEnriched(items)[0] ?? null;
       this.cdr.markForCheck();
@@ -748,6 +753,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
     this.dashboardOrchestrator.stop();
+    this.paperResearchHook.disconnect();
     this.audioCtx?.close();
   }
 
@@ -852,6 +858,14 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.workspaceMode.setMode('execution');
     this.refreshAdaptiveLayout();
     this.cdr.markForCheck();
+  }
+
+  openExecutionConsole(): void {
+    void this.router.navigate(['/execution-console']);
+  }
+
+  openExecutionMonitor(): void {
+    void this.router.navigate(['/execution-monitor']);
   }
 
   openAutonomousDiscoveryLab(): void {
