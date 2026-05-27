@@ -58,6 +58,7 @@ dev/ngrok/.ngrok.log
 ### Frontend ###
 frontend/node_modules/
 frontend-live-trader/node_modules/
+frontend-live-trader/dist/
 frontend-live-screener/node_modules/
 frontend/dist/
 frontend/.angular/
