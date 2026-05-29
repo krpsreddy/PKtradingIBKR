@@ -3,11 +3,14 @@ package com.tradingbot.quotes;
 import com.tradingbot.historical.CandleHistoryService;
 import com.tradingbot.ibkr.IBKRClientService;
 import com.tradingbot.ibkr.SubscriptionManagerService;
+import com.tradingbot.ibkr.stream.DynamicLiveStreamOrchestrator;
+import com.tradingbot.ibkr.stream.LiveStreamTier;
 import com.tradingbot.models.Candle;
 import com.tradingbot.quotes.LiveQuoteDtos.QuoteDto;
 import com.tradingbot.services.MarketTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -28,6 +31,7 @@ public class LiveQuoteService {
     private final IBKRClientService ibkrClientService;
     private final SubscriptionManagerService subscriptionManager;
     private final CandleHistoryService candleHistoryService;
+    private final ObjectProvider<DynamicLiveStreamOrchestrator> streamOrchestratorProvider;
 
     private final ConcurrentHashMap<String, Double> referenceCloseCache = new ConcurrentHashMap<>();
 
@@ -41,7 +45,15 @@ public class LiveQuoteService {
                 continue;
             }
             String sym = raw.trim().toUpperCase();
-            subscriptionManager.subscribeIfNeeded(sym);
+            DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+            if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+                LiveStreamTier tier = orchestrator.tierFor(sym);
+                if (tier == LiveStreamTier.REALTIME) {
+                    subscriptionManager.subscribeIfNeeded(sym);
+                }
+            } else {
+                subscriptionManager.subscribeIfNeeded(sym);
+            }
 
             Double price = ibkrClientService.getLastPrice(sym);
             if (price == null) {

@@ -119,6 +119,7 @@ flutter run --dart-define=API_BASE=http://192.168.x.x:8180
 ## Controls
 
 - **SCAN ON/OFF** → `PUT /api/live-trader/runtime`
+- **IBKR SWITCH** (Trader + Monitor tabs) → `POST /api/broker/connect/{profileId}` — Paper/LIVE with LIVE confirmation
 - **TELEGRAM ON/OFF** → runtime + backend cooldowns
 - **AUTO EXEC** → `OFF` / `PAPER_RESEARCH` only (1-share internal probes)
 

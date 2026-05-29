@@ -1,0 +1,23 @@
+@if (visible) {
+  <details class="replay-perf-panel">
+    <summary>Replay diagnostics</summary>
+    @if (diag$ | async; as d) {
+      <div class="meta">
+        <span>phase {{ d.lastPhase }}</span>
+        <span>{{ d.slowCount }} slow</span>
+        <span>{{ d.duplicateCount }} dup</span>
+        <span>~{{ d.memoryHintMb }} MB heap</span>
+        <span>{{ d.activeSubscriptions }} subs</span>
+      </div>
+      <ul>
+        @for (r of d.requests.slice(0, 12); track r.at) {
+          <li [class.slow]="r.slow">
+            <span class="ms">{{ r.durationMs }}ms</span>
+            <span class="bytes">{{ r.payloadBytes | number }}b</span>
+            <span class="path">{{ r.endpoint }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </details>
+}

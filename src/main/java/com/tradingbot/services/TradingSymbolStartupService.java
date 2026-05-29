@@ -19,6 +19,6 @@ public class TradingSymbolStartupService implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         int count = tradingSymbolService.findEnabledForDisplay().size();
         tradingSymbolService.activateAllOnStartup();
-        log.info("Loaded {} enabled trading symbols from database", count);
+        log.info("Loaded {} enabled trading symbols (contexts only; IBKR subscribe/historical on broker ready)", count);
     }
 }

@@ -1,0 +1,54 @@
+<div class="research-home">
+  <header class="rh-header">
+    <p class="rh-eyebrow">PK Evolution · Phase 192</p>
+    <h1>Research &amp; Replay Workspace</h1>
+    <p class="rh-lead">
+      Angular is for replay, review, validation, and evolution.
+      Live scanning and execution run in <strong>PK Live Trader</strong> (Flutter).
+    </p>
+  </header>
+
+  <nav class="rh-grid" aria-label="Research workspaces">
+    <a class="rh-card" routerLink="/execution-review">
+      <h2>Execution Review</h2>
+      <p>Post-market telemetry, trades, regime performance, queue analysis.</p>
+    </a>
+    <a class="rh-card" routerLink="/replay-lab">
+      <h2>Replay Lab</h2>
+      <p>Historical replay, signal exploration, chart review — on-demand data only.</p>
+    </a>
+    <a class="rh-card" routerLink="/signal-lab">
+      <h2>Edge Lab</h2>
+      <p>Signal lab, edge refinement, strategy experimentation.</p>
+    </a>
+    <a class="rh-card" routerLink="/autonomous-discovery">
+      <h2>Validation</h2>
+      <p>Autonomous discovery, regime mining, template validation.</p>
+    </a>
+  </nav>
+
+  <section class="rh-meta panel">
+    <h3>Also available</h3>
+    <p>
+      <a routerLink="/execution-monitor">Execution monitor</a> ·
+      <a routerLink="/execution-console">Console</a> ·
+      <a routerLink="/exit-research">Exit research</a> ·
+      <a routerLink="/symbols">Symbols</a>
+    </p>
+  </section>
+
+  @if (researchMode.liveDebugAllowed()) {
+    <section class="rh-debug panel">
+      <h3>Developer: Live debug mode</h3>
+      <p>
+        Re-enables legacy live scanner, execution feed polling, watchlist enrich storms, and IBKR
+        subscriptions in Replay Lab. Off by default.
+      </p>
+      @if (researchMode.isResearch()) {
+        <a class="rh-debug-btn" routerLink="/replay-lab" (click)="enableLiveDebug()">Enable live debug → Replay Lab</a>
+      } @else {
+        <p class="rh-debug-on">Live debug is <strong>ON</strong>. <a routerLink="/replay-lab">Open Replay Lab</a></p>
+      }
+    </section>
+  }
+</div>

@@ -15,17 +15,31 @@ import { ReplayLaunchIntentService } from '../services/signal-centric-replay/rep
 import { SymbolHistoryHydrationStore } from '../ai/services/hydration/symbol-history-hydration.store';
 import { SIGNAL_INTELLIGENCE_LOOKBACK_DAYS } from '../models/signal-intelligence.model';
 import { ExplainableRegimeExplainerComponent } from '../components/explainable-regime-explainer/explainable-regime-explainer.component';
+import { RegimeIntelligence60dComponent } from './regime-intelligence-60d.component';
+import { HistoricalBulkDiscoveryComponent } from './historical-bulk-discovery.component';
 import { ClusterFamilyRegistryService } from '../services/cluster-family-intelligence/cluster-family-registry.service';
 import { ClusterFamily } from '../services/cluster-family-intelligence/cluster-family.models';
 import { formatCanonicalRegimeLabel } from '../services/cluster-family-intelligence/cluster-family.models';
 
-export type DiscoveryLabTab = 'discovery' | 'explainable' | 'exit-validation';
+export type DiscoveryLabTab =
+  | 'bullish-discovery'
+  | 'bearish-discovery'
+  | 'explainable'
+  | 'exit-validation'
+  | 'regime-intelligence';
 
 /** Phase 158 — Autonomous Strategy Discovery Lab. */
 @Component({
   selector: 'app-autonomous-discovery-lab',
   standalone: true,
-  imports: [CommonModule, RouterLink, NgComponentOutlet, ExplainableRegimeExplainerComponent],
+  imports: [
+    CommonModule,
+    RouterLink,
+    NgComponentOutlet,
+    ExplainableRegimeExplainerComponent,
+    RegimeIntelligence60dComponent,
+    HistoricalBulkDiscoveryComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './autonomous-discovery-lab.component.html',
   styleUrl: './autonomous-discovery-lab.component.scss'
@@ -35,7 +49,7 @@ export class AutonomousDiscoveryLabComponent implements OnInit, OnDestroy {
   loading = false;
   loadError: string | null = null;
   selectedStrategy: DiscoveredStrategy | null = null;
-  activeTab: DiscoveryLabTab = 'discovery';
+  activeTab: DiscoveryLabTab = 'bullish-discovery';
   exitValidationPanel: Type<unknown> | null = null;
   exitPanelLoading = false;
   families: ClusterFamily[] = [];
@@ -68,7 +82,6 @@ export class AutonomousDiscoveryLabComponent implements OnInit, OnDestroy {
     if (this.report) {
       this.families = this.clusterFamilies.aggregatedFamilies();
     }
-    void this.loadDiscovery();
   }
 
   private async loadDiscovery(): Promise<void> {
@@ -103,6 +116,9 @@ export class AutonomousDiscoveryLabComponent implements OnInit, OnDestroy {
     this.activeTab = tab;
     if (tab === 'exit-validation') {
       void this.loadExitValidationPanel();
+    }
+    if (tab === 'explainable' && !this.report && !this.loading) {
+      void this.loadDiscovery();
     }
     this.cdr.markForCheck();
   }
@@ -144,7 +160,7 @@ export class AutonomousDiscoveryLabComponent implements OnInit, OnDestroy {
       replayMode: 'REVIEW_SIGNAL' as const
     };
     this.replayIntent.setPending(plan);
-    void this.router.navigate(['/dashboard'], { state: { replayPlan: plan } });
+    void this.router.navigate(['/replay-lab'], { state: { replayPlan: plan } });
   }
 
   formatR(v: number): string {

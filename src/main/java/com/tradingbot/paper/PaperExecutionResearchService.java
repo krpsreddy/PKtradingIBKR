@@ -3,7 +3,12 @@ package com.tradingbot.paper;
 import com.tradingbot.api.dto.PaperProbeRequest;
 import com.tradingbot.config.PaperExecutionProperties;
 import com.tradingbot.models.PaperExecutionRecord;
+import com.tradingbot.execution.paperintelligence.simulation.PaperExecutionIntelligenceCoordinator;
+import com.tradingbot.livetrader.LiveTraderDtos;
+import com.tradingbot.livetrader.execution.ExecutionSafetyService;
+import com.tradingbot.livetrader.execution.ExecutionTelemetryService;
 import com.tradingbot.repository.PaperExecutionRecordRepository;
+import com.tradingbot.runtime.RuntimeProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,9 +29,18 @@ public class PaperExecutionResearchService {
     private final PaperOrderPlacementService orderPlacementService;
     private final PaperExecutionRecordRepository repository;
     private final PaperExecutionMetricsService metricsService;
+    private final ExecutionTelemetryService telemetryService;
+    private final ExecutionSafetyService executionSafetyService;
+    private final PaperExecutionIntelligenceCoordinator paperIntelligence;
+    private final RuntimeProfileService runtimeProfileService;
 
     @Transactional
     public PaperExecutionRecord submitProbe(PaperProbeRequest request) {
+        return submitProbe(request, null);
+    }
+
+    @Transactional
+    public PaperExecutionRecord submitProbe(PaperProbeRequest request, LiveTraderDtos.RankedOpportunityDto opp) {
         PaperExecutionMode mode = stateService.getMode();
         IbkrGatewaySafetyService.SafetyValidation safety = safetyService.validate(mode);
         String regime = normalizeRegime(request.regime());
@@ -35,6 +49,7 @@ public class PaperExecutionResearchService {
                 .symbol(request.symbol().toUpperCase(Locale.ROOT))
                 .regime(regime)
                 .executionMode(mode)
+                .runtimeProfile(runtimeProfileService.getRuntimeType().name())
                 .planSource(request.planSource())
                 .entryPrice(request.entryPrice())
                 .quantity(properties.getFixedQuantity())
@@ -66,6 +81,16 @@ public class PaperExecutionResearchService {
         record.setStatus(PaperExecutionStatus.SUBMITTED);
         repository.save(record);
 
+        if (paperIntelligence.isSimulatedFillsOnly() && opp != null) {
+            return paperIntelligence.executeSimulatedEntry(record, opp, request.planSource());
+        }
+
+        if (paperIntelligence.isSimulatedFillsOnly()) {
+            record.setStatus(PaperExecutionStatus.REJECTED);
+            record.setBlockedReason("Simulated fills require ranked opportunity context");
+            return repository.save(record);
+        }
+
         PaperOrderPlacementService.PlacementResult placement = orderPlacementService.placeOneShareBuy(record);
         if (!placement.success()) {
             record.setStatus(PaperExecutionStatus.REJECTED);
@@ -75,6 +100,15 @@ public class PaperExecutionResearchService {
         record.setIbkrOrderId(placement.orderId());
         record.setEntryLatencyMs(placement.latencyMs());
         record.setStatus(PaperExecutionStatus.SUBMITTED);
+        return repository.save(record);
+    }
+
+    @Transactional
+    public PaperExecutionRecord markAdaptiveClose(Long id, BigDecimal exitPrice, String exitReason) {
+        PaperExecutionRecord record = markManualClose(id, exitPrice);
+        if (exitReason != null && !exitReason.isBlank()) {
+            record.setExitQualityNote(exitReason);
+        }
         return repository.save(record);
     }
 
@@ -91,6 +125,15 @@ public class PaperExecutionResearchService {
             }
         }
         metricsService.finalizeOnClose(record);
+        String exitReason = record.getExitQualityNote() != null ? record.getExitQualityNote() : "MANUAL_CLOSE";
+        if (paperIntelligence.isActive()) {
+            paperIntelligence.finalizeExit(record, exitReason, null);
+        } else {
+            telemetryService.captureExit(record, exitReason);
+        }
+        if (record.getRealizedR() != null) {
+            executionSafetyService.recordClosedTrade(record.getRealizedR());
+        }
         return repository.save(record);
     }
 

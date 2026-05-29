@@ -87,12 +87,31 @@ export class AutonomousRegimeScannerService {
     );
   }
 
-  /** Prefer backend batch endpoint; fall back to per-symbol fetch. */
+  /** Phase 187 — realtime-first full snapshot; subset filter client-side. */
   private fetchScannerSnapshot(symbols: string[]): Observable<ScannerSnapshot> {
-    return this.api.scannerOpportunities(symbols).pipe(
-      map(dto => this.mapBackendSnapshot(dto)),
+    const useFull = symbols.length > 25;
+    const source$ = useFull
+      ? this.api.liveScannerSnapshot()
+      : this.api.scannerOpportunities(symbols, undefined, 'live');
+
+    return source$.pipe(
+      map(dto => this.mapBackendSnapshot(this.filterDto(dto, symbols))),
       catchError(() => this.fetchPerSymbol(symbols))
     );
+  }
+
+  private filterDto(
+    dto: import('../intelligence-offload/intelligence-snapshot-api.service').ScannerSnapshotDto,
+    symbols: string[]
+  ): import('../intelligence-offload/intelligence-snapshot-api.service').ScannerSnapshotDto {
+    const want = new Set(symbols.map(s => s.toUpperCase()));
+    if (want.size === 0 || (dto.opportunities?.length ?? 0) <= want.size) {
+      return dto;
+    }
+    return {
+      ...dto,
+      opportunities: dto.opportunities.filter(o => want.has(o.symbol))
+    };
   }
 
   private fetchPerSymbol(symbols: string[]): Observable<ScannerSnapshot> {

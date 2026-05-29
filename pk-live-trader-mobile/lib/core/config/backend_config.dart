@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api/dio_client.dart';
 import 'app_config.dart';
 import 'backend_endpoint_resolver.dart';
+import 'runtime_config.dart';
 
 const _prefRemote = 'pk_backend_use_remote';
 
@@ -117,6 +118,14 @@ class BackendConfigNotifier extends Notifier<BackendConfigState> {
       viaTailscaleFallback: r.viaTailscaleFallback,
       lastError: state.lastError,
     );
+    ref.invalidate(dioProvider);
+  }
+
+  /// Phase 221 — switch paper (8180) vs live (8080) backend.
+  Future<void> applyRuntime(TradingRuntime runtime) async {
+    final remote = state.useRemote;
+    final base = remote ? RuntimeConfig.remoteBaseFor(runtime) : RuntimeConfig.baseUrlFor(runtime);
+    state = state.copyWith(apiBase: base, ready: true, switching: false, clearError: true);
     ref.invalidate(dioProvider);
   }
 }

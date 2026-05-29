@@ -4,19 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/config/backend_config.dart';
+import '../../core/util/api_errors.dart';
 import '../../models/paper_position.dart';
+import '../api/live_trader_api.dart';
 import '../api/paper_execution_api.dart';
+import '../../models/operational_monitor.dart';
+import '../../models/stream_state.dart';
 
 class MonitorState {
   const MonitorState({
     this.snapshot,
     this.analytics,
+    this.ops,
+    this.streamState,
     this.loading = true,
     this.error,
   });
 
   final PaperMonitorSnapshot? snapshot;
   final ExecutionAnalytics? analytics;
+  final OperationalMonitor? ops;
+  final StreamState? streamState;
   final bool loading;
   final String? error;
 }
@@ -52,14 +60,37 @@ class MonitorRepository extends Notifier<MonitorState> {
 
   Future<void> _poll(int gen) async {
     try {
-      final api = ref.read(paperExecutionApiProvider);
-      final mon = await api.monitor().timeout(const Duration(seconds: 12));
-      final analytics = await api.analytics().timeout(const Duration(seconds: 12));
+      final paperApi = ref.read(paperExecutionApiProvider);
+      final liveApi = ref.read(liveTraderApiProvider);
+      const slow = Duration(seconds: 45);
+      final results = await Future.wait([
+        paperApi.monitor().timeout(slow),
+        paperApi.analytics().timeout(slow),
+        liveApi.ops().timeout(slow),
+        liveApi.streamState().timeout(slow),
+      ]);
       if (gen != _pollGen) return;
-      state = MonitorState(snapshot: mon, analytics: analytics, loading: false);
+      state = MonitorState(
+        snapshot: results[0] as PaperMonitorSnapshot,
+        analytics: results[1] as ExecutionAnalytics,
+        ops: results[2] as OperationalMonitor,
+        streamState: results[3] as StreamState,
+        loading: false,
+      );
     } catch (e) {
       if (gen != _pollGen) return;
-      state = MonitorState(loading: false, error: e.toString());
+      final hasCache = state.snapshot != null || state.ops != null;
+      if (isTransientApiError(e) && hasCache) {
+        state = MonitorState(
+          snapshot: state.snapshot,
+          analytics: state.analytics,
+          ops: state.ops,
+          streamState: state.streamState,
+          loading: false,
+        );
+        return;
+      }
+      state = MonitorState(loading: false, error: friendlyApiError(e));
     }
   }
 

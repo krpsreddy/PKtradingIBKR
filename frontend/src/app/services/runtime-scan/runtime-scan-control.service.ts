@@ -8,6 +8,7 @@ import {
 } from './runtime-scan-control.models';
 import { isUsMarketOpen, sessionDayKey } from '../../utils/market-session.util';
 import { RuntimeScanTelemetryService } from './runtime-scan-telemetry.service';
+import { ResearchModeService } from '../research-mode.service';
 
 const STORAGE_KEY = 'pk-runtime-scan-control';
 
@@ -24,7 +25,8 @@ export class RuntimeScanControlService implements OnDestroy {
 
   constructor(
     private zone: NgZone,
-    private telemetry: RuntimeScanTelemetryService
+    private telemetry: RuntimeScanTelemetryService,
+    private researchMode: ResearchModeService
   ) {
     this.zone.runOutsideAngular(() => {
       this.scheduleTimer = setInterval(() => this.evaluateAutoSchedule(), 30_000);
@@ -123,6 +125,9 @@ export class RuntimeScanControlService implements OnDestroy {
   }
 
   private evaluateAutoSchedule(): void {
+    if (this.researchMode.isResearch()) {
+      return;
+    }
     const day = sessionDayKey();
     if (day !== this.lastSessionKey) {
       this.lastSessionKey = day;
@@ -174,6 +179,18 @@ export class RuntimeScanControlService implements OnDestroy {
         };
       }
     } catch { /* ignore */ }
+    if (this.researchMode.isResearch()) {
+      return {
+        enabled: false,
+        mode: 'MANUAL',
+        manualPaused: true,
+        startedAt: null,
+        lastTick: null,
+        scanRateMs: DEFAULT_SCAN_RATE_MS,
+        cpuProtectionActive: false,
+        degraded: false
+      };
+    }
     const open = isUsMarketOpen();
     return {
       enabled: open,

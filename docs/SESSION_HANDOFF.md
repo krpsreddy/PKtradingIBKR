@@ -1,194 +1,190 @@
-# Session Handoff — pktradingIBKR
+# Session Handoff — PKtradingIBKR
 
-> **Purpose:** Everything needed to continue in a fresh Cursor chat.  
-> **Refresh:** Say **"prepare session handoff"** to update this file.  
-> **Long-term memory:** [`PROJECT_MEMORY.md`](./PROJECT_MEMORY.md)
+**Date:** 2026-05-28  
+**Focus:** IBKR stream stabilization, dual runtime (Phase 221), ops fixes
 
-**Handoff date:** 2026-05-25  
-**Latest completed phase:** 169 — Conviction Calibration + Trader UX Stabilization
+**Full old-laptop install:** [Windows](OLD_LAPTOP_SETUP_GUIDE_WINDOWS.md) · [macOS](OLD_LAPTOP_SETUP_GUIDE.md)
 
 ---
 
-## Latest Completed Phase (169)
+## Executive summary
 
-### Goals
-- Spread flat conviction clusters (67–72) into actionable ranks (95+, 90+, etc.)
-- Dominant trader actions (ENTER NOW, ADD ON PB, WAIT FOR ACCEPTANCE)
-- Lifecycle visualization bar on cards and feed
-- Dark theme semantic tokens
-- Execution vs research operating mode separation
-- Unify top opportunity with nano feed #1
-
-### Architecture added
-| Layer | Path |
-|-------|------|
-| Conviction calibration (FE) | `frontend/src/app/services/conviction-calibration/` |
-| Conviction calibration (BE) | `src/main/java/.../ConvictionCalibrationEngine.java` |
-| Action dominance | `frontend/src/app/services/action-dominance/` |
-| Lifecycle engine | `frontend/src/app/services/execution-lifecycle/` |
-| Enrichment pipeline | `frontend/src/app/services/execution-intelligence/` |
-| Lifecycle bar component | `frontend/src/app/components/execution-lifecycle-bar/` |
-| Theme tokens | `frontend/src/app/styles/_execution-theme.tokens.scss` |
-| Trader operating mode | `frontend/src/app/services/trader-operating-mode.service.ts` |
-
-### APIs added/changed
-- `PATCH /api/strategy-memory/{id}/thresholds` — in-memory threshold tuning
-
-### UI changes
-- Hero top card with conviction, dominant action, lifecycle bar, rarity badge
-- Feed rows show calibrated conviction, urgency, lifecycle bar
-- Confirmed/Early toggle now interactive
-- Review tabs filtered by `TraderOperatingModeService` in execution mode
-- Semantic dark theme tokens on sidebar, feed, cards
-
-### Unresolved from Phase 169
-- Dual scanner pipeline (30s + 1s) not fully unified
-- Strategy threshold PATCH not persisted to disk
-- Sidebar SCSS not fully tokenized
+1. **IBKR streaming** — Root cause was **market-data entitlement** (error 10168), not broken orchestration. Fixed with `ibkr.market-data-type=3` + TWS “Enable delayed market data”. Secondary fixes: ghost subscription ledger, `clearAll()` without `cancelMktData`, ticker ID leak, reconcile-on-GET removed.
+2. **Phase 221** — **Paper** (8180 / Gateway 4002 / client 101) and **Live** (8080 / Gateway 4001 / client 201) profiles, start scripts, mobile PAPER/LIVE selector, hard LIVE safety guard.
+3. **DB** — Password in gitignored `application-local.properties`.
+4. **Mobile** — `opportunity_row.dart` `_chip` color arg fixed for iOS build.
 
 ---
 
-## Latest Architectural Decisions
+## How to run (recommended)
 
-1. **Nano feed is primary** for top opportunity and live execution feed; 30s scanner remains for live opportunity rows and watchlist grouping.
-2. **Conviction calibrated twice** — backend cohort spread on feed build, frontend enrichment on poll.
-3. **No legacy OPEN_MOM/CONT in live ranking** — only in chart marker adapters and HYBRID comparison mode.
-4. **Advisory only** — no order execution endpoints; all actions are UI guidance.
-5. **Backend offload (164)** — intelligence snapshots computed on JVM; browser consumes REST.
-6. **ngrok dev** — API calls use relative `/api` proxied through Angular dev server (not direct localhost:8080 from browser).
-
----
-
-## Active Bugs / Issues
-
-| Bug | Status | Workaround |
-|-----|--------|------------|
-| Angular dev server OOM (exit 137) | Intermittent | Restart `npm start` |
-| ngrok free URLs change on restart | Expected | Re-read `dev/ngrok/.ngrok-urls.env` |
-| Live opportunity rows may still use 30s scanner data | Known | Phase 170 unification |
-| Spring Boot must run locally for ngrok proxy | Expected | `mvn spring-boot:run` on :8080 |
-
----
-
-## Next Priorities
-
-1. **Phase 170 (suggested):** Unify live opportunity rows onto nano feed — single pipeline
-2. Persist strategy memory threshold edits to JSON/DB
-3. WebSocket execution feed (replace 1.5s poll)
-4. Virtual scroll on feed + collapse weak rows by default
-5. Complete legacy removal from chart live markers (keep replay history only)
-6. Replay lifecycle transition animation
-
----
-
-## Current Scanner Behavior
-
-### Backend (1s — `NanoScannerScheduler`)
-```
-For each symbol in scan set:
-  1. NanoAnomalyDetector.detect()
-  2. MicroPersistenceValidator.validate()
-  3. StructuralRegimeValidator.validate() (if anomaly)
-  4. AutonomousExecutionScorer.score()
-  5. ConvictionCalibrationEngine.calibrateCohort()
-  6. Sort by conviction + velocity×1.5
-  7. Cache top 40 in feed
-```
-
-### Frontend (1.5s poll — `RealTimeExecutionService`)
-```
-GET /api/execution/feed
-  → visibleEnrichedFeed() with calibration + action + lifecycle
-  → enriched$ BehaviorSubject
-  → live-execution-feed, top-autonomous-opportunity-card
-```
-
-### Secondary scanner (30s — `AutonomousRegimeScannerService`)
-```
-GET /api/scanner-snapshot (via intelligence offload)
-  → buildScannerCard() per symbol
-  → applyConvictionScores() with calibration
-  → bucketBySection()
-  → used for live-opportunity-card rows, autonomousCards map
-```
-
-### Ranking formula (both paths after Phase 169)
-- Cohort percentile spread: bands 98→65
-- Priority: `scannerPriority = conviction + urgency×0.35 + velocity×1.5`
-
----
-
-## Pending Migrations
-
-| Item | From | To | Status |
-|------|------|-----|--------|
-| Live opportunity rows | 30s scanner | Nano feed enriched | Pending |
-| Review filters | Legacy keys (storage) | Autonomous keys | Done (168) — `migrateLegacyWorkflowFilters` |
-| Sidebar regime sections | Static buckets | Live feed | Done (167) |
-| Top card data source | Scanner snapshot | Nano feed #1 | Done (169) |
-| Chart live markers | Legacy signal types | Autonomous regime markers | Partial |
-| Strategy thresholds | In-memory PATCH | JSON persistence | Pending |
-
----
-
-## How to Run (Current)
+### Dual runtime (Phase 221)
 
 ```bash
-# Backend
-mvn spring-boot:run
-
-# Frontend (local)
-cd frontend && npm start
-
-# Frontend (ngrok — auto-detects dev/ngrok/.ngrok-urls.env)
-cd frontend && npm start   # uses ngrok config if .ngrok-urls.env exists
-
-# ngrok tunnels
-cd dev/ngrok && ./scripts/start-all-background.sh
-
-# Spring with ngrok CORS (optional if using proxy)
-export $(grep -v '^#' dev/ngrok/.ngrok-urls.env | xargs)
-SPRING_PROFILES_ACTIVE=ngrok mvn spring-boot:run
+./start-paper.sh    # Android / auto paper — logs/paper-runtime.log
+./start-live.sh     # iPhone / manual assist — logs/live-runtime.log
+./start-all.sh      # both
 ```
 
-**Current ngrok URLs** (change on restart — check `.ngrok-urls.env`):
-- Frontend: see `NGROK_FRONTEND_URL`
-- Backend: see `NGROK_BACKEND_URL`
-- Basic auth: `dev/ngrok/.env`
+Verify:
+
+```bash
+curl -s http://localhost:8180/api/runtime/profile | jq .
+curl -s http://localhost:8080/api/runtime/profile | jq .
+curl -s http://localhost:8180/api/live-trader/stream-debug | jq .
+```
+
+### Legacy single backend
+
+```bash
+./start-evolution.sh   # profile=evolution, port 8180
+```
+
+Or manual:
+
+```bash
+export SPRING_PROFILES_ACTIVE=paper   # or live
+mvn -q compile spring-boot:run
+```
+
+### TWS / Gateway prerequisites
+
+| Runtime | Gateway port | Market data |
+|---------|--------------|-------------|
+| Paper | **4002** | Type **3** (delayed) — enable delayed in TWS API settings |
+| Live | **4001** | Type **1** (live) — requires live API subscriptions |
+
+### Mobile
+
+```bash
+cd pk-live-trader-mobile
+flutter run   # Android → PAPER :8180 default; iOS → LIVE :8080
+```
+
+Override host: `--dart-define=PK_HOST=192.168.x.x`
 
 ---
 
-## Key Files to Read First in a New Session
+## Configuration reference
 
-| Priority | File | Why |
-|----------|------|-----|
-| 1 | `docs/PROJECT_MEMORY.md` | Full architecture |
-| 2 | `docs/phases/PHASE_169_*.md` | Latest phase |
-| 3 | `RealTimeExecutionEngine.java` | Live scanner backend |
-| 4 | `real-time-execution.service.ts` | Feed client |
-| 5 | `opportunity-enrichment.engine.ts` | Calibration + action bridge |
-| 6 | `trading-sidebar.component.ts` | Sidebar wiring |
-| 7 | `dashboard.component.ts` | Main shell integration |
+| File | Purpose |
+|------|---------|
+| `application-paper.properties` | PAPER runtime (8180, 4002, delayed, AUTO_PAPER) |
+| `application-live.properties` | LIVE runtime (8080, 4001, live, MANUAL_ASSIST) |
+| `application-evolution.properties` | Legacy evolution (still works) |
+| `application-local.properties` | **Gitignored** — DB password `Kpr1412@postgres` |
 
----
+DB defaults in `application.properties`:
 
-## Phase History Quick Reference (150–169)
-
-150 Replay viewport · 158 Discovery · 160 Autonomous execution · 161 Robustness · 162 Live regime · 163 Triggers · 164 Backend offload · 165 Scanner UX · 166 Execution shell · 167 Realtime engine · 168 Review migration · 169 Conviction UX
-
-Full docs: `docs/phases/`
+- Host: `localhost:5432`
+- DB: `trading_signals`
+- User: `${USER:pk}` (set `spring.datasource.username=postgres` in local if needed)
 
 ---
 
-## Cursor Instructions
+## IBKR stream diagnostics (Phase 219)
 
-When starting a fresh chat:
-1. Read `docs/PROJECT_MEMORY.md` and this file
-2. Check `docs/phases/PHASE_*` for the target phase
-3. Run builds: `mvn compile` + `cd frontend && npm run build`
-4. Backend changes require Spring Boot restart
-5. Do not commit `.env`, `application-local.properties`, or ngrok secrets
+| Endpoint | Use |
+|----------|-----|
+| `GET /api/live-trader/stream-debug` | Connected, streaming, ticks, stalled symbols |
+| `GET /api/live-trader/tick-health` | Per-symbol tick age |
+| `GET /api/live-trader/candle-health` | Bar lag, partial candle |
+| `GET /api/live-trader/reconnect-history` | Reconnect + lifecycle traces |
+| `GET /api/live-trader/execution-integrity` | Runtime + integrity snapshot |
 
-When user says **"prepare session handoff"**:
-- Update this file with latest phase, bugs, priorities, scanner behavior, and pending migrations
-- Update `PROJECT_MEMORY.md` §9 (known problems) and §11 (TODOs) if changed
+**Healthy paper stream (delayed):** `ibkrStreaming=true`, `symbolsStreaming` ~39/40, `ticksLast10s` > 0, `marketDataEntitlementErrors=0`.
+
+**Logs (errors only):**
+
+```bash
+grep ' ERROR ' logs/paper-runtime.log
+# or Cursor terminal file under terminals/*.txt
+```
+
+---
+
+## Key code changes (by area)
+
+### Stream / IBKR (`com.tradingbot.ibkr.*`)
+
+- `SubscriptionManagerService` — subscribe after ready; no ghost registry; `clearAll()` cancels MktData; reset ticker IDs
+- `StreamHealthOrchestrator` — orphan prune; periodic reconcile only
+- `LiveTraderController` — `stream-state` read-only (no reconcile on GET)
+- `DataIntegrityEngine` — 90s bootstrap grace after `IBKR_READY`
+- `IBKRWrapper` — handle 10168; `IBKRClientService` — BID/ASK ticks, phase tracing
+- `StreamPipelineDiagnostics` + `StreamDiagnosticsController`
+
+### Candles
+
+- `CandleWriteService` — `INSERT ... ON CONFLICT DO NOTHING` (fixes duplicate key `uk1ngqylslccfx7rikw5cnld5tt`)
+- Stops Hibernate `SqlExceptionHelper` ERROR spam when historical + live both persist same 5m bar
+
+### Dual runtime (`com.tradingbot.runtime.*`)
+
+- `RuntimeProfileService`, `RuntimeExecutionSafetyGuard`, `RuntimeBootstrap`
+- `GET /api/runtime/profile`
+- `PaperExecutionRecord.runtimeProfile` column (PAPER/LIVE tag)
+
+### Mobile
+
+- `RuntimeSelector`, `RuntimeBanner`, `runtime_profile_state.dart`
+- `opportunity_row.dart` — `_chip(label, [colorOverride])`
+
+---
+
+## Phase docs
+
+| Phase | Doc |
+|-------|-----|
+| 219 | `docs/phases/PHASE_219_IBKR_STREAM_PIPELINE_AUDIT.md` |
+| 221 | `docs/phases/PHASE_221_DUAL_RUNTIME_ARCHITECTURE.md` |
+| 218 | `docs/phases/PHASE_218_PINE_AUTONOMOUS_INTELLIGENCE_ENGINE.md` |
+
+---
+
+## Root-cause cheat sheet
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `ibkrConnected=true`, `symbolsStreaming=0`, 10168 in logs | No live/delayed entitlement | Type 3 + enable delayed in TWS |
+| `subscriptionCount` high, no ticks | Ghost registry (pre-fix) or entitlement | Restart with current code + type 3 |
+| `Can't find EId tickerId:4xx` | `clearAll()` without cancel + ticker ID leak | Fixed in `SubscriptionManagerService` |
+| Duplicate key on `candles` | Historical + live same bar | `CandleWriteService` |
+| `stalledSymbols` for dormant names | Diagnostic false positive | Fixed: only active subs counted |
+| LIVE auto paper | Misconfig | `RuntimeExecutionSafetyGuard` blocks |
+
+---
+
+## Open / follow-up
+
+- [ ] Confirm Postgres user (`pk` vs `postgres`) matches `application-local.properties`
+- [ ] Run `./start-all.sh` and validate both profiles during RTH
+- [ ] iOS device: rebuild after `opportunity_row` fix; confirm LIVE runtime connects to `:8080`
+- [ ] Live runtime: confirm live market data subscriptions if using type 1
+- [ ] Optional: migrate fully off `evolution` profile to `paper` in docs/scripts
+- [ ] Optional: separate DBs `tradingbot_paper` / `tradingbot_live` (prepared via `runtime_profile` column only)
+
+---
+
+## Security note
+
+- DB password is in **`application-local.properties`** (gitignored). Do not commit that file.
+- Rotate password if this handoff is shared externally.
+
+---
+
+## Quick health checklist
+
+```bash
+# Paper
+curl -s localhost:8180/api/runtime/profile
+curl -s localhost:8180/api/live-trader/stream-debug | jq '{streaming:.ibkrStreaming,verified:.symbolsStreaming,ticks:.ticksLast10s}'
+
+# Live
+curl -s localhost:8080/api/runtime/profile
+curl -s localhost:8080/api/live-trader/stream-debug | jq '{streaming:.ibkrStreaming,verified:.symbolsStreaming,ticks:.ticksLast10s}'
+```
+
+Expected paper: `runtime=PAPER`, `executionMode=AUTO_PAPER`, streaming healthy with delayed data.
+
+Expected live: `runtime=LIVE`, `executionMode=MANUAL_ASSIST`, `autoPaperEnabled=false`.

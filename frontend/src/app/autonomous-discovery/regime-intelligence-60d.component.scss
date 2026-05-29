@@ -1,0 +1,128 @@
+.ri60 {
+  margin-top: 12px;
+}
+
+.ri60-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  h2 {
+    margin: 0 0 4px;
+    font-size: 0.875rem;
+    color: #79c0ff;
+    letter-spacing: 0.04em;
+  }
+  .sub { margin: 0; font-size: 0.625rem; color: #8b949e; }
+}
+
+.ri60-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lookback {
+  display: flex;
+  gap: 4px;
+}
+
+.lb-btn {
+  padding: 4px 8px;
+  font-size: 0.625rem;
+  background: rgba(48, 54, 61, 0.6);
+  border: 1px solid #30363d;
+  color: #8b949e;
+  border-radius: 3px;
+  cursor: pointer;
+  &.active {
+    color: #58a6ff;
+    border-color: rgba(88, 166, 255, 0.5);
+    background: rgba(88, 166, 255, 0.12);
+  }
+}
+
+.refresh-btn {
+  padding: 4px 10px;
+  font-size: 0.625rem;
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  color: #58a6ff;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.625rem;
+  color: #8b949e;
+  margin-bottom: 12px;
+}
+
+.insights-panel {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(88, 166, 255, 0.25);
+  border-radius: 4px;
+  background: rgba(88, 166, 255, 0.06);
+  h3 { margin: 0 0 6px; font-size: 0.6875rem; color: #58a6ff; }
+  .disclaimer { font-size: 0.5625rem; color: #8b949e; margin: 0 0 6px; }
+  .insight-line { margin: 4px 0; font-size: 0.625rem; }
+}
+
+.panel {
+  margin-bottom: 14px;
+  h3 {
+    margin: 0 0 6px;
+    font-size: 0.6875rem;
+    color: #c9d1d9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  &.danger h3 { color: #f85149; }
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ri-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.625rem;
+  th, td {
+    padding: 4px 6px;
+    text-align: left;
+    border-bottom: 1px solid #21262d;
+  }
+  th { color: #8b949e; font-weight: 600; }
+  td.weak { color: #f85149; }
+}
+
+.trace-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 0.625rem;
+  li { margin-bottom: 4px; }
+}
+
+.muted { color: #8b949e; }
+.arch-note { font-size: 0.5625rem; margin-top: 8px; }
+
+.warn-banner {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 0.625rem;
+  border-radius: 4px;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.35);
+  color: #e3b341;
+}

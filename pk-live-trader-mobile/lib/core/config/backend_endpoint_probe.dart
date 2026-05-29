@@ -9,7 +9,10 @@ Future<String?> probeBackend(String apiBase) async {
     headers: {'Accept': 'application/json'},
   ));
   try {
-    final r = await dio.get<Map<String, dynamic>>('/api/live-trader/tier1');
+    final r = await dio.get<Map<String, dynamic>>(
+      '/api/live-trader/live-scan',
+      queryParameters: {'limit': 1},
+    );
     if (r.statusCode == 200 && r.data != null) return null;
     return 'HTTP ${r.statusCode}';
   } on DioException catch (e) {

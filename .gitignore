@@ -54,6 +54,7 @@ dev/ngrok/ngrok.yml
 dev/ngrok/.ngrok-urls.env
 dev/ngrok/.ngrok.pid
 dev/ngrok/.ngrok.log
+logs/*.log
 
 ### Frontend ###
 frontend/node_modules/

@@ -1,8 +1,11 @@
 <nav class="workspace-mode-switch" aria-label="Workspace mode">
-  <button type="button" class="mode-btn" [class.active]="mode === 'execution'" (click)="select('execution')">
-    EXECUTION
-  </button>
-  <button type="button" class="mode-btn" [class.active]="mode === 'review'" (click)="select('review')">
-    REVIEW
-  </button>
+  @if (researchTabs) {
+    <button type="button" class="mode-btn" [class.active]="replayLabTab === 'replay'" (click)="selectReplayTab('replay')">Replay</button>
+    <button type="button" class="mode-btn" [class.active]="replayLabTab === 'review'" (click)="selectReplayTab('review')">Review</button>
+    <button type="button" class="mode-btn" [class.active]="replayLabTab === 'discovery'" (click)="selectReplayTab('discovery')">Discovery</button>
+    <button type="button" class="mode-btn" [class.active]="replayLabTab === 'validation'" (click)="selectReplayTab('validation')">Strategy Validation</button>
+  } @else {
+    <button type="button" class="mode-btn" [class.active]="mode === 'execution'" (click)="select('execution')">EXECUTION</button>
+    <button type="button" class="mode-btn" [class.active]="mode === 'review'" (click)="select('review')">REVIEW</button>
+  }
 </nav>

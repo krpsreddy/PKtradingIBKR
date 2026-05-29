@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config/backend_config.dart';
 import '../core/theme/pk_theme.dart';
 import '../core/util/formatters.dart';
+import '../services/polling/broker_repository.dart';
 import '../services/polling/live_trader_repository.dart';
 
 class TerminalStatusBar extends ConsumerWidget {
@@ -15,7 +16,11 @@ class TerminalStatusBar extends ConsumerWidget {
     final backend = ref.watch(backendConfigProvider);
     final snap = s.snapshot;
     final market = snap?.market;
-    final ibkr = snap?.paperStatus.ibkrConnected ?? false;
+    final broker = ref.watch(brokerConnectionProvider).status;
+    final ibkr = broker?.connected ?? snap?.paperStatus.ibkrConnected ?? false;
+    final ibkrLabel = broker != null
+        ? 'IBKR ${ibkr ? broker.mode : 'offline'}'
+        : 'IBKR ${ibkr ? 'connected' : 'offline'}';
     final delayed = s.quoteDelayed;
 
     return Padding(
@@ -25,7 +30,7 @@ class TerminalStatusBar extends ConsumerWidget {
           'PK Mobile Trader',
           '${backend.modeLabel} ${backend.apiBase.replaceFirst('http://', '')}',
           if (market?.emotionLabel != null) formatRegimeLabel(market!.emotionLabel!),
-          'IBKR ${ibkr ? 'connected' : 'offline'}',
+          ibkrLabel,
           if (delayed) 'PRICE DELAYED',
           if (s.error != null) s.error!,
         ].join(' · '),

@@ -43,7 +43,7 @@ public class RealTimeExecutionEngine {
 
     /** Nano scan tick — lightweight, incremental, no full rescoring. */
     public void nanoScanTick() {
-        Set<String> symbols = tradingSymbolService.getScanSymbolSet();
+        Set<String> symbols = tradingSymbolService.getEnabledSymbolSet();
         if (symbols.isEmpty()) return;
 
         long now = System.currentTimeMillis();

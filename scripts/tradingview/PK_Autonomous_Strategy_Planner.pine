@@ -1,0 +1,987 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PKtradingIBKR — Phase 186/188/214: Strategy Planner + structural bearish intelligence
+// Pair with PK_Autonomous_Regime_Engine.pine on the same chart (5m recommended).
+// Default: exactRegimeSync = true → same entry/exit rules as the Regime Engine indicator.
+// ADD AS STRATEGY (not indicator) for Strategy Tester + trade orders
+//@version=6
+strategy("PK Autonomous Strategy Planner", "PK Strat", overlay=true,
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=10,
+     commission_type=strategy.commission.percent,
+     commission_value=0.04,
+     slippage=2,
+     pyramiding=1,
+     calc_on_every_tick=false,
+     max_labels_count=200,
+     max_lines_count=80,
+     max_boxes_count=30)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS — core engine (preserved from Phase 162/167 indicator)
+// ═══════════════════════════════════════════════════════════════════════════════
+groupCore   = "Core Engine"
+groupSync   = "Regime Engine Sync"
+groupStrat  = "Strategy Mode"
+groupFilt   = "Intelligence Filters"
+groupRisk   = "Risk Management"
+groupTgt    = "Target Engine"
+groupVis    = "Visuals"
+groupAlert  = "Alerts"
+groupBear   = "Bearish Intelligence (Phase 214)"
+groupBearVis = "Bearish Visuals"
+groupBearTel = "Bearish Backtest Telemetry"
+
+exactRegimeSync = input.bool(true, "1:1 Regime Engine signals (matches indicator)", group=groupSync,
+     tooltip="ON: uses earlyEntry / confirmedEntry / secondLeg / reduceRisk / exitWarning exactly as the Regime Engine.\nOFF: applies extra conviction, RVOL, and mode filters below.")
+
+strategyMode = input.string("INTRADAY_CONTINUATION", "Strategy mode",
+     options=["SCALP", "INTRADAY_CONTINUATION", "SWING_CONTINUATION", "AGGRESSIVE_EARLY_ENTRY", "CONFIRMED_ONLY"],
+     group=groupStrat,
+     tooltip="Ignored when 1:1 Regime Engine sync is ON")
+enableLongs    = input.bool(true, "Enable long entries", group=groupStrat)
+enableShorts   = input.bool(false, "Enable short entries", group=groupStrat)
+allowSecondLeg = input.bool(false, "Allow one second-leg add per trade", group=groupStrat)
+partialReducePct = input.float(50.0, "Partial reduce %", minval=10, maxval=90, group=groupStrat)
+
+rvolLen         = input.int(20, "RVOL baseline length", minval=5, group=groupCore)
+emaFastLen      = input.int(9, "EMA fast", minval=3, group=groupCore)
+emaSlowLen      = input.int(20, "EMA slow", minval=5, group=groupCore)
+atrLen          = input.int(14, "ATR length", minval=5, group=groupCore)
+persistMinBars  = input.int(8, "Persistence min bars above VWAP", minval=3, group=groupCore)
+dominantThresh  = input.int(72, "Dominant NOW threshold", minval=50, maxval=95, group=groupCore)
+sessTz          = input.string("America/New_York", "Session timezone", group=groupCore)
+earlyWindowEnd  = input.int(45, "Early window end (min from open)", minval=15, group=groupCore)
+
+// Filters — mode-adjusted defaults applied below
+convThresh      = input.float(65.0, "Conviction threshold", minval=40, maxval=95, group=groupFilt)
+persistThresh   = input.float(55.0, "Persistence threshold", minval=30, maxval=95, group=groupFilt)
+domThresh       = input.float(68.0, "Dominance threshold", minval=50, maxval=95, group=groupFilt)
+velThresh       = input.float(8.0, "Velocity threshold (min rise)", minval=-20, maxval=40, group=groupFilt)
+exhaustThresh   = input.float(58.0, "Exhaustion exit threshold", minval=40, maxval=90, group=groupFilt)
+rvolThresh      = input.float(1.5, "RVOL minimum", minval=0.8, maxval=5, group=groupFilt)
+
+stopMode        = input.string("ATR", "Stop mode", options=["FIXED_PCT", "STRUCTURE", "ATR", "TRAILING_ATR", "PERSISTENCE_TRAIL"], group=groupRisk)
+fixedStopPct    = input.float(1.2, "Fixed stop %", minval=0.3, maxval=5, step=0.1, group=groupRisk)
+atrStopMult     = input.float(1.5, "ATR stop mult", minval=0.5, maxval=4, step=0.1, group=groupRisk)
+trailAtrMult    = input.float(2.0, "Trailing ATR mult", minval=0.5, maxval=5, step=0.1, group=groupRisk)
+persistTrailSens = input.float(0.85, "Persistence trail tighten factor", minval=0.5, maxval=1, step=0.05, group=groupRisk)
+
+targetMode      = input.string("ADAPTIVE", "Target mode",
+     options=["FIXED_RR", "PERSISTENCE_CONT", "ADAPTIVE", "SECOND_LEG_EXT", "INST_PERSIST"], group=groupTgt)
+fixedRR         = input.float(2.0, "Fixed R:R", minval=0.5, maxval=6, step=0.1, group=groupTgt)
+earlySizePct    = input.float(6.0, "Early entry size % equity", minval=2, maxval=25, group=groupTgt)
+confirmSizePct  = input.float(10.0, "Confirmed entry size % equity", minval=2, maxval=40, group=groupTgt)
+secondLegSizePct = input.float(5.0, "Second leg add % equity", minval=2, maxval=20, group=groupTgt)
+
+showVwap        = input.bool(true, "Show VWAP", group=groupVis)
+showZones       = input.bool(true, "Entry / Stop / Target zones", group=groupVis)
+showDashboard   = input.bool(true, "Position panel", group=groupVis)
+showHeroLabels  = input.bool(true, "Entry / exit event tags", group=groupVis)
+showLiveStatus  = input.bool(true, "Live regime tag (current only)", group=groupVis)
+showTradeMarks  = input.bool(true, "Entry/exit signal markers", group=groupVis)
+showLifecycleBg = input.bool(true, "Lifecycle background shading", group=groupVis)
+lifecycleBgTransp = input.int(97, "Lifecycle bg transparency", minval=94, maxval=99, group=groupVis)
+zoneFillTransp  = input.int(94, "Zone fill transparency", minval=90, maxval=98, group=groupVis)
+zonesInMargin   = input.bool(false, "Zones in right margin (less overlap)", group=groupVis)
+mobileLabels    = input.bool(true, "Mobile spacing (keeps full labels)", group=groupVis)
+eventCooldown   = input.int(6, "Repeat label cooldown (bars)", minval=2, group=groupVis)
+
+// Phase 214 — structural downside intelligence (mirrors backend bearish ops)
+enableBearIntel     = input.bool(true, "Enable bearish intelligence layer", group=groupBear)
+bearRejectionTh     = input.int(55, "Rejection persistence threshold", minval=35, maxval=85, group=groupBear)
+bearBreakdownTh     = input.int(52, "Breakdown acceleration threshold", minval=35, maxval=85, group=groupBear)
+bearDistribTh       = input.int(50, "Distribution persistence threshold", minval=35, maxval=85, group=groupBear)
+bearSqueezeAvoidTh  = input.int(70, "Squeeze risk AVOID threshold", minval=50, maxval=90, group=groupBear)
+putAplusRejectTh    = input.int(70, "PUT A+ rejection threshold", minval=55, maxval=90, group=groupBear)
+putAplusBreakTh     = input.int(65, "PUT A+ breakdown threshold", minval=45, maxval=90, group=groupBear)
+putDownRvolTh       = input.float(2.0, "PUT A+ downside RVOL min", minval=1.2, maxval=5, step=0.1, group=groupBear)
+enablePmBear        = input.bool(true, "9:00–9:30 PM structure boost", group=groupBear)
+showBearTags        = input.bool(true, "Bearish event tags (sparse)", group=groupBearVis)
+showBearMarks       = input.bool(true, "Bearish chart markers (PUT/reclaim)", group=groupBearVis)
+showBearPanel       = input.bool(true, "Bearish rows in dashboard", group=groupBearVis)
+trackBearTelemetry  = input.bool(true, "Track bearish backtest counters", group=groupBearTel)
+
+// Mode multipliers (extensibility hook for bearish / HTF later)
+modeStopMult =
+     strategyMode == "SCALP" ? 0.85 :
+     strategyMode == "SWING_CONTINUATION" ? 1.35 :
+     strategyMode == "INTRADAY_CONTINUATION" ? 1.0 : 0.95
+modeTargetMult =
+     strategyMode == "SCALP" ? 0.9 :
+     strategyMode == "SWING_CONTINUATION" ? 1.4 :
+     strategyMode == "INTRADAY_CONTINUATION" ? 1.0 : 1.05
+modeConvAdj =
+     strategyMode == "CONFIRMED_ONLY" ? 8.0 :
+     strategyMode == "AGGRESSIVE_EARLY_ENTRY" ? -8.0 :
+     strategyMode == "SCALP" ? 5.0 : 0.0
+
+effConvThresh   = convThresh + modeConvAdj
+effPersistThresh = strategyMode == "SCALP" ? persistThresh + 8 : persistThresh
+effDomThresh    = domThresh
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE SERIES — autonomous regime engine (unchanged logic)
+// ═══════════════════════════════════════════════════════════════════════════════
+vwapVal = ta.vwap(hlc3)
+vwapDist = close > 0 ? (close - vwapVal) / close : 0.0
+vwapDistAbs = math.abs(vwapDist)
+
+volBase = ta.sma(volume, rvolLen)
+rvol = volBase > 0 ? volume / volBase : 1.0
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+atrVal = ta.atr(atrLen)
+
+emaSpread = emaSlow > 0 ? (emaFast - emaSlow) / emaSlow : 0.0
+structureScore = math.max(0.0, math.min(100.0,
+     (close > emaFast ? 22.0 : 0.0) +
+     (close > emaSlow ? 22.0 : 0.0) +
+     (emaFast > emaSlow ? 28.0 : 0.0) +
+     (close > vwapVal ? 18.0 : 0.0) +
+     math.min(10.0, rvol * 4.0)))
+
+sessHour   = hour(time, sessTz)
+sessMinute = minute(time, sessTz)
+minsFromMidnight = sessHour * 60 + sessMinute
+rthOpenMins = 9 * 60 + 30
+sessionTimeMinutes = math.max(0, minsFromMidnight - rthOpenMins)
+inEarlyWindow = sessionTimeMinutes <= earlyWindowEnd
+inContinuationWindow = sessionTimeMinutes >= 5 and sessionTimeMinutes <= 90
+
+rangeHigh20 = ta.highest(high, 20)
+extended = close >= rangeHigh20 * 0.995 and sessionTimeMinutes > 15
+
+atrPct = close > 0 ? atrVal / close : 0.0
+chopRegime = atrPct < 0.008 and vwapDistAbs > 0.012 and rvol < 1.4
+
+range10 = ta.highest(high, 10) - ta.lowest(low, 10)
+rangePct = close > 0 ? range10 / close : 0.0
+compressionEnergy = math.max(0.0, math.min(100.0,
+     30.0 + (atrPct < 0.015 ? 22.0 : atrPct < 0.025 ? 15.0 : 0.0) +
+     (rangePct < 0.012 ? 20.0 : 0.0) + (rvol >= 2.0 ? 15.0 : 0.0)))
+
+pullbackDepth = vwapDistAbs
+shallowPullbackQuality = math.max(0.0, math.min(100.0,
+     35.0 + (pullbackDepth < 0.004 ? 30.0 : pullbackDepth < 0.01 ? 25.0 : pullbackDepth < 0.018 ? 18.0 : pullbackDepth < 0.028 ? 8.0 : -15.0) +
+     (vwapDist >= 0 ? 12.0 : 0.0) + (structureScore >= 55 ? 10.0 : 0.0) + (pullbackDepth > 0.04 ? -20.0 : 0.0)))
+
+continuationPersistence = math.max(0.0, math.min(100.0,
+     25.0 + (vwapDist >= 0 ? 18.0 : 0.0) + (vwapDist >= 0.005 and vwapDist < 0.025 ? 12.0 : 0.0) +
+     (rvol >= 2.0 ? 20.0 : rvol >= 1.5 ? 12.0 : 0.0) + (structureScore >= 60 ? 18.0 : structureScore >= 48 ? 10.0 : 0.0) +
+     (extended and rvol >= 2 and structureScore >= 55 ? 10.0 : 0.0) + (vwapDistAbs > 0.04 ? -12.0 : 0.0)))
+
+accelerationIntegrity = math.max(0.0, math.min(100.0,
+     30.0 + (rvol >= 4 ? 28.0 : rvol >= 2.5 ? 22.0 : rvol >= 1.8 ? 15.0 : rvol >= 1.3 ? 8.0 : 0.0) +
+     (structureScore >= 70 ? 22.0 : structureScore >= 55 ? 14.0 : structureScore >= 45 ? 6.0 : 0.0) +
+     (extended and rvol >= 2 ? 8.0 : 0.0)))
+
+institutionalPressure = math.max(0.0, math.min(100.0,
+     28.0 + (rvol >= 3 ? 25.0 : rvol >= 2 ? 18.0 : 0.0) + (structureScore >= 65 ? 20.0 : structureScore >= 52 ? 12.0 : 0.0) +
+     (vwapDist >= 0.008 ? 10.0 : 0.0) + (inContinuationWindow ? 10.0 : 0.0) + (extended and rvol >= 2.2 and structureScore >= 58 ? 8.0 : 0.0)))
+
+institutionalParticipation = math.max(0.0, math.min(100.0,
+     35.0 + (structureScore >= 70 ? 25.0 : structureScore >= 55 ? 18.0 : structureScore >= 45 ? 10.0 : 0.0) +
+     (not chopRegime ? 12.0 : -18.0)))
+
+expansionProbability = math.max(0.0, math.min(100.0,
+     continuationPersistence * 0.3 + accelerationIntegrity * 0.25 + shallowPullbackQuality * 0.2 + institutionalParticipation * 0.25 +
+     (inContinuationWindow ? 8.0 : 0.0) + (rvol >= 2.5 ? 6.0 : 0.0) + (chopRegime ? -15.0 : 0.0)))
+
+exhaustionProbability = math.max(0.0, math.min(100.0,
+     20.0 + (extended and rvol < 1.5 ? 25.0 : 0.0) + (accelerationIntegrity < 40 and continuationPersistence < 45 ? 20.0 : 0.0) +
+     (chopRegime ? 18.0 : 0.0) + (vwapDist > 0.045 ? 15.0 : 0.0) + (continuationPersistence >= 70 and accelerationIntegrity >= 60 ? -15.0 : 0.0)))
+
+exhaustionDrift = math.max(0.0, math.min(100.0,
+     18.0 + (extended and rvol < 1.5 ? 28.0 : 0.0) + (vwapDist > 0.045 ? 20.0 : 0.0) + (chopRegime ? 15.0 : 0.0)))
+
+var int barsAboveVwap = 0
+if close > vwapVal
+    barsAboveVwap += 1
+else
+    barsAboveVwap := 0
+
+persistencePassed = barsAboveVwap >= persistMinBars
+structuralPassed = close > vwapVal and emaFast > emaSlow and structureScore >= 48
+
+anomalyScore = math.max(0.0, math.min(100.0, accelerationIntegrity * 0.45 + continuationPersistence * 0.35 + (structuralPassed ? 12.0 : 0.0)))
+persistenceBoost = persistencePassed ? math.min(25, barsAboveVwap * 2) : 0
+conviction = math.max(0.0, math.min(100.0, anomalyScore + persistenceBoost + (structuralPassed ? 12.0 : 0.0)))
+
+var float convictionPrev = conviction
+convictionVelocity = math.round(conviction - convictionPrev)
+convictionPrev := conviction
+
+triggerIntegrity = math.max(0.0, math.min(1.0, (structuralPassed ? 0.55 : 0.25) + (persistencePassed ? 0.25 : 0.0) + rvol * 0.05))
+dominanceScore = math.round(conviction + triggerIntegrity * 20.0 + math.min(30.0, barsAboveVwap * 1.5) + convictionVelocity * 2.0)
+isDominant = dominanceScore >= dominantThresh and not (exhaustionProbability >= 60)
+
+failedExpansion = chopRegime and continuationPersistence < 45
+exhaustionRegime = exhaustionProbability >= 72 or exhaustionDrift >= 72
+explosiveEarly = expansionProbability >= 78 and accelerationIntegrity >= 70
+earlyExpansion = accelerationIntegrity >= 65 and inEarlyWindow
+institutionalRegime = institutionalParticipation >= 62 and continuationPersistence >= 60
+shallowRegime = shallowPullbackQuality >= 62 and continuationPersistence >= 55
+vwapRegime = vwapDist >= 0 and continuationPersistence >= 58
+compressionRegime = compressionEnergy >= 62 or (accelerationIntegrity >= 55 and shallowPullbackQuality >= 50)
+healthyExtension = extended and continuationPersistence >= 58 and not exhaustionRegime
+
+regimeCode =
+     failedExpansion or (exhaustionDrift >= 75 and continuationPersistence < 50) ? 8 :
+     exhaustionRegime ? 7 :
+     explosiveEarly or earlyExpansion ? 1 :
+     compressionRegime and compressionEnergy >= 62 ? 5 :
+     shallowRegime ? 3 :
+     vwapRegime ? 4 :
+     healthyExtension ? 6 :
+     institutionalRegime or continuationPersistence >= 50 ? 2 : 8
+
+regimeName =
+     regimeCode == 1 ? "EARLY_EXPANSION" :
+     regimeCode == 2 ? "INSTITUTIONAL_PERSISTENCE" :
+     regimeCode == 3 ? "SHALLOW_PULLBACK_CONTINUATION" :
+     regimeCode == 4 ? "VWAP_ACCEPTANCE" :
+     regimeCode == 5 ? "COMPRESSION_BREAKOUT" :
+     regimeCode == 6 ? "HEALTHY_EXTENSION" :
+     regimeCode == 7 ? "EXHAUSTION_DRIFT" : "FAILED_EXPANSION"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 214 — BEARISH STRUCTURAL INTELLIGENCE (not inverse bullish / not RSI shorts)
+// ═══════════════════════════════════════════════════════════════════════════════
+rsiLen = 14
+rsiVal = ta.rsi(close, rsiLen)
+bodyRange = high - low
+bodyPct = close > 0 ? bodyRange / close : 0.0
+avgBodyPct = ta.sma(bodyPct, 10)
+lowerWick = math.min(open, close) - low
+upperWick = high - math.max(open, close)
+reversalWickStrength = bodyRange > 0 ? lowerWick / bodyRange : 0.0
+
+// VWAP rejection / failed reclaim structure
+vwapRejected = close < vwapVal * 0.998
+vwapLost = ta.crossunder(close, vwapVal) or (close < vwapVal and close[1] >= vwapVal[1])
+weakReclaimAttempt = high[1] >= vwapVal[1] and close < vwapVal and volume < volBase * 1.1
+reclaimVolWeak = volume < ta.sma(volume, 5) * 0.85
+lowerHighFormed = high < high[1] and high[1] <= high[2]
+failedReclaimCore = vwapRejected and (vwapLost or weakReclaimAttempt) and (lowerHighFormed or reclaimVolWeak)
+
+// Rejection persistence — consecutive lower highs + repeated VWAP reject
+var int lowerHighStreak = 0
+if high < high[1]
+    lowerHighStreak += 1
+else
+    lowerHighStreak := 0
+emaReject = close < emaFast and close[1] >= emaFast[1]
+var int vwapRejectStreak = 0
+if close < vwapVal and close[1] >= vwapVal[1]
+    vwapRejectStreak += 1
+else if close >= vwapVal
+    vwapRejectStreak := 0
+bounceWeak = close < open and (high - close) < bodyRange * 0.35
+rejectionPersistenceBase = math.max(0.0, math.min(100.0,
+     math.min(40.0, lowerHighStreak * 8.0) +
+     math.min(25.0, vwapRejectStreak * 6.0) +
+     (emaReject ? 12.0 : 0.0) +
+     (bounceWeak ? 10.0 : 0.0) +
+     (close < emaSlow ? 15.0 : 0.0) +
+     (continuationPersistence <= continuationPersistence[1] ? 8.0 : 0.0)))
+
+// Premarket window 9:00–9:30 ET (lightweight — no overnight engine)
+pmStartMins = 9 * 60
+pmEndMins = 9 * 60 + 30
+inPmIntelWindow = enablePmBear and minsFromMidnight >= pmStartMins and minsFromMidnight < pmEndMins and minsFromMidnight < rthOpenMins
+pmVwapReject = inPmIntelWindow and close < vwapVal * 0.997
+pmFailedGap = inPmIntelWindow and open < close[1] * 0.995 and close < open
+rejectionPersistenceScore = enableBearIntel ? math.min(100.0, rejectionPersistenceBase + (pmVwapReject ? 8.0 : 0.0)) : 0.0
+failedReclaimActive = enableBearIntel and (failedReclaimCore or pmFailedGap)
+
+// Breakdown acceleration — velocity + body expansion + RVOL on downside
+priceVel = close - close[3]
+downsideVel = priceVel < 0 ? math.abs(priceVel) / math.max(close, syminfo.mintick) * 10000.0 : 0.0
+bodyExpansion = bodyPct > avgBodyPct * 1.15 and close < open
+downRvol = close < open ? rvol : rvol * 0.6
+breakdownAccelerationScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     math.min(35.0, downsideVel * 4.0) +
+     (bodyExpansion ? 18.0 : 0.0) +
+     (downRvol >= putDownRvolTh ? 22.0 : downRvol >= 1.5 ? 12.0 : 0.0) +
+     (failedReclaimActive ? 15.0 : 0.0) +
+     (convictionVelocity < -4 ? 12.0 : convictionVelocity < 0 ? 6.0 : 0.0))) : 0.0
+
+// Distribution persistence
+downVolBar = close < open and volume > volBase
+var int downVolStreak = 0
+if downVolBar
+    downVolStreak += 1
+else
+    downVolStreak := 0
+weakUpside = close > close[1] and (close - open) < bodyRange * 0.25
+distributionPersistenceScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     math.min(30.0, downVolStreak * 7.0) +
+     (weakUpside ? 12.0 : 0.0) +
+     (rejectionPersistenceScore >= 45 ? 18.0 : 0.0) +
+     (regimeCode == 8 ? 15.0 : 0.0) +
+     (exhaustionProbability >= 55 and continuationPersistence < 50 ? 12.0 : 0.0))) : 0.0
+
+// Squeeze risk — avoid blind shorts on oversold collapse / reversal wicks
+extensionBelowVwap = vwapDist < -0.02
+oversoldVel = rsiVal < 32 and convictionVelocity < -8
+exhaustionCandle = upperWick > bodyRange * 0.45 and close < open
+volCompression = atrPct < 0.01 and bodyPct < avgBodyPct * 0.85
+bounceAccel = close > close[1] and close[1] > close[2] and close < vwapVal
+squeezeRiskScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     (extensionBelowVwap ? 18.0 : 0.0) +
+     (oversoldVel ? 22.0 : 0.0) +
+     (exhaustionCandle ? 15.0 : 0.0) +
+     (reversalWickStrength > 0.55 ? 12.0 : 0.0) +
+     (volCompression ? 10.0 : 0.0) +
+     (bounceAccel ? 14.0 : 0.0) +
+     (rvol < 0.9 ? 12.0 : 0.0))) : 0.0
+
+// Bearish bias score (explainable composite)
+bearishBiasScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     (failedReclaimActive ? 28.0 : 0.0) +
+     rejectionPersistenceScore * 0.22 +
+     breakdownAccelerationScore * 0.20 +
+     distributionPersistenceScore * 0.14 +
+     downRvol * 6.0 -
+     squeezeRiskScore * 0.35 -
+     (regimeCode == 2 and not (exhaustionProbability > exhaustionProbability[1] and continuationPersistence < continuationPersistence[1]) ? 18.0 : 0.0))) : 0.0
+
+// Bearish environment (broad market proxy from regime stack)
+bearishEnvScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     (regimeCode == 8 ? 25.0 : 0.0) +
+     (chopRegime ? 15.0 : 0.0) +
+     (failedReclaimActive ? 20.0 : 0.0) +
+     (regimeCode == 2 and institutionalParticipation >= 62 ? -25.0 : 0.0))) : 0.0
+bearishEnvironment = bearishEnvScore >= 55 ? "FAVORABLE" : bearishEnvScore <= 20 ? "HOSTILE" : "NEUTRAL"
+
+// PUT assist grades
+putGrade =
+     not enableBearIntel ? "AVOID" :
+     bearishEnvironment == "HOSTILE" or squeezeRiskScore >= bearSqueezeAvoidTh ? "AVOID" :
+     failedReclaimActive and rejectionPersistenceScore >= putAplusRejectTh and downRvol >= putDownRvolTh and squeezeRiskScore <= 40 and breakdownAccelerationScore >= putAplusBreakTh ? "PUT_A_PLUS" :
+     failedReclaimActive and rejectionPersistenceScore >= bearRejectionTh ? "PUT_A" :
+     rejectionPersistenceScore >= bearRejectionTh and breakdownAccelerationScore >= bearBreakdownTh ? "PUT_B" : "AVOID"
+
+// Bearish lifecycle states
+bearishLifecycle =
+     not enableBearIntel ? "NEUTRAL" :
+     squeezeRiskScore >= bearSqueezeAvoidTh and rsiVal < 35 ? "EXHAUSTION_BOUNCE" :
+     breakdownAccelerationScore >= 70 and downRvol >= 2.2 ? "PANIC_EXPANSION" :
+     distributionPersistenceScore >= bearDistribTh ? "DISTRIBUTION_ACCELERATION" :
+     failedReclaimActive and breakdownAccelerationScore >= bearBreakdownTh ? "BREAKDOWN_CONFIRMATION" :
+     failedReclaimActive ? "FAILED_RECLAIM" : "EARLY_WEAKNESS"
+
+// Long suppression + directional conflict
+longSuppressionLevel =
+     not enableBearIntel ? "NONE" :
+     failedReclaimActive and rejectionPersistenceScore >= bearRejectionTh and distributionPersistenceScore >= bearDistribTh ? "BLOCK" :
+     failedReclaimActive and rejectionPersistenceScore >= bearRejectionTh ? "DOWNGRADE" :
+     rejectionPersistenceScore >= bearRejectionTh - 10 or breakdownAccelerationScore >= bearBreakdownTh ? "WARNING" : "NONE"
+
+longBlocked = longSuppressionLevel == "BLOCK"
+longDowngraded = longSuppressionLevel == "DOWNGRADE" or longSuppressionLevel == "WARNING"
+
+reclaimFailureScore = failedReclaimActive ? math.min(100.0, rejectionPersistenceScore * 0.6 + breakdownAccelerationScore * 0.4) : math.max(0.0, rejectionPersistenceScore * 0.3)
+
+// Telemetry counters (backtest research)
+var int telLongEntries = 0
+var int telLongSuppressed = 0
+var int telConflictBars = 0
+var int telPutAplusSignals = 0
+var int telCollapseExits = 0
+exhaustionType = regimeCode == 7 or regimeCode == 8
+lifecycleBase =
+     exhaustionType and conviction >= 50 ? 5 :
+     exhaustionType ? 6 :
+     not persistencePassed ? 1 :
+     not structuralPassed ? 2 :
+     conviction >= 78 ? 3 : conviction >= 65 ? 2 : 1
+
+lifecycleCode =
+     conviction >= 85 and barsAboveVwap >= 20 ? 4 :
+     convictionVelocity >= 20 and lifecycleBase == 2 ? 3 : lifecycleBase
+
+lifecycleName =
+     lifecycleCode == 1 ? "DEVELOPING" :
+     lifecycleCode == 2 ? "CONFIRMING" :
+     lifecycleCode == 3 ? "CONFIRMED" :
+     lifecycleCode == 4 ? "EXTENDED" :
+     lifecycleCode == 5 ? "EXHAUSTING" : "FAILED"
+
+// Base signals (preserved)
+directScore = continuationPersistence * 0.35 + accelerationIntegrity * 0.35 + (extended ? 60.0 : 80.0) * 0.2 + (rvol >= 2.5 ? 10.0 : 0.0) + (vwapDist >= 0 ? 8.0 : 0.0)
+bearBullPenalty = enableBearIntel and longDowngraded ? math.min(25.0, rejectionPersistenceScore * 0.2 + (failedReclaimActive ? 10.0 : 0.0)) : 0.0
+triggerScore = math.max(0.0, math.max(directScore, shallowPullbackQuality, compressionEnergy) - bearBullPenalty)
+
+earlyEntryBase = triggerScore >= 55 and lifecycleCode <= 2 and regimeCode <= 4
+confirmedEntryBase = lifecycleCode == 3 and regimeCode >= 1 and regimeCode <= 6
+secondLegSignal = regimeCode == 5 and compressionEnergy >= 65 and rvol >= 2
+vwapAcceptEntry = regimeCode == 4 and vwapDist >= 0 and continuationPersistence >= effPersistThresh
+persistenceHold = persistencePassed and regimeCode == 2 and lifecycleCode >= 3
+trailingHold = institutionalRegime and continuationPersistence >= 70 and accelerationIntegrity >= 60 and not exhaustionRegime
+secondLegHold = shallowRegime and continuationPersistence >= 62 and rvol >= rvolThresh
+
+// Regime Engine indicator thresholds (exact sync)
+reduceRiskExact = exhaustionProbability >= 55 or lifecycleCode >= 5
+exitWarningExact = exhaustionDrift >= 68 or regimeCode == 7
+
+// Filtered strategy thresholds (extra gates)
+reduceRiskFiltered = exhaustionProbability >= exhaustThresh or lifecycleCode >= 5 or convictionVelocity < -velThresh
+exitWarningFiltered = exhaustionDrift >= 68 or regimeCode == 7 or (dominanceScore < effDomThresh and strategy.position_size > 0)
+
+reduceRisk = exactRegimeSync ? reduceRiskExact : reduceRiskFiltered
+exitWarning = exactRegimeSync ? exitWarningExact : exitWarningFiltered
+exitCritical = lifecycleCode == 6 or regimeCode == 8 or (failedExpansion and strategy.position_size > 0)
+failedContinuation = regimeCode == 8 and regimeCode[1] != 8
+
+// Bearish conflict (after entry bases defined)
+bullishContinuationActive = confirmedEntryBase or earlyEntryBase or (conviction >= effConvThresh and continuationPersistence >= effPersistThresh and structuralPassed)
+bearishStructureActive = failedReclaimActive or rejectionPersistenceScore >= bearRejectionTh
+conflictScore =
+     not enableBearIntel ? 0 :
+     bullishContinuationActive and bearishStructureActive ? (failedReclaimActive ? 3 : 2) :
+     bullishContinuationActive and rejectionPersistenceScore >= 45 ? 1 : 0
+directionalConflict =
+     conflictScore >= 3 ? "HIGH" :
+     conflictScore == 2 ? "MODERATE" :
+     conflictScore == 1 ? "LOW" : "NONE"
+
+if trackBearTelemetry and barstate.isconfirmed
+    if longBlocked and (confirmedEntryBase or earlyEntryBase)
+        telLongSuppressed += 1
+    if directionalConflict == "HIGH"
+        telConflictBars += 1
+    if putGrade == "PUT_A_PLUS" and putGrade[1] != "PUT_A_PLUS"
+        telPutAplusSignals += 1
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTRADAY TRADE LIFECYCLE — one active direction at a time (no overlap / re-stack)
+// ═══════════════════════════════════════════════════════════════════════════════
+var bool longCycleActive = false
+var bool shortCycleActive = false
+var bool secondLegUsed = false
+
+isLongActive  = strategy.position_size > 0
+isShortActive = strategy.position_size < 0
+isFlat        = strategy.position_size == 0
+
+collapsingActive = enableBearIntel and isLongActive and (bearishLifecycle == "DISTRIBUTION_ACCELERATION" or bearishLifecycle == "PANIC_EXPANSION" or (rejectionPersistenceScore >= 65 and convictionVelocity < -6))
+
+// Reinforce lock while position open; full exit resets (same-day re-entry allowed)
+if isLongActive
+    longCycleActive := true
+if isShortActive
+    shortCycleActive := true
+if isFlat
+    longCycleActive := false
+    shortCycleActive := false
+    secondLegUsed := false
+
+bearBlocksLong = enableBearIntel and (longBlocked or directionalConflict == "HIGH")
+canEnterLong  = enableLongs and isFlat and not longCycleActive and not shortCycleActive and not bearBlocksLong
+canEnterShort = enableShorts and isFlat and not shortCycleActive and not longCycleActive
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXECUTION LAYER — entry types (mode-gated)
+// ═══════════════════════════════════════════════════════════════════════════════
+velocityRising = convictionVelocity >= velThresh
+persistImproving = continuationPersistence > continuationPersistence[1]
+expansionBuilding = expansionProbability >= expansionProbability[1] and expansionProbability >= 55
+compressionBreak = regimeCode == 5 and compressionEnergy >= 62
+vwapReclaim = ta.crossover(close, vwapVal) or (close > vwapVal and close[1] <= vwapVal)
+
+earlyEntryFiltered =
+     earlyEntryBase and velocityRising and persistImproving and expansionBuilding and
+     (compressionBreak or vwapReclaim) and conviction >= effConvThresh - 12 and rvol >= rvolThresh and
+     strategyMode != "CONFIRMED_ONLY"
+
+confirmedEntryFiltered =
+     confirmedEntryBase and conviction >= effConvThresh and continuationPersistence >= effPersistThresh and
+     dominanceScore >= effDomThresh and exhaustionProbability < exhaustThresh and structuralPassed and
+     persistencePassed and rvol >= rvolThresh
+
+secondLegFiltered =
+     allowSecondLeg and secondLegSignal and shallowPullbackQuality >= 58 and continuationPersistence >= effPersistThresh and
+     rvol >= rvolThresh and isLongActive and not secondLegUsed
+
+vwapEntryFiltered =
+     vwapAcceptEntry and institutionalPressure >= 55 and persistImproving and strategyMode != "SCALP"
+
+allowConfirmedMode = strategyMode == "CONFIRMED_ONLY" or strategyMode == "INTRADAY_CONTINUATION" or strategyMode == "SWING_CONTINUATION" or strategyMode == "SCALP" or strategyMode == "AGGRESSIVE_EARLY_ENTRY"
+allowEarlyMode     = strategyMode == "AGGRESSIVE_EARLY_ENTRY" or strategyMode == "SCALP"
+
+earlyEntry = exactRegimeSync ? earlyEntryBase : earlyEntryFiltered
+confirmedEntry = exactRegimeSync ? confirmedEntryBase : confirmedEntryFiltered
+secondLegEntry = exactRegimeSync ? (allowSecondLeg and secondLegSignal and isLongActive and not secondLegUsed) : secondLegFiltered
+vwapEntry = exactRegimeSync ? false : vwapEntryFiltered
+
+sigConfirmed  = exactRegimeSync ? (confirmedEntry and canEnterLong) : (allowConfirmedMode and confirmedEntry and canEnterLong)
+sigEarly      = exactRegimeSync ? (earlyEntry and canEnterLong and not confirmedEntry) : (allowEarlyMode and earlyEntry and canEnterLong and strategyMode != "CONFIRMED_ONLY")
+sigVwap       = exactRegimeSync ? false : (vwapEntry and canEnterLong and not sigConfirmed and strategyMode != "CONFIRMED_ONLY")
+sigSecondLeg  = secondLegEntry
+
+entrySignal = sigConfirmed or sigEarly or sigVwap
+entrySignalEdge = entrySignal and not entrySignal[1]
+entryTagFull =
+     sigConfirmed ? "CONFIRMED ENTRY" :
+     sigVwap ? "VWAP ACCEPTANCE" :
+     sigEarly ? "EARLY ENTRY" : "LONG ENTRY"
+
+entryQtyPct = entryTagFull == "EARLY ENTRY" ? earlySizePct : confirmSizePct
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ZONES — structure / ATR stops & targets
+// ═══════════════════════════════════════════════════════════════════════════════
+zoneAtrMult =
+     regimeCode == 1 ? 1.8 * modeTargetMult :
+     regimeCode == 5 ? 2.2 * modeTargetMult :
+     regimeCode == 7 ? 0.8 : 1.5 * modeTargetMult
+
+planEntry = vwapDist >= 0 ? math.max(vwapVal, close) : close
+structStop  = math.min(vwapVal - atrVal * 0.6 * modeStopMult, ta.lowest(low, 8))
+atrStop     = close - atrVal * atrStopMult * modeStopMult
+pctStop     = close * (1.0 - fixedStopPct / 100.0 * modeStopMult)
+
+calcStop() =>
+    float s = structStop
+    if stopMode == "FIXED_PCT"
+        s := pctStop
+    else if stopMode == "ATR" or stopMode == "TRAILING_ATR" or stopMode == "PERSISTENCE_TRAIL"
+        s := atrStop
+    else
+        s := structStop
+    s
+
+calcTarget(float e, float s) =>
+    float risk = math.max(e - s, syminfo.mintick)
+    float t = e + risk * fixedRR * modeTargetMult
+    if targetMode == "FIXED_RR"
+        t := e + risk * fixedRR
+    else if targetMode == "PERSISTENCE_CONT"
+        t := e + atrVal * (1.2 + continuationPersistence / 50.0) * modeTargetMult
+    else if targetMode == "SECOND_LEG_EXT"
+        t := e + atrVal * zoneAtrMult * 1.15
+    else if targetMode == "INST_PERSIST"
+        t := e + atrVal * (1.5 + institutionalParticipation / 40.0)
+    else
+        t := e + risk * (fixedRR * 0.6 + expansionProbability / 40.0) * modeTargetMult
+    t
+
+var float tradeEntry = na
+var float tradeStop = na
+var float tradeTarget = na
+var string tradeState = "WAITING"
+var string entryReason = ""
+
+inLong = isLongActive
+inShort = isShortActive
+
+if entrySignal and canEnterLong
+    tradeEntry := planEntry
+    tradeStop := calcStop()
+    tradeTarget := calcTarget(tradeEntry, tradeStop)
+    tradeState := entryTagFull == "EARLY ENTRY" ? "DEVELOPING" : "ENTERED"
+    entryReason := entryTagFull
+
+if inLong
+    if lifecycleCode == 3
+        tradeState := "CONFIRMED"
+    else if secondLegHold or regimeCode == 5
+        tradeState := "SECOND_LEG"
+    else if trailingHold or persistenceHold
+        tradeState := "HOLDING"
+    else if reduceRisk
+        tradeState := "REDUCE"
+    else if exitWarning
+        tradeState := "EXIT_WARNING"
+    else if tradeState == "DEVELOPING" or tradeState == "ENTERED"
+        tradeState := lifecycleCode >= 2 ? "CONFIRMING" : tradeState
+else
+    if exitCritical or failedContinuation
+        tradeState := "FAILED"
+    else if tradeState != "WAITING" and tradeState != "EXITED"
+        tradeState := "EXITED"
+    else if not entrySignal
+        tradeState := lifecycleCode == 1 ? "DEVELOPING" : "WAITING"
+
+// Unrealized R
+riskPts = inLong and not na(tradeEntry) and not na(tradeStop) ? math.max(tradeEntry - tradeStop, syminfo.mintick) : na
+unrealR = inLong and not na(riskPts) ? (close - tradeEntry) / riskPts : na
+holdQuality = inLong ? math.round((continuationPersistence + accelerationIntegrity) / 2.0) : na
+
+// Dynamic trail for persistence mode
+trailPts = atrVal * trailAtrMult * persistTrailSens
+if stopMode == "PERSISTENCE_TRAIL" and inLong
+    persistFactor = continuationPersistence < 50 ? 0.7 : continuationPersistence < 65 ? 0.85 : 1.0
+    if enableBearIntel and collapsingActive
+        persistFactor := persistFactor * 0.75
+    else if enableBearIntel and (rejectionPersistenceScore >= 55 or breakdownAccelerationScore >= 55)
+        persistFactor := persistFactor * 0.88
+    tradeStop := math.max(tradeStop, close - trailPts * persistFactor)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STRATEGY ORDERS — Strategy Tester compatible
+// ═══════════════════════════════════════════════════════════════════════════════
+if entrySignal and canEnterLong
+    longCycleActive := true
+    if trackBearTelemetry
+        telLongEntries += 1
+    strategy.entry("PK_LONG", strategy.long, qty=entryQtyPct, comment=entryTagFull)
+
+if sigSecondLeg and isLongActive and not secondLegUsed
+    secondLegUsed := true
+    strategy.entry("PK_LEG2", strategy.long, qty=secondLegSizePct, comment="SECOND LEG ACTIVE")
+
+if inLong and enableBearIntel and collapsingActive and not collapsingActive[1]
+    if trackBearTelemetry
+        telCollapseExits += 1
+    strategy.close("PK_LONG", qty_percent=partialReducePct, comment="COLLAPSING")
+else if inLong and exitCritical and not exitCritical[1]
+    strategy.close("PK_LONG", comment="EXIT CRITICAL")
+else if inLong and failedContinuation
+    strategy.close("PK_LONG", comment="FAILED EXPANSION")
+else if inLong and reduceRisk and not reduceRisk[1]
+    strategy.close("PK_LONG", qty_percent=partialReducePct, comment="REDUCE RISK")
+else if inLong and exitWarning and not exitWarning[1]
+    strategy.close("PK_LONG", qty_percent=partialReducePct, comment="EXIT WARNING")
+
+// Bracket exit (stop + target) — updated while in trade
+if inLong and not na(tradeStop) and not na(tradeTarget)
+    if stopMode == "TRAILING_ATR"
+        strategy.exit("STOP_TARGET", "PK_LONG", limit=tradeTarget, trail_points=math.round(trailPts / syminfo.mintick), comment="TRAILING STOP")
+    else if stopMode == "PERSISTENCE_TRAIL"
+        strategy.exit("STOP_TARGET", "PK_LONG", stop=tradeStop, limit=tradeTarget, comment="STOP + TARGET")
+    else
+        strategy.exit("STOP_TARGET", "PK_LONG", stop=tradeStop, limit=tradeTarget, comment="STOP + TARGET")
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHART-FIRST VISUALS — light annotations, candles primary
+// ═══════════════════════════════════════════════════════════════════════════════
+T_LABEL_BG        = 74
+T_LABEL_BG_CRIT   = 68
+T_LABEL_BG_LIVE   = 72
+T_LABEL_FAILED    = 84
+T_ZONE_BORDER     = 54
+T_VWAP            = 44
+T_LINE_ENTRY      = 30
+T_LINE_STOP       = 30
+T_LINE_TGT        = 32
+T_PANEL_BG        = 38
+T_PANEL_BORDER    = 58
+TEXT_BRIGHT       = 6
+TEXT_SOFT         = 24
+MAX_HIST_LABELS   = 10
+MAX_BEAR_LABELS   = 8
+
+isFailedRegime = regimeCode == 8 or lifecycleCode == 6
+highConfEntry  = sigConfirmed and conviction >= effConvThresh and continuationPersistence >= effPersistThresh and not isFailedRegime
+
+regimeRgb =
+     regimeCode == 2 ? #58a6ff :
+     regimeCode == 1 or regimeCode == 3 or regimeCode == 4 ? #3fb950 :
+     regimeCode == 5 ? #d29922 :
+     regimeCode == 6 ? #db6d28 : #f85149
+
+f_subtlePlate() =>
+    color.new(#0d1117, T_LABEL_BG)
+
+f_labelText(color accent) =>
+    color.new(accent, TEXT_BRIGHT)
+
+var int leftVisBarIdx = 0
+if time == chart.left_visible_bar_time
+    leftVisBarIdx := bar_index
+
+f_tagSize(bool bump) =>
+    int span = math.max(1, bar_index - leftVisBarIdx + 1)
+    span > 130 and bump ? size.normal : size.small
+
+var int lastEventBar = -1000
+eventOk = bar_index - lastEventBar >= eventCooldown
+
+var array<label> histLabels = array.new_label()
+var array<label> bearLabels = array.new_label()
+
+f_tagBear(string txt, color accent) =>
+    lb = label.new(bar_index, high, txt, xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(accent, 12), textcolor=color.new(#ffffff, 0), size=size.small)
+    array.push(bearLabels, lb)
+
+f_tagEntry(string txt, color accent, bool strong) =>
+    lb = label.new(bar_index, na, txt, xloc=xloc.bar_index, yloc=yloc.belowbar, style=label.style_label_up, color=f_subtlePlate(), textcolor=f_labelText(accent), size=f_tagSize(strong))
+    array.push(histLabels, lb)
+
+f_tagExit(string txt, color accent, bool critical) =>
+    bgT = critical ? T_LABEL_BG_CRIT : T_LABEL_BG
+    lb = label.new(bar_index, na, txt, xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(accent, bgT), textcolor=color.new(#ffffff, TEXT_BRIGHT), size=f_tagSize(critical))
+    array.push(histLabels, lb)
+
+f_tagFailed(string txt) =>
+    lb = label.new(bar_index, na, txt, xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#6e7681, T_LABEL_FAILED), textcolor=color.new(#8b949e, TEXT_SOFT), size=size.tiny)
+    array.push(histLabels, lb)
+
+f_fadeHistLabels() =>
+    int n = array.size(histLabels)
+    if n > 0
+        for i = 0 to n - 1
+            lb = array.get(histLabels, i)
+            age = n - 1 - i
+            label.set_color(lb, color.new(#0d1117, math.min(T_LABEL_BG + age * 5, 90)))
+            label.set_textcolor(lb, color.new(color.white, math.min(TEXT_SOFT + age * 10, 70)))
+            label.set_size(lb, age == 0 ? size.small : size.tiny)
+
+f_pruneHistLabels() =>
+    while array.size(histLabels) > MAX_HIST_LABELS
+        label.delete(array.shift(histLabels))
+
+f_pruneBearLabels() =>
+    while array.size(bearLabels) > MAX_BEAR_LABELS
+        label.delete(array.shift(bearLabels))
+
+putAplusEdge = enableBearIntel and putGrade == "PUT_A_PLUS" and putGrade[1] != "PUT_A_PLUS"
+putAedge = enableBearIntel and putGrade == "PUT_A" and putGrade[1] != "PUT_A"
+putBedge = enableBearIntel and putGrade == "PUT_B" and putGrade[1] != "PUT_B"
+failedReclaimEdge = enableBearIntel and failedReclaimActive and not failedReclaimActive[1]
+longBlockedEdge = enableBearIntel and longBlocked and not longBlocked[1]
+collapseEdge = enableBearIntel and collapsingActive and not collapsingActive[1]
+highConflictEdge = enableBearIntel and directionalConflict == "HIGH" and directionalConflict[1] != "HIGH"
+
+colorRegime = color.new(regimeRgb, TEXT_BRIGHT)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VISUALS — preserved styling + execution overlays (hierarchy pass)
+// ═══════════════════════════════════════════════════════════════════════════════
+plot(showVwap ? vwapVal : na, "VWAP", color=color.new(#58a6ff, T_VWAP), linewidth=2)
+
+zoneEntryPx = inLong ? tradeEntry : planEntry
+zoneStopPx  = inLong ? tradeStop : calcStop()
+zoneTgtPx   = inLong and not na(tradeTarget) ? tradeTarget : calcTarget(zoneEntryPx, zoneStopPx)
+longTop = showZones ? zoneEntryPx + atrVal * 0.15 : na
+longBot = showZones ? zoneEntryPx - atrVal * 0.08 : na
+riskTop = showZones ? zoneStopPx + atrVal * 0.25 : na
+riskBot = showZones ? zoneStopPx - atrVal * 0.15 : na
+
+zoneLeft  = zonesInMargin ? bar_index - 8 : bar_index - 35
+zoneRight = zonesInMargin ? bar_index + 6 : bar_index + 4
+lineLeft  = zonesInMargin ? bar_index - 25 : bar_index - 40
+lineRight = zonesInMargin ? bar_index + 6 : bar_index + 5
+
+var line lnEntry = na
+var line lnStop = na
+var line lnTarget = na
+if showZones and barstate.islast
+    line.delete(lnEntry)
+    line.delete(lnStop)
+    line.delete(lnTarget)
+    lnEntry := line.new(lineLeft, zoneEntryPx, lineRight, zoneEntryPx, color=color.new(#3fb950, T_LINE_ENTRY), width=1, style=line.style_solid)
+    lnStop := line.new(lineLeft, zoneStopPx, lineRight, zoneStopPx, color=color.new(#f85149, T_LINE_STOP), width=1, style=line.style_dashed)
+    lnTarget := line.new(lineLeft, zoneTgtPx, lineRight, zoneTgtPx, color=color.new(#58a6ff, T_LINE_TGT), width=1, style=line.style_dotted)
+
+plot(showZones ? zoneEntryPx : na, "Entry", color=color.new(#3fb950, T_LINE_ENTRY), linewidth=1, style=plot.style_linebr)
+plot(showZones ? zoneStopPx : na, "Stop", color=color.new(#f85149, T_LINE_STOP), linewidth=1, style=plot.style_linebr)
+plot(showZones ? zoneTgtPx : na, "Target", color=color.new(#58a6ff, T_LINE_TGT), linewidth=1, style=plot.style_linebr)
+
+var box bxLong = na
+var box bxRisk = na
+if showZones and barstate.islast
+    box.delete(bxLong)
+    box.delete(bxRisk)
+    bxLong := box.new(zoneLeft, longTop, zoneRight, longBot, bgcolor=color.new(#3fb950, zoneFillTransp), border_color=color.new(#3fb950, T_ZONE_BORDER), border_width=1, text="LONG ZONE", text_size=size.small, text_color=color.new(#3fb950, TEXT_SOFT), text_halign=text.align_center)
+    bxRisk := box.new(zoneLeft, riskTop, zoneRight, riskBot, bgcolor=color.new(#f85149, zoneFillTransp), border_color=color.new(#f85149, T_ZONE_BORDER), border_width=1, text="RISK ZONE", text_size=size.small, text_color=color.new(#f85149, TEXT_SOFT), text_halign=text.align_center)
+
+showZoneFill = showZones and not zonesInMargin
+pLongTop = plot(showZoneFill ? longTop : na, display=display.none)
+pLongBot = plot(showZoneFill ? longBot : na, display=display.none)
+pRiskTop = plot(showZoneFill ? riskTop : na, display=display.none)
+pRiskBot = plot(showZoneFill ? riskBot : na, display=display.none)
+fill(pLongTop, pLongBot, color=showZoneFill ? color.new(#3fb950, zoneFillTransp) : na, title="Long Zone")
+fill(pRiskTop, pRiskBot, color=showZoneFill ? color.new(#f85149, zoneFillTransp) : na, title="Risk Zone")
+
+bgT = lifecycleBgTransp
+bgDominantT = math.max(90, lifecycleBgTransp - 4)
+bgLifecycle =
+     isFailedRegime ? color.new(#8b949e, math.min(99, bgT + 2)) :
+     lifecycleCode == 5 or regimeCode == 7 ? color.new(#f85149, bgT) :
+     lifecycleCode == 4 ? color.new(#db6d28, bgT) :
+     lifecycleCode == 3 ? color.new(#3fb950, bgT) :
+     lifecycleCode == 2 ? color.new(#58a6ff, bgT) :
+     lifecycleCode == 1 ? color.new(#3fb950, math.min(99, bgT + 1)) : na
+bgDominant = isDominant and not isFailedRegime ? color.new(#3fb950, bgDominantT) : na
+bgcolor(showLifecycleBg ? (not na(bgDominant) ? bgDominant : bgLifecycle) : na)
+
+plotshape(showTradeMarks and entrySignalEdge, title="Entry", style=shape.triangleup, location=location.belowbar, color=color.new(#3fb950, 18), size=size.tiny, text="")
+plotshape(showTradeMarks and sigSecondLeg and not secondLegUsed[1], title="2nd Leg", style=shape.triangleup, location=location.belowbar, color=color.new(#d29922, 22), size=size.tiny, text="")
+plotshape(showTradeMarks and inLong and exitCritical and not exitCritical[1], title="Exit", style=shape.triangledown, location=location.abovebar, color=color.new(#f85149, 18), size=size.tiny, text="")
+
+plotshape(showBearMarks and putAplusEdge, title="PUT A+", style=shape.diamond, location=location.abovebar, color=color.new(#bc8cff, 0), size=size.small, text="PUT+")
+plotshape(showBearMarks and putAedge and not putAplusEdge, title="PUT A", style=shape.xcross, location=location.abovebar, color=color.new(#f85149, 10), size=size.tiny, text="PUT")
+plotshape(showBearMarks and putBedge and not putAedge and not putAplusEdge, title="PUT B", style=shape.circle, location=location.abovebar, color=color.new(#db6d28, 20), size=size.tiny, text="")
+plotshape(showBearMarks and failedReclaimEdge, title="Failed Reclaim", style=shape.triangledown, location=location.abovebar, color=color.new(#f85149, 0), size=size.tiny, text="FR")
+plotshape(showBearMarks and longBlockedEdge, title="Long Blocked", style=shape.square, location=location.belowbar, color=color.new(#8b949e, 0), size=size.tiny, text="BLK")
+plotshape(showBearMarks and collapseEdge, title="Collapsing", style=shape.arrowdown, location=location.abovebar, color=color.new(#db6d28, 0), size=size.small, text="COL")
+plotshape(showBearMarks and highConflictEdge, title="High Conflict", style=shape.flag, location=location.abovebar, color=color.new(#d29922, 0), size=size.tiny, text="CF")
+
+heroHeadline =
+     isDominant ? "DOMINANT NOW" :
+     regimeCode == 2 ? "INSTITUTIONAL FLOW" :
+     regimeCode == 1 ? "EARLY EXPANSION" :
+     regimeCode == 5 ? "COMPRESSION BREAKOUT" :
+     secondLegSignal or secondLegEntry or secondLegHold ? "SECOND LEG ACTIVE" :
+     regimeCode == 7 ? "EXHAUSTION DRIFT" :
+     regimeCode == 8 ? "FAILED_EXPANSION" :
+     regimeName
+
+// Event tags — entries only on flat-edge; no continuation spam while trade open
+if showHeroLabels and eventOk and entrySignalEdge
+    lastEventBar := bar_index
+    accentE = sigConfirmed ? #58a6ff : sigVwap ? #58a6ff : #3fb950
+    f_tagEntry(entryTagFull, accentE, highConfEntry or sigConfirmed)
+else if showHeroLabels and eventOk and sigSecondLeg and not secondLegUsed[1]
+    lastEventBar := bar_index
+    f_tagEntry("SECOND LEG ACTIVE", #d29922, true)
+else if showHeroLabels and eventOk and inLong and exitCritical and not exitCritical[1]
+    lastEventBar := bar_index
+    f_tagExit("EXIT CRITICAL", #f85149, true)
+else if showHeroLabels and eventOk and inLong and exitWarning and not exitWarning[1]
+    lastEventBar := bar_index
+    f_tagExit("EXIT WARNING", #f85149, false)
+else if showHeroLabels and eventOk and persistenceHold and not persistenceHold[1]
+    lastEventBar := bar_index
+    f_tagEntry("PERSISTENCE HOLD", #58a6ff, false)
+else if showHeroLabels and eventOk and inLong and reduceRisk and not reduceRisk[1]
+    lastEventBar := bar_index
+    f_tagExit("REDUCE RISK", #db6d28, false)
+else if showHeroLabels and eventOk and failedContinuation and not failedContinuation[1]
+    lastEventBar := bar_index
+    f_tagFailed("FAILED_EXPANSION")
+
+// Phase 214 — bearish text tags (separate label pool — not pruned by hero labels)
+var int lastBearTagBar = -1000
+bearTagOk = showBearTags and enableBearIntel and bar_index - lastBearTagBar >= eventCooldown
+if bearTagOk and putAplusEdge
+    lastBearTagBar := bar_index
+    f_tagBear("PUT A+", #bc8cff)
+else if bearTagOk and putAedge
+    lastBearTagBar := bar_index
+    f_tagBear("PUT A", #f85149)
+else if bearTagOk and failedReclaimEdge
+    lastBearTagBar := bar_index
+    f_tagBear("FAILED RECLAIM", #f85149)
+else if bearTagOk and longBlockedEdge
+    lastBearTagBar := bar_index
+    f_tagBear("LONG BLOCKED", #8b949e)
+else if bearTagOk and collapseEdge
+    lastBearTagBar := bar_index
+    f_tagBear("COLLAPSING", #db6d28)
+else if bearTagOk and highConflictEdge
+    lastBearTagBar := bar_index
+    f_tagBear("HIGH CONFLICT", #d29922)
+
+f_fadeHistLabels()
+f_pruneHistLabels()
+f_pruneBearLabels()
+
+// Current regime only — single live tag on last bar (no historical regime stack)
+var label liveStatusLbl = na
+if showLiveStatus and barstate.islast
+    label.delete(liveStatusLbl)
+    liveHead = isDominant ? "DOMINANT NOW\n" : heroHeadline + "\n"
+    bearLine = enableBearIntel ? "\n" + putGrade + " · Bear " + str.tostring(math.round(bearishBiasScore)) + " · " + directionalConflict : ""
+    liveBody = liveHead + regimeName + "\n" + lifecycleName + "\n" + tradeState + " · C" + str.tostring(math.round(conviction)) + bearLine
+    liveTc = isFailedRegime ? color.new(#ffb86b, TEXT_BRIGHT) : color.new(color.white, TEXT_BRIGHT)
+    liveStatusLbl := label.new(bar_index, na, liveBody, xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(regimeRgb, T_LABEL_BG_LIVE), textcolor=liveTc, size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// POSITION PANEL — simple layout (FAILED rows highlighted only)
+// ═══════════════════════════════════════════════════════════════════════════════
+panelRows = showBearPanel and enableBearIntel ? 22 : 14
+var table panel = table.new(position.top_right, 2, panelRows, bgcolor=color.new(#0d1117, T_PANEL_BG), border_width=1, border_color=color.new(#30363d, T_PANEL_BORDER))
+lifecycleFail = lifecycleCode == 6
+tradeFail = tradeState == "FAILED"
+
+if showDashboard and barstate.islast
+    table.cell(panel, 0, 0, "PK Autonomous", text_color=color.white, text_size=size.small)
+    table.cell(panel, 1, 0, regimeName, text_color=colorRegime, text_size=size.small)
+    table.cell(panel, 0, 1, "Mode", text_color=color.gray, text_size=size.tiny)
+    modeTxt = exactRegimeSync ? "REGIME_SYNC" : strategyMode
+    table.cell(panel, 1, 1, modeTxt, text_color=color.new(#58a6ff, TEXT_BRIGHT), text_size=size.tiny)
+    convCol = conviction >= effConvThresh ? color.lime : color.white
+    table.cell(panel, 0, 2, "Conviction", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 2, str.tostring(math.round(conviction)), text_color=convCol, text_size=size.tiny)
+    table.cell(panel, 0, 3, "Dominance", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 3, str.tostring(dominanceScore), text_color=isDominant ? color.lime : color.white, text_size=size.tiny)
+    persCol = continuationPersistence >= effPersistThresh ? color.lime : color.white
+    table.cell(panel, 0, 4, "Persistence", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 4, str.tostring(math.round(continuationPersistence)), text_color=persCol, text_size=size.tiny)
+    table.cell(panel, 0, 5, "Lifecycle", text_color=color.gray, text_size=size.tiny)
+    lifecycleCol = lifecycleFail ? color.new(#ffb86b, 0) : lifecycleCode == 3 ? color.lime : color.white
+    table.cell(panel, 1, 5, lifecycleName, text_color=lifecycleCol, text_size=size.tiny)
+    table.cell(panel, 0, 6, "Trade State", text_color=color.gray, text_size=size.tiny)
+    tradeCol = tradeFail ? color.new(#ff6b6b, 0) : color.yellow
+    table.cell(panel, 1, 6, tradeState, text_color=tradeCol, text_size=size.tiny)
+    table.cell(panel, 0, 7, "Unreal R", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 7, not na(unrealR) ? str.tostring(unrealR, "#.##") : "—", text_color=not na(unrealR) and unrealR >= 0 ? color.lime : color.red, text_size=size.tiny)
+    table.cell(panel, 0, 8, "Stop", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 8, inLong ? str.tostring(tradeStop, format.mintick) : "—", text_color=color.red, text_size=size.tiny)
+    table.cell(panel, 0, 9, "Target", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 9, inLong ? str.tostring(tradeTarget, format.mintick) : "—", text_color=color.teal, text_size=size.tiny)
+    table.cell(panel, 0, 10, "Hold Q", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 10, not na(holdQuality) ? str.tostring(holdQuality) : "—", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 11, "RVOL", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 11, str.tostring(rvol, "#.##"), text_color=rvol >= rvolThresh ? color.lime : color.white, text_size=size.tiny)
+    table.cell(panel, 0, 12, "Exhaust", text_color=color.gray, text_size=size.tiny)
+    table.cell(panel, 1, 12, str.tostring(math.round(exhaustionProbability)), text_color=exhaustionProbability >= exhaustThresh ? color.new(#ffb86b, 0) : color.white, text_size=size.tiny)
+    table.cell(panel, 0, 13, "Position", text_color=color.gray, text_size=size.tiny)
+    posTxt = inLong ? "LONG" : inShort ? "SHORT" : "FLAT"
+    table.cell(panel, 1, 13, posTxt, text_color=inLong ? color.lime : inShort ? color.red : color.gray, text_size=size.tiny)
+    if showBearPanel and enableBearIntel
+        bearCol = bearishBiasScore >= 60 ? color.new(#f85149, 0) : bearishBiasScore >= 40 ? color.new(#db6d28, 0) : color.new(#bc8cff, 0)
+        table.cell(panel, 0, 14, "Bear Bias", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 14, str.tostring(math.round(bearishBiasScore)), text_color=bearCol, text_size=size.tiny)
+        putCol = putGrade == "PUT_A_PLUS" ? color.new(#bc8cff, 0) : putGrade == "AVOID" ? color.gray : color.new(#f85149, 0)
+        table.cell(panel, 0, 15, "PUT Grade", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 15, putGrade, text_color=putCol, text_size=size.tiny)
+        table.cell(panel, 0, 16, "Reclaim Fail", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 16, str.tostring(math.round(reclaimFailureScore)), text_color=failedReclaimActive ? color.new(#f85149, 0) : color.white, text_size=size.tiny)
+        table.cell(panel, 0, 17, "Reject Persist", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 17, str.tostring(math.round(rejectionPersistenceScore)), text_color=rejectionPersistenceScore >= bearRejectionTh ? color.new(#db6d28, 0) : color.white, text_size=size.tiny)
+        table.cell(panel, 0, 18, "Breakdown", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 18, str.tostring(math.round(breakdownAccelerationScore)), text_color=color.white, text_size=size.tiny)
+        table.cell(panel, 0, 19, "Squeeze Risk", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 19, str.tostring(math.round(squeezeRiskScore)), text_color=squeezeRiskScore >= bearSqueezeAvoidTh ? color.new(#bc8cff, 0) : color.white, text_size=size.tiny)
+        supCol = longBlocked ? color.new(#f85149, 0) : longDowngraded ? color.new(#db6d28, 0) : color.white
+        table.cell(panel, 0, 20, "Long Supp", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 20, longSuppressionLevel, text_color=supCol, text_size=size.tiny)
+        confCol = directionalConflict == "HIGH" ? color.new(#d29922, 0) : color.white
+        table.cell(panel, 0, 21, "Conflict", text_color=color.gray, text_size=size.tiny)
+        table.cell(panel, 1, 21, directionalConflict, text_color=confCol, text_size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════
+alertcondition(entrySignalEdge, "STRATEGY_ENTRY", "PK Strategy ENTRY {{ticker}} {{strategy.order.comment}}")
+alertcondition(sigConfirmed and not sigConfirmed[1], "CONFIRMED_ENTRY", "PK CONFIRMED ENTRY {{ticker}}")
+alertcondition(sigEarly and not sigEarly[1], "EARLY_ENTRY", "PK EARLY ENTRY {{ticker}}")
+alertcondition(sigSecondLeg and not sigSecondLeg[1], "SECOND_LEG", "PK SECOND LEG ACTIVE {{ticker}}")
+alertcondition(exitWarning and not exitWarning[1], "EXIT_WARNING", "PK EXIT WARNING {{ticker}}")
+alertcondition(exitCritical and not exitCritical[1], "EXIT_CRITICAL", "PK EXIT CRITICAL {{ticker}}")
+alertcondition(isDominant, "DOMINANT_NOW", "PK DOMINANT NOW {{ticker}}")
+alertcondition(regimeCode == 1 and regimeCode[1] != 1, "EARLY_EXPANSION", "PK EARLY EXPANSION {{ticker}}")
+alertcondition(regimeCode == 2 and regimeCode[1] != 2, "INSTITUTIONAL_PERSISTENCE", "PK INSTITUTIONAL PERSISTENCE {{ticker}}")
+alertcondition(regimeCode == 7 and regimeCode[1] != 7, "EXHAUSTION_DRIFT", "PK EXHAUSTION DRIFT {{ticker}}")
+alertcondition(failedContinuation, "FAILED_CONT", "PK FAILED CONTINUATION {{ticker}}")
+alertcondition(putAplusEdge, "PUT_A_PLUS", "PK PUT A+ {{ticker}}")
+alertcondition(failedReclaimEdge, "FAILED_RECLAIM", "PK FAILED RECLAIM {{ticker}}")
+alertcondition(longBlockedEdge, "LONG_BLOCKED", "PK LONG BLOCKED {{ticker}}")
+alertcondition(highConflictEdge, "HIGH_CONFLICT", "PK HIGH CONFLICT {{ticker}}")
+alertcondition(collapseEdge, "COLLAPSING", "PK COLLAPSING {{ticker}}")
+alertcondition(enableBearIntel and bearishLifecycle == "DISTRIBUTION_ACCELERATION" and bearishLifecycle[1] != "DISTRIBUTION_ACCELERATION", "DISTRIBUTION_ACCELERATION", "PK DISTRIBUTION ACCELERATION {{ticker}}")
+
+plot(dominanceScore, "Dominance", display=display.none)
+plot(enableBearIntel ? bearishBiasScore : na, "BearishBias", display=display.none)
+plot(enableBearIntel ? rejectionPersistenceScore : na, "RejectionPersist", display=display.none)
+plot(enableBearIntel ? breakdownAccelerationScore : na, "BreakdownAccel", display=display.none)
+plot(enableBearIntel ? squeezeRiskScore : na, "SqueezeRisk", display=display.none)
+plot(enableBearIntel ? telLongSuppressed : na, "TelLongSuppressed", display=display.none)
+plot(enableBearIntel ? telPutAplusSignals : na, "TelPutAplus", display=display.none)

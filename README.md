@@ -1,11 +1,13 @@
 # PKtradingIBKR
 
-Trading signal platform: **Spring Boot** backend (IBKR, PostgreSQL, Telegram) and **Angular** execution dashboard (autonomous scanner, dominant opportunity engine, replay intelligence).
+Trading signal platform: **Spring Boot** backend (IBKR, PostgreSQL, Telegram), **Angular** research/replay workspace (Phase 192), and **Flutter PK Live Trader** for live execution runtime.
 
 > **Architecture & phases:** [PROJECT_INTELLIGENCE_README.md](PROJECT_INTELLIGENCE_README.md) · [docs/](docs/README.md)  
 > **Trader terminology (canonical):** [docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md](docs/architecture/AUTONOMOUS_EXECUTION_TERMINOLOGY.md)
 
 **Remote:** [github.com/krpsreddy/PKtradingIBKR](https://github.com/krpsreddy/PKtradingIBKR)
+
+**Old laptop — full install:** [Windows](docs/OLD_LAPTOP_SETUP_GUIDE_WINDOWS.md) · [macOS](docs/OLD_LAPTOP_SETUP_GUIDE.md)
 
 ---
 
@@ -67,7 +69,10 @@ Build: `npm run build`
 
 | App | Path | Port |
 |-----|------|------|
-| Evolution backend | `./start-evolution.sh` | **8180** |
+| Evolution backend | `./start-evolution.sh` (dev) or **`./run-production.sh`** (JAR) | **8180** |
+| Evolution Angular (research) | dev: same script · prod: **`./run-frontend-prod.sh`** | **4300** |
+| **1-click production** | `./build-production.sh` then `./run-production.sh` | JAR + static |
+| **24/7 mobile only** | `./run-backend-only.sh` | **8180** only |
 | React Live Trader | `frontend-live-trader/` | 4400 |
 | React Live Screener | `frontend-live-screener/` | 4410 |
 | **Flutter Mobile** | `pk-live-trader-mobile/` | device → 8180 |
@@ -242,7 +247,7 @@ REMOTE_API_BASE=http://100.88.194.48:8180 ./install-ios-release.sh
 | `setup-ios-signing.sh` | Open Xcode — Apple ID / Team / signing |
 | `setup-ios-platform.sh` | Download iOS platform (`xcodebuild -downloadPlatform iOS`) |
 | `finish-ios-setup.sh` | Post–Xcode install (license, `flutter doctor`) |
-| `start-evolution.sh` | Backend **8180** + Angular **4300** |
+| `start-evolution.sh` | Backend **8180** + Angular research UI **4300** (home + replay lab; live debug optional) |
 | `start-mobile-android.sh` | Android emulator or auto USB phone |
 | `start-mobile-android-phone.sh` | USB Android only |
 | `start-mobile-remote.sh` | USB + Tailscale remote URL |

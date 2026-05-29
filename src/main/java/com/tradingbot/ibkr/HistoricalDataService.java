@@ -5,7 +5,7 @@ import com.ib.client.Contract;
 import com.ib.client.Decimal;
 import com.tradingbot.config.TradingProperties;
 import com.tradingbot.models.Candle;
-import com.tradingbot.repository.CandleRepository;
+import com.tradingbot.candle.CandleWriteService;
 import com.tradingbot.services.MarketTime;
 import com.tradingbot.services.TradingPipelineService;
 import com.tradingbot.symbol.SymbolContextRegistry;
@@ -38,7 +38,7 @@ public class HistoricalDataService {
 
     private static final DateTimeFormatter BAR_TIME = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss");
 
-    private final CandleRepository candleRepository;
+    private final CandleWriteService candleWriteService;
     private final TradingProperties tradingProperties;
     private final TradingPipelineService tradingPipelineService;
     private final SymbolContextRegistry symbolContextRegistry;
@@ -50,12 +50,13 @@ public class HistoricalDataService {
     private final AtomicBoolean batchActive = new AtomicBoolean(false);
     private Runnable batchCompleteCallback;
     private final Map<Integer, Consumer<Integer>> onDemandCallbacks = new ConcurrentHashMap<>();
+    private final Map<Integer, String> recoveryDurationByReqId = new ConcurrentHashMap<>();
 
-    public HistoricalDataService(CandleRepository candleRepository,
+    public HistoricalDataService(CandleWriteService candleWriteService,
                                  TradingProperties tradingProperties,
                                  @Lazy TradingPipelineService tradingPipelineService,
                                  SymbolContextRegistry symbolContextRegistry) {
-        this.candleRepository = candleRepository;
+        this.candleWriteService = candleWriteService;
         this.tradingProperties = tradingProperties;
         this.tradingPipelineService = tradingPipelineService;
         this.symbolContextRegistry = symbolContextRegistry;
@@ -97,6 +98,36 @@ public class HistoricalDataService {
         return !symbolQueue.isEmpty();
     }
 
+    /** Phase 212 — short rolling recovery window (seconds-based IBKR duration). */
+    public synchronized Optional<HistoricalPreloadJob> startRecovery(
+            String symbol,
+            int durationMinutes,
+            Consumer<Integer> onComplete
+    ) {
+        if (batchActive.get()) {
+            log.warn("Cannot start recovery historical for {} — batch in progress", symbol);
+            return Optional.empty();
+        }
+        String sym = symbol.toUpperCase();
+        int reqId = nextReqId.getAndIncrement();
+        activeReqSymbols.put(reqId, sym);
+        pendingByReqId.put(reqId, new ArrayList<>());
+        recoveryDurationByReqId.put(reqId, toIbkrDuration(durationMinutes));
+        onDemandCallbacks.put(reqId, onComplete);
+        log.info("Recovery historical request for {} (reqId={}, duration={})",
+                sym, reqId, recoveryDurationByReqId.get(reqId));
+        return Optional.of(new HistoricalPreloadJob(reqId, sym, buildStockContract(sym)));
+    }
+
+    public String recoveryDurationForReqId(int reqId) {
+        return recoveryDurationByReqId.getOrDefault(reqId, "1800 S");
+    }
+
+    private static String toIbkrDuration(int durationMinutes) {
+        int seconds = Math.max(300, Math.min(3600, durationMinutes * 60));
+        return seconds + " S";
+    }
+
     public synchronized Optional<HistoricalPreloadJob> startOnDemand(String symbol, Consumer<Integer> onComplete) {
         if (batchActive.get()) {
             log.warn("Cannot start on-demand historical for {} — batch in progress", symbol);
@@ -135,6 +166,7 @@ public class HistoricalDataService {
         if (saved > 0) {
             symbolContextRegistry.markHistoricalLoaded(symbol);
         }
+        recoveryDurationByReqId.remove(reqId);
         Consumer<Integer> onDemand = onDemandCallbacks.remove(reqId);
         if (onDemand != null) {
             onDemand.accept(saved);
@@ -144,6 +176,7 @@ public class HistoricalDataService {
     void onHistoricalFailed(int reqId) {
         String symbol = activeReqSymbols.remove(reqId);
         pendingByReqId.remove(reqId);
+        recoveryDurationByReqId.remove(reqId);
         Consumer<Integer> onDemand = onDemandCallbacks.remove(reqId);
         if (onDemand != null) {
             onDemand.accept(0);
@@ -195,11 +228,7 @@ public class HistoricalDataService {
         String timeframe = tradingProperties.getTimeframe();
         int saved = 0;
         for (Candle candle : toSave) {
-            boolean exists = candleRepository.findBySymbolAndTimeframeOrderByOpenTimeAsc(symbol, timeframe)
-                    .stream()
-                    .anyMatch(c -> c.getOpenTime().equals(candle.getOpenTime()));
-            if (!exists) {
-                candleRepository.save(candle);
+            if (candleWriteService.saveIfAbsent(candle).isPresent()) {
                 saved++;
             }
         }

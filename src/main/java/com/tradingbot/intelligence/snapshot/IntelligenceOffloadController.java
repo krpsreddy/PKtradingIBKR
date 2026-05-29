@@ -1,5 +1,6 @@
 package com.tradingbot.intelligence.snapshot;
 
+import com.tradingbot.intelligence.live.LiveScannerService;
 import com.tradingbot.intelligence.snapshot.dto.IntelligenceSnapshotDtos.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import java.util.List;
 public class IntelligenceOffloadController {
 
     private final IntelligenceSnapshotService snapshotService;
+    private final LiveScannerService liveScannerService;
 
     @GetMapping("/api/live-regime/{symbol}")
     public LiveRegimeSnapshotDto liveRegime(
@@ -45,11 +47,24 @@ public class IntelligenceOffloadController {
         return snapshotService.replayTimeline(symbol, session);
     }
 
+    /**
+     * Phase 187 — live scanner by default; {@code mode=historical} for replay analytics.
+     */
     @GetMapping("/api/scanner/opportunities")
     public ScannerSnapshotDto scannerOpportunities(
-            @RequestParam List<String> symbols,
-            @RequestParam(required = false) Integer lookbackDays
+            @RequestParam(required = false) List<String> symbols,
+            @RequestParam(required = false) Integer lookbackDays,
+            @RequestParam(defaultValue = "live") String mode
     ) {
-        return snapshotService.scannerOpportunities(symbols, lookbackDays);
+        if ("historical".equalsIgnoreCase(mode)) {
+            if (symbols == null || symbols.isEmpty()) {
+                return liveScannerService.currentSnapshot();
+            }
+            return snapshotService.scannerOpportunities(symbols, lookbackDays);
+        }
+        if (symbols == null || symbols.isEmpty()) {
+            return liveScannerService.currentSnapshot();
+        }
+        return liveScannerService.scan(symbols);
     }
 }

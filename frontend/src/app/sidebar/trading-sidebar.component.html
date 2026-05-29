@@ -11,8 +11,17 @@
       [class.scan-off]="scanTone === 'paused'"
       [class.scan-degraded]="scanTone === 'degraded'"
       (click)="toggleScan()"
-      [title]="scanTone === 'paused' ? 'Resume scanning' : 'Pause scanning'">
+      [title]="scanTone === 'paused' ? 'Resume live scanning' : 'Pause live scanning'">
       {{ scanLabel }}
+    </button>
+    <button
+      type="button"
+      class="scan-toggle hydrate-toggle"
+      [class.scan-on]="hydrateTone === 'active'"
+      [class.scan-off]="hydrateTone === 'paused'"
+      (click)="toggleHydration()"
+      [title]="hydrateTone === 'paused' ? 'Start background hydration' : 'Stop background hydration'">
+      {{ hydrateLabel }}
     </button>
     <div class="header-links">
       <a routerLink="/symbols" class="manage-link" title="Symbol management">⚙</a>

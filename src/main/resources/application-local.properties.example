@@ -1,7 +1,8 @@
 # Copy to application-local.properties for local overrides (not committed)
 
 spring.datasource.username=pk
-spring.datasource.password=
+# Copy to application-local.properties (gitignored):
+spring.datasource.password=your-password-here
 
 telegram.bot-token=your-bot-token
 telegram.chat-id=your-chat-id

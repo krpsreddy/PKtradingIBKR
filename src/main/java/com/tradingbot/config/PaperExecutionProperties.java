@@ -14,6 +14,10 @@ public class PaperExecutionProperties {
     private String orderType = "MKT";
     private int dedupeMinutes = 30;
 
+    /** Phase 210 — adaptive limit + fill simulation (no IBKR placement when simulated-only). */
+    private boolean intelligenceEnabled = false;
+    private boolean simulatedFillsOnly = false;
+
     private Set<String> qualifiedRegimes = new LinkedHashSet<>(Set.of(
             "EARLY_EXPANSION",
             "INSTITUTIONAL_PERSISTENCE",

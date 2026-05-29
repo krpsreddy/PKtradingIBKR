@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/paper_position.dart';
+import 'api_options.dart';
 import 'dio_client.dart';
 
 class PaperExecutionApi {
@@ -17,12 +18,18 @@ class PaperExecutionApi {
   }
 
   Future<PaperMonitorSnapshot> monitor() async {
-    final r = await _dio.get<Map<String, dynamic>>('/api/paper-execution/monitor');
+    final r = await _dio.get<Map<String, dynamic>>(
+      '/api/paper-execution/monitor',
+      options: ApiOptions.slow(),
+    );
     return PaperMonitorSnapshot.fromJson(r.data ?? {});
   }
 
   Future<ExecutionAnalytics> analytics() async {
-    final r = await _dio.get<Map<String, dynamic>>('/api/paper-execution/analytics');
+    final r = await _dio.get<Map<String, dynamic>>(
+      '/api/paper-execution/analytics',
+      options: ApiOptions.slow(),
+    );
     return ExecutionAnalytics.fromJson(r.data ?? {});
   }
 }

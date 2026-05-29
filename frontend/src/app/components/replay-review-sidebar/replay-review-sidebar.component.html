@@ -1,0 +1,40 @@
+<aside class="replay-review-sidebar">
+  <header>
+    <h3>Execution Review</h3>
+    <span class="sym">{{ symbol }}</span>
+  </header>
+
+  <section class="review-block">
+    <div class="row"><span class="k">Regime</span><span class="v">{{ regime || '—' }}</span></div>
+    <div class="row"><span class="k">Entry quality</span><span class="v">{{ entryQuality || '—' }}</span></div>
+    <div class="row"><span class="k">Exit quality</span><span class="v">{{ exitQuality || '—' }}</span></div>
+    <div class="row"><span class="k">Lifecycle</span><span class="v">{{ lifecycle || '—' }}</span></div>
+  </section>
+
+  <section class="review-block">
+    <div class="row"><span class="k">Continuation capture</span><span class="v">{{ continuationCapture || '—' }}</span></div>
+    <div class="row"><span class="k">MFE</span><span class="v">{{ mfe || '—' }}</span></div>
+    <div class="row"><span class="k">MAE</span><span class="v">{{ mae || '—' }}</span></div>
+    <div class="row"><span class="k">Second leg</span><span class="v">{{ secondLeg || '—' }}</span></div>
+    <div class="row"><span class="k">Persistence quality</span><span class="v">{{ persistenceQuality || '—' }}</span></div>
+  </section>
+
+  @if (reviewSummary) {
+    <section class="review-block muted">
+      <div class="row"><span class="k">Session</span><span class="v">{{ reviewSummary.sessionType }}</span></div>
+      <div class="row"><span class="k">Best setup</span><span class="v">{{ reviewSummary.bestSetup }}</span></div>
+      <div class="row"><span class="k">Replay quality</span><span class="v">{{ reviewSummary.replayQuality }}</span></div>
+    </section>
+  }
+
+  @if (coaching && (coaching.idealActions.length || coaching.dangerousSignals.length)) {
+    <section class="review-block coaching">
+      @for (a of coaching.idealActions; track a) {
+        <div class="hint good">{{ a }}</div>
+      }
+      @for (d of coaching.dangerousSignals; track d) {
+        <div class="hint warn">{{ d }}</div>
+      }
+    </section>
+  }
+</aside>

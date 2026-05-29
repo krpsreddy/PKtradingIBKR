@@ -1,15 +1,22 @@
 package com.tradingbot.services;
 
+import com.tradingbot.api.dto.BulkWatchlistImportResult;
 import com.tradingbot.api.dto.CreateTradingSymbolRequest;
 import com.tradingbot.api.dto.SymbolReorderRequest;
 import com.tradingbot.api.dto.TradingSymbolDto;
 import com.tradingbot.api.dto.UpdateTradingSymbolRequest;
+import com.tradingbot.ibkr.IBKRClientService;
 import com.tradingbot.ibkr.SubscriptionManagerService;
+import com.tradingbot.ibkr.stream.DynamicLiveStreamOrchestrator;
 import com.tradingbot.models.TradingSymbol;
 import com.tradingbot.repository.TradingSymbolRepository;
+import com.tradingbot.intelligence.live.runtime.RuntimeBootstrapService;
+import com.tradingbot.livetrader.LiveTraderDtos;
+import com.tradingbot.intelligence.live.LiveScannerService;
 import com.tradingbot.symbol.SymbolContextRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -29,9 +37,14 @@ import java.util.stream.Collectors;
 public class TradingSymbolService {
 
     private final TradingSymbolRepository repository;
+    private final IBKRClientService ibkrClientService;
     private final SymbolLoadService symbolLoadService;
     private final SubscriptionManagerService subscriptionManager;
     private final SymbolContextRegistry symbolContextRegistry;
+    private final RuntimeBootstrapService runtimeBootstrap;
+    /** Lazy resolve — breaks cycle with {@link LiveScannerService}. */
+    private final ObjectProvider<LiveScannerService> liveScannerServiceProvider;
+    private final ObjectProvider<DynamicLiveStreamOrchestrator> streamOrchestratorProvider;
 
     public List<TradingSymbol> findAllConfigured() {
         return repository.findByActiveTrueOrderByPinnedDescDisplayOrderAscSymbolAsc();
@@ -51,6 +64,45 @@ public class TradingSymbolService {
 
     public List<TradingSymbol> findSubscribeLive() {
         return repository.findByActiveTrueAndEnabledTrueAndSubscribeLiveTrueOrderByDisplayOrderAscSymbolAsc();
+    }
+
+    /**
+     * Symbols for IBKR bootstrap — dynamic orchestrator realtime set when enabled,
+     * otherwise legacy subscribeLive cap.
+     */
+    public List<String> resolveLiveSubscribeSymbols(int maxStreams) {
+        DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+        if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+            orchestrator.reconcile();
+            List<String> dynamic = orchestrator.snapshot().realtime().stream()
+                    .map(LiveTraderDtos.StreamSymbolDto::symbol)
+                    .toList();
+            if (!dynamic.isEmpty()) {
+                return dynamic;
+            }
+        }
+        List<TradingSymbol> rows = findSubscribeLive();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        int cap = maxStreams > 0 ? maxStreams : rows.size();
+        List<String> chosen = rows.stream()
+                .sorted(Comparator
+                        .comparing(TradingSymbol::isPinned).reversed()
+                        .thenComparing(TradingSymbol::isScanEnabled).reversed()
+                        .thenComparingInt(TradingSymbol::getDisplayOrder)
+                        .thenComparing(TradingSymbol::getSymbol))
+                .limit(cap)
+                .map(r -> r.getSymbol().toUpperCase())
+                .distinct()
+                .toList();
+        if (chosen.size() < rows.size()) {
+            log.info(
+                    "Live IBKR subscribe capped at {}/{} symbols (ibkr.max-live-streams={})",
+                    chosen.size(), rows.size(), maxStreams
+            );
+        }
+        return chosen;
     }
 
     public Set<String> getEnabledSymbolSet() {
@@ -161,6 +213,79 @@ public class TradingSymbolService {
         log.info("Soft-deleted trading symbol {}", row.getSymbol());
     }
 
+    /**
+     * Idempotent bulk load: creates missing symbols and enables watchlist for each.
+     * Input is de-duplicated (case-insensitive); invalid tickers are skipped.
+     */
+    @Transactional
+    public BulkWatchlistImportResult bulkImportWatchlist(List<String> symbols, String groupName,
+                                                       Boolean scanEnabled, Boolean subscribeLive,
+                                                       Boolean preloadOnStartup) {
+        if (symbols == null || symbols.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "symbols list is required");
+        }
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        List<String> skippedSymbols = new ArrayList<>();
+        for (String raw : symbols) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            String sym = normalizeAlias(raw.trim());
+            try {
+                validateTicker(sym);
+                unique.add(sym);
+            } catch (ResponseStatusException ex) {
+                skippedSymbols.add(raw.trim());
+            }
+        }
+
+        int added = 0;
+        int reEnabled = 0;
+        int alreadyOnWatchlist = 0;
+
+        for (String sym : unique) {
+            Optional<TradingSymbol> before = repository.findBySymbolIgnoreCase(sym);
+            boolean wasEnabled = before.map(TradingSymbol::isEnabled).orElse(false);
+            boolean wasActive = before.map(TradingSymbol::isActive).orElse(false);
+
+            CreateTradingSymbolRequest req = new CreateTradingSymbolRequest();
+            req.setSymbol(sym);
+            req.setGroupName(groupName != null ? groupName : "Momentum");
+            req.setScanEnabled(scanEnabled != null ? scanEnabled : true);
+            req.setSubscribeLive(subscribeLive != null ? subscribeLive : true);
+            req.setPreloadOnStartup(preloadOnStartup != null ? preloadOnStartup : true);
+            req.setEnabled(true);
+            req.setPinned(false);
+
+            createSymbol(req);
+
+            if (!wasActive) {
+                added++;
+            } else if (!wasEnabled) {
+                reEnabled++;
+            } else {
+                alreadyOnWatchlist++;
+            }
+        }
+
+        log.info("Bulk watchlist import: unique={} added={} reEnabled={} already={} skipped={}",
+                unique.size(), added, reEnabled, alreadyOnWatchlist, skippedSymbols.size());
+
+        for (String sym : unique) {
+            runtimeBootstrap.ensureBootstrapped(sym);
+        }
+
+        return BulkWatchlistImportResult.builder()
+                .requested(symbols.size())
+                .unique(unique.size())
+                .added(added)
+                .reEnabled(reEnabled)
+                .alreadyOnWatchlist(alreadyOnWatchlist)
+                .skipped(skippedSymbols.size())
+                .skippedSymbols(skippedSymbols)
+                .build();
+    }
+
     @Transactional
     public TradingSymbol addToWatchlist(String symbol) {
         TradingSymbol row = requireActive(symbol);
@@ -252,18 +377,37 @@ public class TradingSymbolService {
                 .orElse(false);
     }
 
-    public void activateRuntime(TradingSymbol row) {
+    /** In-memory watchlist + scanner hooks (safe before IBKR connects). */
+    public void activateRuntimeLocal(TradingSymbol row) {
         if (!row.isActive() || !row.isEnabled()) {
             return;
         }
         String sym = row.getSymbol();
         symbolContextRegistry.getOrCreate(sym);
+        liveScannerServiceProvider.ifAvailable(scanner -> scanner.onSymbolActivated(sym));
+    }
+
+    /** Subscribe / historical preload — only when IBKR socket is up. */
+    public void activateBrokerRuntime(TradingSymbol row) {
+        if (!row.isActive() || !row.isEnabled() || !ibkrClientService.isConnected()) {
+            return;
+        }
+        String sym = row.getSymbol();
+        runtimeBootstrap.ensureBootstrapped(sym);
         if (row.isPreloadOnStartup()) {
             symbolLoadService.activateSymbol(sym);
         }
-        if (row.isSubscribeLive()) {
+        DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+        if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+            orchestrator.onSymbolTouched(sym);
+        } else if (row.isSubscribeLive()) {
             subscriptionManager.subscribeIfNeeded(sym);
         }
+    }
+
+    public void activateRuntime(TradingSymbol row) {
+        activateRuntimeLocal(row);
+        activateBrokerRuntime(row);
     }
 
     public void deactivateRuntime(TradingSymbol row) {
@@ -278,7 +422,13 @@ public class TradingSymbolService {
             deactivateRuntime(row);
             return;
         }
-        if (row.isSubscribeLive()) {
+        if (!ibkrClientService.isConnected()) {
+            return;
+        }
+        DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+        if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+            orchestrator.reconcile();
+        } else if (row.isSubscribeLive()) {
             subscriptionManager.subscribeIfNeeded(row.getSymbol());
         } else {
             subscriptionManager.unsubscribe(row.getSymbol());
@@ -288,10 +438,25 @@ public class TradingSymbolService {
         }
     }
 
+    /** Startup: register contexts only; IBKR batch subscribe runs on broker onReady. */
     public void activateAllOnStartup() {
         for (TradingSymbol row : findAllConfigured()) {
             if (row.isEnabled()) {
-                activateRuntime(row);
+                activateRuntimeLocal(row);
+            }
+        }
+    }
+
+    /** After IBKR connect — dynamic reconcile or legacy per-symbol subscribe. */
+    public void activateBrokerRuntimeForAllEnabled() {
+        DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+        if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+            orchestrator.reconcile();
+            return;
+        }
+        for (TradingSymbol row : findAllConfigured()) {
+            if (row.isEnabled()) {
+                activateBrokerRuntime(row);
             }
         }
     }
@@ -326,7 +491,15 @@ public class TradingSymbolService {
         if (symbol == null || symbol.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Symbol is required");
         }
-        return symbol.trim().toUpperCase();
+        return normalizeAlias(symbol);
+    }
+
+    private String normalizeAlias(String symbol) {
+        String sym = symbol.trim().toUpperCase();
+        if ("SIRIUS".equals(sym)) {
+            return "SIRI";
+        }
+        return sym;
     }
 
     private void validateTicker(String symbol) {

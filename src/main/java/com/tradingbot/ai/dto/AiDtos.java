@@ -1,7 +1,9 @@
 package com.tradingbot.ai.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Value;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -9,8 +11,10 @@ public final class AiDtos {
     private AiDtos() {}
 
     /** Compressed intelligence snapshot — never raw candles or ticks. */
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AiExecutionRequestDto {
         String symbol;
         String signalType;
@@ -28,8 +32,10 @@ public final class AiDtos {
         String openType;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AiExecutionResponseDto {
         String provider;
         long latencyMs;
@@ -47,8 +53,10 @@ public final class AiDtos {
         List<String> warnings;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class OpenStructureRequestDto {
         String symbol;
         String marketRegime;
@@ -59,8 +67,10 @@ public final class AiDtos {
         double avgRvol;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class OpenStructureResponseDto {
         String provider;
         long latencyMs;
@@ -74,8 +84,10 @@ public final class AiDtos {
         Double confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CoachingRequestDto {
         String symbol;
         String marketRegime;
@@ -85,8 +97,10 @@ public final class AiDtos {
         String sessionSummary;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class CoachingResponseDto {
         String provider;
         long latencyMs;
@@ -98,8 +112,10 @@ public final class AiDtos {
         Double confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class AiProviderStatusDto {
         boolean enabled;
         String configuredProvider;

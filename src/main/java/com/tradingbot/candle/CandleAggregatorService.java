@@ -1,8 +1,8 @@
 package com.tradingbot.candle;
 
 import com.tradingbot.config.TradingProperties;
+import com.tradingbot.dataintegrity.DataIntegrityEngine;
 import com.tradingbot.models.Candle;
-import com.tradingbot.repository.CandleRepository;
 import com.tradingbot.services.MarketTime;
 import com.tradingbot.signals.OpenScoutSignalService;
 import lombok.extern.slf4j.Slf4j;
@@ -20,17 +20,20 @@ import java.util.concurrent.ConcurrentMap;
 @Service
 public class CandleAggregatorService {
 
-    private final CandleRepository candleRepository;
+    private final CandleWriteService candleWriteService;
     private final TradingProperties tradingProperties;
     private final OpenScoutSignalService openScoutSignalService;
+    private final DataIntegrityEngine dataIntegrityEngine;
     private final ConcurrentMap<String, MutableCandle> activeCandles = new ConcurrentHashMap<>();
 
-    public CandleAggregatorService(CandleRepository candleRepository,
+    public CandleAggregatorService(CandleWriteService candleWriteService,
                                    TradingProperties tradingProperties,
-                                   @Lazy OpenScoutSignalService openScoutSignalService) {
-        this.candleRepository = candleRepository;
+                                   @Lazy OpenScoutSignalService openScoutSignalService,
+                                   @Lazy DataIntegrityEngine dataIntegrityEngine) {
+        this.candleWriteService = candleWriteService;
         this.tradingProperties = tradingProperties;
         this.openScoutSignalService = openScoutSignalService;
+        this.dataIntegrityEngine = dataIntegrityEngine;
     }
 
     public void onTick(String symbol, double price, long volume) {
@@ -48,6 +51,7 @@ public class CandleAggregatorService {
             return current;
         });
 
+        dataIntegrityEngine.recordTick(symbol, price, System.currentTimeMillis());
         openScoutSignalService.onTick(symbol, price);
     }
 
@@ -86,21 +90,14 @@ public class CandleAggregatorService {
     }
 
     private Optional<Candle> persistIfNew(MutableCandle mutable) {
-        Candle entity = mutable.toEntity();
-        boolean exists = candleRepository.findBySymbolAndTimeframeOrderByOpenTimeAsc(
-                        entity.getSymbol(), entity.getTimeframe())
-                .stream()
-                .anyMatch(c -> c.getOpenTime().equals(entity.getOpenTime()));
-        if (exists) {
-            log.debug("Candle already exists for {} at {}", entity.getSymbol(), entity.getOpenTime());
-            return Optional.empty();
-        }
-
-        Candle saved = candleRepository.save(entity);
-        log.info("{} {} candle: O={} H={} L={} C={} V={}",
-                saved.getSymbol(), formatTimeframeLabel(saved.getTimeframe()),
-                saved.getOpen(), saved.getHigh(), saved.getLow(), saved.getClose(), saved.getVolume());
-        return Optional.of(saved);
+        Optional<Candle> saved = candleWriteService.saveIfAbsent(mutable.toEntity());
+        saved.ifPresent(c -> {
+            dataIntegrityEngine.recordCandleClosed(c.getSymbol());
+            log.info("{} {} candle: O={} H={} L={} C={} V={}",
+                    c.getSymbol(), formatTimeframeLabel(c.getTimeframe()),
+                    c.getOpen(), c.getHigh(), c.getLow(), c.getClose(), c.getVolume());
+        });
+        return saved;
     }
 
     private String formatTimeframeLabel(String timeframe) {

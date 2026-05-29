@@ -1,0 +1,176 @@
+<section class="hbd" [class.bearish]="isBearish">
+  <h2 class="panel-title">{{ panelTitle }}</h2>
+  @if (report?.meta?.focusLabel) {
+    <p class="focus">{{ report!.meta.focusLabel }}</p>
+  }
+  <div class="hbd-toolbar">
+    <div class="lookback">
+      @for (d of lookbackOptions; track d) {
+        <button type="button" class="lb" [class.on]="lookbackDays === d" (click)="setLookback(d)">{{ d }}d</button>
+      }
+    </div>
+    <button type="button" class="refresh" (click)="refresh()" [disabled]="loading">
+      {{ loading ? 'Analyzing…' : 'Refresh bulk analysis' }}
+    </button>
+  </div>
+
+  @if (error) {
+    <p class="warn">{{ error }}</p>
+  }
+
+  @if (report; as r) {
+    <p class="meta">
+      {{ r.meta.sampleCount }} evaluated signals · {{ r.meta.disclaimer }}
+    </p>
+
+    @if (r.insights.length) {
+      <div class="insights">
+        @for (line of r.insights; track line) {
+          <p>{{ line }}</p>
+        }
+      </div>
+    }
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Top discoveries</h3>
+        @for (t of r.topDiscoveries; track t.regime) {
+          <div class="row-line">
+            <span class="name">{{ t.regime }}</span>
+            <span class="badge" [class]="confidenceClass(t.discoveryConfidenceScore)">
+              {{ t.expectancyLabel }} · {{ t.discoveryConfidenceScore }}
+            </span>
+            <span class="muted">n={{ t.frequency }} · WR {{ formatPct(t.winRate) }} · cap {{ formatPct(t.continuationProbability) }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="card">
+        <h3>Regime families</h3>
+        @for (f of r.regimeFamilies; track f.family) {
+          <div class="row-line">
+            <span class="name">{{ f.family }}</span>
+            <span class="muted">n={{ f.sampleCount }} · cont {{ formatPct(f.continuationPct) }} · {{ formatR(f.avgMfeR) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (isBearish && (r.putEntryQuality?.length || r.squeezeRisk?.length || r.breakdownProfiles?.length)) {
+      <div class="grid-3 bearish-extras">
+        @if (r.putEntryQuality?.length) {
+          <div class="card danger">
+            <h3>PUT entry quality</h3>
+            @for (p of r.putEntryQuality!; track p.grade) {
+              <p class="mini"><strong>{{ p.grade }}</strong> · n={{ p.sampleCount }} · follow {{ formatPct(p.followThroughPct) }} · breakdown {{ formatPct(p.breakdownSurvivalPct) }}</p>
+            }
+          </div>
+        }
+        @if (r.squeezeRisk?.length) {
+          <div class="card warn">
+            <h3>Squeeze risk</h3>
+            @for (s of r.squeezeRisk!; track s.context) {
+              <p class="mini"><strong>{{ s.squeezeRiskScore }}</strong> · {{ s.context }} · {{ s.note }}</p>
+            }
+          </div>
+        }
+        @if (r.breakdownProfiles?.length) {
+          <div class="card">
+            <h3>Breakdown profiles</h3>
+            @for (b of r.breakdownProfiles!; track b.profile) {
+              <p class="mini"><strong>{{ b.profile }}</strong> · survival {{ formatPct(b.breakdownSurvivalPct) }} · bounce fail {{ formatPct(b.failedBouncePct) }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <div class="card highlight">
+      <h3>{{ isBearish ? 'Historical vs PUT assist (validation)' : 'Historical vs live execution (gap analysis)' }}</h3>
+      <table>
+        <thead><tr><th>Regime</th><th>Hist WR</th><th>{{ isBearish ? 'Live bias' : 'Paper WR' }}</th><th>Hist {{ isBearish ? 'breakdown' : 'cap' }}</th><th>{{ isBearish ? 'Assist' : 'Paper cap' }}</th><th>Gap</th><th></th></tr></thead>
+        <tbody>
+          @for (v of r.historicalVsLive; track v.regime) {
+            <tr>
+              <td>{{ v.regime }}</td>
+              <td>{{ formatPct(v.historicalWinPct) }}</td>
+              <td>{{ formatPct(v.paperWinPct) }}</td>
+              <td>{{ formatPct(v.historicalCapturePct) }}</td>
+              <td>{{ formatPct(v.paperCapturePct) }}</td>
+              <td>{{ formatPct(v.gapPct) }}</td>
+              <td><span class="verdict" [class]="verdictClass(v.verdict)">{{ v.verdict }}</span></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <p class="hint">Execution telemetry tab (60-Day Regime Intelligence) validates paper reality separately.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Historical regimes</h3>
+        <table class="compact">
+          <thead><tr><th>Regime</th><th>n</th><th>WR</th><th>Cont</th><th>Conf</th></tr></thead>
+          <tbody>
+            @for (row of r.regimeDiscovery.slice(0, 12); track row.regime) {
+              <tr>
+                <td>{{ row.regime }}</td>
+                <td>{{ row.frequency }}</td>
+                <td>{{ formatPct(row.winRate) }}</td>
+                <td>{{ formatPct(row.continuationProbability) }}</td>
+                <td>{{ row.discoveryConfidenceScore }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Market structure</h3>
+        <table class="compact">
+          <thead><tr><th>Structure</th><th>n</th><th>Cont</th><th></th></tr></thead>
+          <tbody>
+            @for (m of r.marketStructure; track m.structure) {
+              <tr><td>{{ m.structure }}</td><td>{{ m.sampleCount }}</td><td>{{ formatPct(m.continuationPct) }}</td><td class="muted">{{ m.note }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>Session behavior</h3>
+        @for (s of r.sessionBehavior; track s.session) {
+          <p class="mini"><strong>{{ s.session }}</strong> · n={{ s.sampleCount }} · {{ formatPct(s.continuationPct) }} · {{ s.topRegime }}</p>
+        }
+      </div>
+      <div class="card">
+        <h3>Sector DNA</h3>
+        @for (s of r.sectorDna; track s.sector) {
+          <p class="mini"><strong>{{ s.sector }}</strong> · {{ s.strengthNote }}</p>
+        }
+      </div>
+      <div class="card">
+        <h3>Trend maturity</h3>
+        @for (t of r.trendMaturity; track t.maturity) {
+          <p class="mini"><strong>{{ t.maturity }}</strong> · cont {{ formatPct(t.continuationPct) }}</p>
+        }
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card danger">
+        <h3>Failure clusters</h3>
+        @for (f of r.failureClusters; track f.clusterKey) {
+          <p class="mini">{{ f.clusterKey }} · {{ f.failureCount }} losses ({{ formatPct(f.sharePct) }})</p>
+        }
+      </div>
+      <div class="card">
+        <h3>Regime evolution paths</h3>
+        @for (e of r.regimeEvolution.slice(0, 8); track e.path) {
+          <p class="mini path">{{ e.path }} · n={{ e.occurrences }} · {{ formatPct(e.successPct) }}</p>
+        }
+      </div>
+    </div>
+  }
+</section>

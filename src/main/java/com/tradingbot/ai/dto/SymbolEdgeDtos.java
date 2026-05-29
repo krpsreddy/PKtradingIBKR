@@ -1,7 +1,9 @@
 package com.tradingbot.ai.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Value;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Map;
@@ -10,8 +12,10 @@ import java.util.Map;
 public final class SymbolEdgeDtos {
     private SymbolEdgeDtos() {}
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class OverallStatsDto {
         int trades;
         double winRate;
@@ -23,8 +27,10 @@ public final class SymbolEdgeDtos {
         String confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SetupStatsDto {
         String type;
         int sample;
@@ -35,8 +41,10 @@ public final class SymbolEdgeDtos {
         String confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class RegimeStatsDto {
         String name;
         int sample;
@@ -46,8 +54,10 @@ public final class SymbolEdgeDtos {
         String confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class BucketStatsDto {
         String bucket;
         int sample;
@@ -60,16 +70,20 @@ public final class SymbolEdgeDtos {
         String confidence;
     }
 
-    @Value
+    @Data
     @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class LateEntryPenaltyDto {
         double idealExpectancy;
         double lateExpectancy;
         double expectancyDropPct;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SymbolEdgeCompressedDto {
         String symbol;
         int lookbackDays;
@@ -89,8 +103,10 @@ public final class SymbolEdgeDtos {
         List<BucketStatsDto> byTimeOfDay;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SymbolEdgeAiAnalysisDto {
         List<String> strengths;
         List<String> weaknesses;
@@ -103,8 +119,10 @@ public final class SymbolEdgeDtos {
         String summary;
     }
 
-    @Value
+    @Data
     @Builder(toBuilder = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SymbolEdgeAnalysisResponseDto {
         String symbol;
         int lookbackDays;

@@ -1,9 +1,10 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { catchError, EMPTY, forkJoin, interval, Observable, of, startWith, Subject, switchMap, takeUntil, tap, timer, debounceTime, distinctUntilChanged } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { MetricsBarComponent } from '../metrics/metrics-bar.component';
+import { BrokerStatusPanelComponent } from '../components/broker-status-panel/broker-status-panel.component';
 import { TradingChartComponent } from '../charts/trading-chart.component';
 import { TradingSidebarComponent } from '../sidebar/trading-sidebar.component';
 import { SignalTableComponent } from '../signals/signal-table.component';
@@ -125,7 +126,6 @@ import {
 } from '../services/signal-intelligence/execution-advisory-analytics.service';
 import { SignalEdgeIntelligenceSnapshot } from '../models/signal-intelligence.model';
 import { WorkspaceModeService, ReviewTabId } from '../services/workspace-mode.service';
-import { WorkspaceModeSwitchComponent } from '../components/workspace-mode-switch/workspace-mode-switch.component';
 import { ReviewWorkspaceComponent } from '../review/review-workspace.component';
 import { AiExecutionIntelligenceService } from '../ai/services/ai-execution-intelligence.service';
 import { AiExecutionResponse } from '../ai/models/ai.models';
@@ -164,6 +164,14 @@ import { buildCompactSuggestion } from '../services/autonomous-regime-scanner/au
 import { RealTimeExecutionService } from '../services/real-time-execution/real-time-execution.service';
 import { AutoExecutionSwitchComponent } from '../components/auto-execution-switch/auto-execution-switch.component';
 import { PaperExecutionResearchHookService } from '../services/paper-execution-research-hook.service';
+import { ResearchModeService } from '../services/research-mode.service';
+import { ReplayIsolationModeService } from '../services/replay-isolation-mode.service';
+import { ReplayLabHeaderComponent } from '../components/replay-lab-header/replay-lab-header.component';
+import { ReplayLabFiltersComponent } from '../components/replay-lab-filters/replay-lab-filters.component';
+import { ReplayReviewSidebarComponent } from '../components/replay-review-sidebar/replay-review-sidebar.component';
+import { ReplayLabTab, WorkspaceModeSwitchComponent } from '../components/workspace-mode-switch/workspace-mode-switch.component';
+import { ReplayPerformancePanelComponent } from '../components/replay-performance-panel/replay-performance-panel.component';
+import { ReplayPerformanceDiagnosticsService } from '../services/replay-performance/replay-performance-diagnostics.service';
 import { ExecutionFrameworkMode167 } from '../services/real-time-execution/real-time-execution.models';
 import { EnrichedOpportunity } from '../services/execution-intelligence/enriched-opportunity.model';
 import { SignalReplayLaunchPlan } from '../services/signal-explorer/signal-explorer.models';
@@ -185,7 +193,9 @@ function safeApi<T>(obs: Observable<T>, fallback: T): Observable<T> {
   selector: 'app-dashboard',
   standalone: true,
   imports: [
+    RouterLink,
     MetricsBarComponent,
+    BrokerStatusPanelComponent,
     TradingChartComponent,
     TradingSidebarComponent,
     DebugPanelComponent,
@@ -203,7 +213,11 @@ function safeApi<T>(obs: Observable<T>, fallback: T): Observable<T> {
     ReviewWorkspaceComponent,
     SignalExplorerPanelComponent,
     NetworkDiagnosticsPanelComponent,
-    AutoExecutionSwitchComponent
+    AutoExecutionSwitchComponent,
+    ReplayPerformancePanelComponent,
+    ReplayLabHeaderComponent,
+    ReplayLabFiltersComponent,
+    ReplayReviewSidebarComponent
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
@@ -419,6 +433,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   replayBreadcrumb: ReplayBreadcrumb | null = null;
   replayDebugInfo: ReplayDebugInfo | null = null;
   replayPanelTab: ReplayPanelTab = 'timeline';
+  replayLabTab: ReplayLabTab = 'replay';
   replayBottomExpanded = true;
   replayFocusBarIndex: number | null = null;
   pendingReplayAction: string | null = null;
@@ -496,16 +511,22 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     private dashboardStore: DashboardStateStoreService,
     private enrichQueue: SymbolEnrichmentQueueService,
     private cdr: ChangeDetectorRef,
-    private paperResearchHook: PaperExecutionResearchHookService
+    private paperResearchHook: PaperExecutionResearchHookService,
+    readonly researchMode: ResearchModeService,
+    readonly replayIsolation: ReplayIsolationModeService,
+    private replayPerf: ReplayPerformanceDiagnosticsService
   ) {}
+
+  private replayViewThrottleTimer?: ReturnType<typeof setTimeout>;
+  private lastReplayViewIndex = -1;
 
   ngOnInit(): void {
     this.watchlistStore.migrateLegacyKeys();
     const layout = this.workflowState.loadLayout();
-    this.sidebarCollapsed = layout.sidebarCollapsed ?? false;
+    this.sidebarCollapsed = this.replayIsolation.isolated() ? true : (layout.sidebarCollapsed ?? false);
     this.historyCollapsed = layout.historyCollapsed ?? false;
     this.chartTimeframe = this.chartLiveState.chartTimeframe();
-    if (this.chartTimeframe === 'REPLAY') {
+    if (this.chartTimeframe === 'REPLAY' || this.researchMode.isResearch()) {
       this.chartMode = 'REPLAY';
     } else {
       this.chartMode = layout.chartMode ?? 'LIVE';
@@ -532,16 +553,25 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dashboardStore.setChartMode(this.chartMode);
     this.dashboardStore.setMiniMode(this.miniMode);
     this.dashboardOrchestrator.start();
-    this.paperResearchHook.connect();
-    this.rtExecution.enriched$.pipe(takeUntil(this.destroy$)).subscribe(items => {
-      this.topEnrichedOpportunity = this.attachPlansToEnriched(items)[0] ?? null;
-      this.cdr.markForCheck();
-    });
+    if (this.researchMode.allowsLiveRuntime() && !this.replayIsolation.isolated()) {
+      this.paperResearchHook.connect();
+      this.rtExecution.enriched$.pipe(takeUntil(this.destroy$)).subscribe(items => {
+        this.topEnrichedOpportunity = this.attachPlansToEnriched(items)[0] ?? null;
+        this.cdr.markForCheck();
+      });
+    }
 
     this.signalExplorer.registerLaunchHandler(plan => this.jumpToHistoricalSignal(plan));
 
     if (this.replayLaunchIntent.hasPending()) {
       this.prepareReplayLaunch(this.replayLaunchIntent.peek()!);
+    } else if (this.researchMode.isResearch()) {
+      this.chartLoading = false;
+      this.chartReady = true;
+      this.replayService.setMode('REPLAY');
+      this.replayDate = lastTradingDayIso();
+      this.dashboardOrchestrator.requestOnDemandEnrich([this.selectedSymbol]);
+      this.loadHistoricalReplay();
     } else {
       this.activateSymbol(this.selectedSymbol, false);
       this.replayService.setMode(this.chartMode);
@@ -555,7 +585,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       takeUntil(this.destroy$)
     ).subscribe(() => {
-      if (!this.router.url.includes('/dashboard')) return;
+      if (!this.router.url.includes('/replay-lab') && !this.router.url.includes('/dashboard')) return;
       const plan = this.replayLaunchIntent.consume();
       if (plan) {
         this.prepareReplayLaunch(plan);
@@ -586,14 +616,18 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.replayHistory = h;
       if (h?.replayDate) {
         this.replayViewportUx.onReplaySessionStart(this.selectedSymbol, h.replayDate, this.replayIndex);
-        if (this.intelligenceOffload.isEnabled()) {
-          this.replayIntelCache.preload(this.selectedSymbol, h.replayDate).subscribe(t => {
-            this.replayIntelCache.setTimeline(this.selectedSymbol, h.replayDate, t);
-            this.cdr.markForCheck();
+        if (this.intelligenceOffload.isEnabled() && this.researchMode.allowsLiveRuntime()) {
+          this.replayPerf.trackSubscription(1);
+          this.replayIntelCache.preload(this.selectedSymbol, h.replayDate).subscribe({
+            next: t => {
+              this.replayIntelCache.setTimeline(this.selectedSymbol, h.replayDate, t);
+              this.cdr.markForCheck();
+            },
+            complete: () => this.replayPerf.trackSubscription(-1)
           });
         }
       }
-      this.refreshReplayView();
+      this.scheduleRefreshReplayView(this.replayIndex);
     });
     this.replayViewportUx.state$.pipe(takeUntil(this.destroy$)).subscribe(state => {
       this.replayViewportState = state;
@@ -607,13 +641,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
     });
     this.replayService.currentIndex$.pipe(
-      debounceTime(32),
+      debounceTime(100),
       distinctUntilChanged(),
       takeUntil(this.destroy$)
     ).subscribe(i => {
       this.replayIndex = i;
       this.replayWorkstation.persistCursor(i);
-      this.refreshReplayView();
+      this.scheduleRefreshReplayView(i);
       this.refreshReplayUxBreadcrumb();
       this.loadReplayNarrative(i);
     });
@@ -724,15 +758,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
-    this.dashboardStore.scanner$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.applyScannerFromStoreLight();
-      this.cdr.markForCheck();
-    });
+    if (!this.replayIsolation.isolated()) {
+      this.dashboardStore.scanner$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+        this.applyScannerFromStoreLight();
+        this.cdr.markForCheck();
+      });
 
-    this.dashboardOrchestrator.planRefresh$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.applyScannerPlansForFocus();
-      this.cdr.markForCheck();
-    });
+      this.dashboardOrchestrator.planRefresh$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+        this.applyScannerPlansForFocus();
+        this.cdr.markForCheck();
+      });
+    }
 
     this.aiExecutionIntelligence.execution$.pipe(takeUntil(this.destroy$)).subscribe(exec => {
       if (exec) {
@@ -750,6 +786,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.replayViewThrottleTimer) {
+      clearTimeout(this.replayViewThrottleTimer);
+    }
     this.destroy$.next();
     this.destroy$.complete();
     this.dashboardOrchestrator.stop();
@@ -872,7 +911,85 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     void this.router.navigate(['/autonomous-discovery']);
   }
 
+  onReplayLabTabChange(tab: ReplayLabTab): void {
+    this.replayLabTab = tab;
+    if (tab === 'replay') {
+      this.workspaceMode.setMode('execution');
+      this.setChartMode('REPLAY');
+      return;
+    }
+    if (tab === 'review') {
+      this.openReviewWorkspace('intelligence');
+      return;
+    }
+    if (tab === 'discovery') {
+      void this.router.navigate(['/autonomous-discovery']);
+      return;
+    }
+    if (tab === 'validation') {
+      void this.router.navigate(['/signal-lab']);
+    }
+  }
+
+  replayLabTimestampLabel(): string | null {
+    if (!this.replayHistory?.sessionCandles?.length || this.replayIndex < 0) return null;
+    const c = this.replayHistory.sessionCandles[Math.min(this.replayIndex, this.replayHistory.sessionCandles.length - 1)];
+    return c?.time ?? this.replayHistory.replayDate ?? this.replayDate;
+  }
+
+  replayLabLifecycleLabel(): string | null {
+    const row = this.replayDecisionRowAtCursor();
+    return row?.narrativeLine ?? this.replayCoaching?.idealActions?.[0] ?? null;
+  }
+
+  replayLabEntryQualityLabel(): string | null {
+    const row = this.replayDecisionRowAtCursor();
+    return row?.decisionLabel ?? this.executionPlan?.guidance?.entryQuality ?? this.executionPlan?.lifecycleState ?? null;
+  }
+
+  replayLabExitQualityLabel(): string | null {
+    const row = this.replayDecisionRowAtCursor();
+    return row?.detailLine ?? this.replayReviewSummary?.narrativeStability ?? null;
+  }
+
+  replayLabDominanceScore(): number | null {
+    return this.replayDecisionRowAtCursor()?.convictionPct ?? null;
+  }
+
+  replayLabPersistenceSeconds(): number | null {
+    return null;
+  }
+
+  replayLabContinuationCapture(): string | null {
+    return this.replayReviewSummary?.bestSetup ?? this.replayCoaching?.idealActions?.[0] ?? null;
+  }
+
+  replayLabMfeLabel(): string | null {
+    return this.replayDecisionRowAtCursor()?.expectedR ?? null;
+  }
+
+  replayLabMaeLabel(): string | null {
+    return this.replayProbabilistic?.failure?.message ?? null;
+  }
+
+  replayLabSecondLegLabel(): string | null {
+    return this.replayReviewSummary?.bestExitTime ?? null;
+  }
+
+  replayLabPersistenceQuality(): string | null {
+    return this.replayReviewSummary?.narrativeStability ?? null;
+  }
+
+  private replayDecisionRowAtCursor() {
+    if (!this.replayDecisionRows.length || this.replayIndex < 0) return null;
+    return this.replayDecisionRows.find(r => r.barIndex === this.replayIndex)
+      ?? this.replayDecisionRows[this.replayDecisionRows.length - 1];
+  }
+
   openReviewWorkspace(tab: ReviewTabId = 'intelligence'): void {
+    if (this.replayIsolation.isolated()) {
+      this.replayLabTab = 'review';
+    }
     this.reviewTab = tab;
     this.workspaceMode.openReview(tab);
     this.ensureReviewAnalytics();
@@ -2212,8 +2329,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.replayDate = history.replayDate;
       const cursor = seekIndex != null ? seekIndex : ws.cursorIndex;
       this.replayService.setHistory(history, cursor);
-      if (!ws.cacheHit) {
+      if (!ws.cacheHit && this.researchMode.allowsLiveRuntime()) {
         this.signalIntelligence.bootstrapFromReplay(history, this.intensity.mode);
+      } else if (!ws.cacheHit) {
+        queueMicrotask(() => {
+          this.replayPerf.beginPhase('B_INDICATORS');
+          this.signalIntelligence.bootstrapFromReplay(history, this.intensity.mode);
+        });
       }
       this.replayViewportUx.onReplaySessionStart(this.selectedSymbol, history.replayDate, cursor);
       this.replayWorkstationUx.onSessionLoadComplete(ws.displayMode === 'REVIEW', this.replayPlaying);
@@ -2411,8 +2533,22 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     void this.signalExplorer.navigate(kind);
   }
 
+  private scheduleRefreshReplayView(index: number): void {
+    if (this.chartMode !== 'REPLAY' || !this.replayHistory) return;
+    if (this.replayViewThrottleTimer) {
+      clearTimeout(this.replayViewThrottleTimer);
+    }
+    const delay = Math.abs(index - this.lastReplayViewIndex) <= 1 ? 48 : 120;
+    this.replayViewThrottleTimer = setTimeout(() => {
+      this.replayViewThrottleTimer = undefined;
+      this.lastReplayViewIndex = index;
+      this.refreshReplayView();
+    }, delay);
+  }
+
   private refreshReplayView(): void {
     if (this.chartMode !== 'REPLAY' || !this.replayHistory) return;
+    this.replayPerf.beginPhase('C_EXECUTION');
     const ws = this.replayWorkstation.snapshot();
     const reviewMode = ws.displayMode === 'REVIEW';
     const ctx = this.replayWorkstation.buildDisplayContext(
@@ -2494,6 +2630,23 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     if (fromUserClick) {
       this.tradingSymbolService.recordView(sym).subscribe({ error: () => {} });
     }
+
+    if (!this.researchMode.allowsLiveRuntime()) {
+      this.setSymbolLoading(sym, false);
+      this.chartLoading = false;
+      this.chartReady = true;
+      this.chartMode = 'REPLAY';
+      this.replayService.setMode('REPLAY');
+      this.dashboardOrchestrator.requestOnDemandEnrich([sym]);
+      this.dashboardOrchestrator.requestActiveSymbolRefresh();
+      if (fromUserClick || !this.replayHistory) {
+        this.replayDate = lastTradingDayIso();
+        this.loadHistoricalReplay();
+      }
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.setSymbolLoading(sym, true);
     this.searchLoading = fromUserClick;
     const cached = this.symbolCache.get(sym);
@@ -2543,6 +2696,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private migrateLegacyCustomSymbols(): void {
+    if (this.researchMode.isResearch()) {
+      return;
+    }
     const legacy = this.watchlistStore.consumeLegacyCustomSymbols();
     for (const sym of legacy) {
       this.tradingSymbolService.createSymbol({
@@ -2565,11 +2721,13 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
         this.apiSymbols = list;
         this.watchlist = list;
         this.syncWatchlistSymbolNames();
-        if (enrich) {
+        if (enrich && this.researchMode.allowsLiveRuntime()) {
           this.enrichQueue.schedule(
             list.map(s => s.symbol),
             [this.selectedSymbol]
           );
+        } else if (enrich) {
+          this.dashboardOrchestrator.requestOnDemandEnrich([this.selectedSymbol]);
         }
         this.refreshWorkflowViews();
         this.cdr.markForCheck();

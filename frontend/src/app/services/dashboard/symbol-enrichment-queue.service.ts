@@ -36,7 +36,17 @@ export class SymbolEnrichmentQueueService {
     );
   }
 
+  /** Phase 192 — explicit on-demand enrich (replay/review symbol), never full watchlist. */
+  scheduleOnDemand(symbols: string[], visible: string[] = []): void {
+    this.scheduleInternal(symbols, visible, true);
+  }
+
+  /** Live runtime only — progressive watchlist enrichment. */
   schedule(symbols: string[], visible: string[] = []): void {
+    this.scheduleInternal(symbols, visible, false);
+  }
+
+  private scheduleInternal(symbols: string[], visible: string[] = [], onDemand = false): void {
     const now = Date.now();
     const ordered = [
       ...visible.map(s => s.toUpperCase()),
@@ -47,7 +57,11 @@ export class SymbolEnrichmentQueueService {
       return (this.failedUntil.get(s) ?? 0) <= now;
     });
     if (!uniq.length) return;
-    this.queue = uniq;
+    if (onDemand) {
+      this.queue.push(...uniq);
+    } else {
+      this.queue = uniq;
+    }
     this.pump();
   }
 

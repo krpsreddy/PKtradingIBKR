@@ -151,8 +151,41 @@ public final class IntelligenceSnapshotDtos {
             String riskLabel,
             List<String> whyNow,
             String windowLabel,
-            String rvolLabel
-    ) {}
+            String rvolLabel,
+            int bearishBias,
+            String bearishLifecycle,
+            String suppressionLevel,
+            String deteriorationLevel,
+            boolean putAssistActive,
+            String operationalChip
+    ) {
+        public static ScannerOpportunityDto base(
+                String symbol,
+                String opportunityType,
+                String action,
+                String tone,
+                String badge,
+                int convictionScore,
+                int expansionProbability,
+                int continuationPersistence,
+                int triggerIntegrity,
+                int institutionalPressure,
+                int exhaustionProbability,
+                int executionQuality,
+                String entryZoneLabel,
+                String riskLabel,
+                List<String> whyNow,
+                String windowLabel,
+                String rvolLabel
+        ) {
+            return new ScannerOpportunityDto(
+                    symbol, opportunityType, action, tone, badge, convictionScore,
+                    expansionProbability, continuationPersistence, triggerIntegrity,
+                    institutionalPressure, exhaustionProbability, executionQuality,
+                    entryZoneLabel, riskLabel, whyNow, windowLabel, rvolLabel,
+                    0, null, "NONE", "HEALTHY", false, null);
+        }
+    }
 
     public record ScannerSnapshotDto(
             boolean advisoryOnly,

@@ -259,7 +259,7 @@ public class IntelligenceSnapshotService {
         String window = card != null ? card.windowLabel() : "—";
         String rvol = card != null ? card.rvolLabel() : "—";
 
-        return new ScannerOpportunityDto(
+        return ScannerOpportunityDto.base(
                 sym, opportunityType, traderAction, tone, badge, conviction,
                 expansion, persistence, triggerIntegrity, institutional, exhaustion, executionQuality,
                 entryZone, risk, whyNow.stream().limit(4).toList(), window, rvol

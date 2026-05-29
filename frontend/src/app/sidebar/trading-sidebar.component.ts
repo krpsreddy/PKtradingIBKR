@@ -49,6 +49,7 @@ import { ExecutionFrameworkMode167 } from '../services/real-time-execution/real-
 import { topAutonomousOpportunity, watchlistRegimeGroups } from '../services/autonomous-regime-scanner/sidebar-regime-groups.engine';
 import { actionChipLabel, resolveScannerLiveState } from '../services/autonomous-regime-scanner/scanner-state.engine';
 import { RuntimeScanControlService } from '../services/runtime-scan/runtime-scan-control.service';
+import { BackgroundHydrationControlService } from '../services/background-hydration/background-hydration-control.service';
 import { DominantOpportunityService } from '../services/dominant-opportunity/dominant-opportunity.service';
 import { DominantOpportunitySnapshot } from '../services/dominant-opportunity/dominant-opportunity.models';
 import { NanoPulseService } from '../services/runtime-scan/nano-pulse.service';
@@ -140,6 +141,8 @@ export class TradingSidebarComponent implements OnInit, OnDestroy, AfterViewInit
 
   scanLabel = 'SCANNING OFF';
   scanTone: 'active' | 'paused' | 'degraded' = 'paused';
+  hydrateLabel = 'HYDRATE OFF';
+  hydrateTone: 'active' | 'paused' = 'paused';
   dominantSnapshot: DominantOpportunitySnapshot | null = null;
 
   private search$ = new BehaviorSubject<string>('');
@@ -152,6 +155,7 @@ export class TradingSidebarComponent implements OnInit, OnDestroy, AfterViewInit
     private peripheralDissolve: SidebarPeripheralDissolveEngine,
     private rowOverflow: SidebarRowOverflowResolver,
     private scanControl: RuntimeScanControlService,
+    private hydrationControl: BackgroundHydrationControlService,
     private dominantEngine: DominantOpportunityService,
     private nanoPulse: NanoPulseService
   ) {}
@@ -192,6 +196,8 @@ export class TradingSidebarComponent implements OnInit, OnDestroy, AfterViewInit
   ngOnInit(): void {
     this.refreshScanUi();
     this.scanControl.state$.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshScanUi());
+    this.hydrationControl.load().subscribe(() => this.refreshHydrateUi());
+    this.hydrationControl.state$.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshHydrateUi());
     this.nanoPulse.boosts$.pipe(takeUntil(this.destroy$)).subscribe(() => this.refreshDominance());
 
     this.refreshDominance();
@@ -667,6 +673,17 @@ export class TradingSidebarComponent implements OnInit, OnDestroy, AfterViewInit
   toggleScan(): void {
     this.scanControl.toggleScan();
     this.refreshScanUi();
+  }
+
+  toggleHydration(): void {
+    this.hydrationControl.toggle();
+  }
+
+  private refreshHydrateUi(): void {
+    const { text, tone } = this.hydrationControl.statusLabel();
+    this.hydrateLabel = text;
+    this.hydrateTone = tone;
+    this.cdr.markForCheck();
   }
 
   private refreshScanUi(): void {

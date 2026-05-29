@@ -1,5 +1,16 @@
 import { environment } from '../../../environments/environment';
 
+/** Set from ResearchModeService at app bootstrap (Phase 192). */
+let liveRuntimeEnabled: () => boolean = () => true;
+
+export function bindLiveRuntimeEnabled(fn: () => boolean): void {
+  liveRuntimeEnabled = fn;
+}
+
+function liveRuntime(): boolean {
+  return liveRuntimeEnabled();
+}
+
 /** Priority tiers for dashboard heartbeat tasks. */
 export type DashboardTaskId =
   | 'nanoPulse'
@@ -45,7 +56,7 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 1,
     intervalMs: 1_000,
     hiddenIntervalMs: 5_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'executionFeed',
@@ -53,14 +64,15 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 1,
     intervalMs: environment.feedPollMs ?? 2_000,
     hiddenIntervalMs: (environment.feedPollMs ?? 2_000) * hiddenMultiplier,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'activeSymbol',
     priority: 'high',
     tier: 3,
     intervalMs: 10_000,
-    hiddenIntervalMs: 60_000
+    hiddenIntervalMs: 60_000,
+    enabled: () => liveRuntime()
   },
   {
     id: 'activeSignals',
@@ -68,7 +80,7 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 2,
     intervalMs: 5_000,
     hiddenIntervalMs: 30_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'scanner',
@@ -76,7 +88,7 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 2,
     intervalMs: 20_000,
     hiddenIntervalMs: 120_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'executionPlanRefresh',
@@ -84,14 +96,15 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 2,
     intervalMs: 12_000,
     hiddenIntervalMs: 60_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'systemLight',
     priority: 'medium',
     tier: 2,
     intervalMs: environment.dashboardPollMs ?? 15_000,
-    hiddenIntervalMs: (environment.dashboardPollMs ?? 15_000) * hiddenMultiplier
+    hiddenIntervalMs: (environment.dashboardPollMs ?? 15_000) * hiddenMultiplier,
+    enabled: () => liveRuntime()
   },
   {
     id: 'marketHeartbeat',
@@ -99,7 +112,7 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 2,
     intervalMs: 12_000,
     hiddenIntervalMs: 60_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'aiExecution',
@@ -107,14 +120,15 @@ export const DASHBOARD_TASKS: DashboardTaskConfig[] = [
     tier: 3,
     intervalMs: 15_000,
     hiddenIntervalMs: 90_000,
-    enabled: () => scanEnabled()
+    enabled: () => liveRuntime() && scanEnabled()
   },
   {
     id: 'symbolContext',
     priority: 'medium',
     tier: 3,
     intervalMs: 15_000,
-    hiddenIntervalMs: 60_000
+    hiddenIntervalMs: 60_000,
+    enabled: () => liveRuntime()
   },
   {
     id: 'analyticsHeavy',

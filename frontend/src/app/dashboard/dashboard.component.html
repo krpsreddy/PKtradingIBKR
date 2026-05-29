@@ -1,3 +1,4 @@
+<app-replay-performance-panel />
 <div class="workspace" [class]="regimeTintClass()"
      [class.focus-mode]="focusMode || miniMode"
      [class.mini-mode]="miniMode"
@@ -29,61 +30,88 @@
      [style.--ws-drift]="breathing.ambientDrift"
      [style.--ws-compression]="breathing.focusCompression"
      [style.--ws-luminance]="workspaceLuminance()">
+  @if (researchMode.isResearch()) {
+    <div class="research-runtime-banner">
+      <span>Replay Lab · research mode</span>
+      <a routerLink="/">← Research home</a>
+      @if (researchMode.liveDebugAllowed()) {
+        <button type="button" class="live-debug-link" (click)="researchMode.setMode('LIVE_DEBUG')">Enable live debug</button>
+      }
+    </div>
+  }
   @if (!miniMode) {
     <div class="workspace-header">
       <div class="header-mode-row">
         <app-workspace-mode-switch
           [mode]="workspaceMode.mode()"
-          (modeChange)="onWorkspaceModeChange($event)">
+          [researchTabs]="replayIsolation.isolated()"
+          [replayLabTab]="replayLabTab"
+          (modeChange)="onWorkspaceModeChange($event)"
+          (replayLabTabChange)="onReplayLabTabChange($event)">
         </app-workspace-mode-switch>
-        <app-auto-execution-switch></app-auto-execution-switch>
-        <button
-          type="button"
-          class="header-discovery-btn"
-          (click)="openAutonomousDiscoveryLab()"
-          title="Autonomous Strategy Discovery Lab — EXPANSION cluster mining">
-          Strategy Discovery Lab
-        </button>
+        @if (researchMode.allowsLiveRuntime()) {
+          <app-auto-execution-switch></app-auto-execution-switch>
+          <app-broker-status-panel></app-broker-status-panel>
+          <button type="button" class="header-discovery-btn" (click)="openAutonomousDiscoveryLab()">Strategy Discovery Lab</button>
+        }
       </div>
 
-      <app-metrics-bar
-        [symbol]="selectedSymbol"
-        [price]="livePrice"
-        [indicators]="headerIndicators"
-        [status]="status"
-        [trendLabel]="trendLabel"
-        [marketTrend]="marketTrend"
-        [sessionTemperature]="cognition.sessionTemperature"
-        [disciplineScore]="cognition.discipline?.score ?? null"
-        [watchlist]="watchlist"
-        [recentSymbols]="recentSymbols"
-        [hotMomentum]="hotMomentum"
-        [emergingSetups]="emergingSetups"
-        [activeSignals]="filteredActiveSignals"
-        (symbolSelected)="selectSymbol($event)"
-        (symbolAdded)="onSymbolAdded($event)">
-      </app-metrics-bar>
-
-      @if (workspaceMode.isExecution() && !focusMode) {
-        <app-market-environment-ribbon
+      @if (replayIsolation.isolated()) {
+        <app-replay-lab-header
+          [symbol]="selectedSymbol"
+          [price]="livePrice"
+          [regime]="marketTrend?.regime ?? null"
+          [lifecycle]="replayLabLifecycleLabel()"
+          [replayTimestamp]="replayLabTimestampLabel()"
+          [replaySpeed]="replaySpeed"
+          [dominance]="replayLabDominanceScore()"
+          [persistence]="replayLabPersistenceSeconds()"
+          [watchlist]="watchlist"
+          [recentSymbols]="recentSymbols"
+          (symbolSelected)="selectSymbol($event)"
+          (symbolAdded)="onSymbolAdded($event)">
+        </app-replay-lab-header>
+        @if (replayLabTab === 'replay' && !activeTradeMode) {
+          <app-replay-lab-filters [filters]="workflowFilters" (filtersChange)="onFiltersChange($event)"></app-replay-lab-filters>
+        }
+      } @else {
+        <app-metrics-bar
+          [symbol]="selectedSymbol"
+          [price]="livePrice"
+          [indicators]="headerIndicators"
+          [status]="status"
+          [trendLabel]="trendLabel"
           [marketTrend]="marketTrend"
           [sessionTemperature]="cognition.sessionTemperature"
-          [marketPersonality]="cognition.marketPersonality"
-          [marketTrust]="probabilisticExecution.marketTrust"
-          [strongestSector]="strongestSector()"
-          [breadthQuality]="breadthQuality()"
-          [topPriorities]="probabilisticExecution.topPriorities"
-          [heartbeatPulses]="heartbeatPulses"
-          [marketEmotion]="heartbeatEmotion ?? probabilisticExecution.optionsExecution?.marketEmotion ?? null"
-          [sessionPriority]="cognition.sessionPriority"
-          [coachingHighlights]="coachingRibbonHighlights()"
-          [premarketNote]="cognition.premarket?.active ? (cognition.premarket?.notes?.[0] ?? cognition.premarket?.likelyRegime ?? null) : null"
-          [intelligenceSummary]="cognition.summary">
-        </app-market-environment-ribbon>
-      }
-
-      @if (workspaceMode.isExecution() && !focusMode && !activeTradeMode) {
-        <app-filter-bar [filters]="workflowFilters" (filtersChange)="onFiltersChange($event)"></app-filter-bar>
+          [disciplineScore]="cognition.discipline?.score ?? null"
+          [watchlist]="watchlist"
+          [recentSymbols]="recentSymbols"
+          [hotMomentum]="hotMomentum"
+          [emergingSetups]="emergingSetups"
+          [activeSignals]="filteredActiveSignals"
+          (symbolSelected)="selectSymbol($event)"
+          (symbolAdded)="onSymbolAdded($event)">
+        </app-metrics-bar>
+        @if (workspaceMode.isExecution() && !focusMode) {
+          <app-market-environment-ribbon
+            [marketTrend]="marketTrend"
+            [sessionTemperature]="cognition.sessionTemperature"
+            [marketPersonality]="cognition.marketPersonality"
+            [marketTrust]="probabilisticExecution.marketTrust"
+            [strongestSector]="strongestSector()"
+            [breadthQuality]="breadthQuality()"
+            [topPriorities]="probabilisticExecution.topPriorities"
+            [heartbeatPulses]="heartbeatPulses"
+            [marketEmotion]="heartbeatEmotion ?? probabilisticExecution.optionsExecution?.marketEmotion ?? null"
+            [sessionPriority]="cognition.sessionPriority"
+            [coachingHighlights]="coachingRibbonHighlights()"
+            [premarketNote]="cognition.premarket?.active ? (cognition.premarket?.notes?.[0] ?? cognition.premarket?.likelyRegime ?? null) : null"
+            [intelligenceSummary]="cognition.summary">
+          </app-market-environment-ribbon>
+        }
+        @if (workspaceMode.isExecution() && !focusMode && !activeTradeMode) {
+          <app-filter-bar [filters]="workflowFilters" (filtersChange)="onFiltersChange($event)"></app-filter-bar>
+        }
       }
     </div>
   }
@@ -92,23 +120,26 @@
     <app-execution-state-banner [activeState]="executionState"></app-execution-state-banner>
   }
 
-  @if (workspaceMode.isExecution()) {
-  <div class="workspace-body" [class.sidebar-collapsed]="sidebarCollapsed"
-       [style.gridTemplateColumns]="sidebarCollapsed ? null : 'minmax(0, 1fr) ' + sidebarWidth + 'px'">
+  @if (workspaceMode.isExecution() && (!replayIsolation.isolated() || replayLabTab === 'replay')) {
+  <div class="workspace-body" [class.sidebar-collapsed]="sidebarCollapsed || replayIsolation.isolated()"
+       [class.replay-lab-body]="replayIsolation.isolated()"
+       [style.gridTemplateColumns]="(sidebarCollapsed || replayIsolation.isolated()) ? (replayIsolation.isolated() ? 'minmax(0, 1fr) 280px' : null) : 'minmax(0, 1fr) ' + sidebarWidth + 'px'">
     <main class="chart-main">
       <div class="chart-toolbar">
         <button type="button" class="toolbar-btn mobile-only" (click)="toggleMobileSidebar()">☰</button>
         @if (sidebarCollapsed) {
           <button type="button" class="toolbar-btn" (click)="toggleSidebar()">▶</button>
         }
-        <button type="button" class="toolbar-btn" [class.active]="miniMode" (click)="toggleMiniMode()">Mini</button>
-        <button type="button" class="toolbar-btn" [class.active]="focusMode && !activeTradeMode" (click)="toggleFocusMode()">Focus</button>
-        <button type="button" class="toolbar-btn" [class.active]="activeTradeMode" (click)="toggleActiveTradeMode()">Trade</button>
-        <div class="timeframe-toggle">
-          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'TODAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('TODAY')">TODAY</button>
-          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'MULTI_DAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('MULTI_DAY')">MULTI-DAY</button>
-          <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'REPLAY' || chartMode === 'REPLAY'" (click)="setChartTimeframe('REPLAY')">REPLAY</button>
-        </div>
+        @if (!replayIsolation.isolated()) {
+          <button type="button" class="toolbar-btn" [class.active]="miniMode" (click)="toggleMiniMode()">Mini</button>
+          <button type="button" class="toolbar-btn" [class.active]="focusMode && !activeTradeMode" (click)="toggleFocusMode()">Focus</button>
+          <button type="button" class="toolbar-btn" [class.active]="activeTradeMode" (click)="toggleActiveTradeMode()">Trade</button>
+          <div class="timeframe-toggle">
+            <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'TODAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('TODAY')">TODAY</button>
+            <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'MULTI_DAY' && chartMode === 'LIVE'" (click)="setChartTimeframe('MULTI_DAY')">MULTI-DAY</button>
+            <button type="button" class="toolbar-btn" [class.active]="chartTimeframe === 'REPLAY' || chartMode === 'REPLAY'" (click)="setChartTimeframe('REPLAY')">REPLAY</button>
+          </div>
+        }
         @if (chartMode === 'REPLAY') {
           <div class="replay-controls">
             <button type="button" class="toolbar-btn" [class.active]="replayPlaying" (click)="replayPlaying ? replayPause() : replayPlay()">
@@ -122,22 +153,20 @@
             }
           </div>
         }
-        <button type="button" class="toolbar-btn discovery-link" (click)="openAutonomousDiscoveryLab()" title="Autonomous Strategy Discovery Lab">
-          Discovery Lab
-        </button>
-        <button type="button" class="toolbar-btn" (click)="openExecutionConsole()" title="Trader operations console (Phase 184)">
-          Execution Console
-        </button>
-        <button type="button" class="toolbar-btn" (click)="openExecutionMonitor()" title="Paper execution lifecycle">
-          Monitor
-        </button>
-        @if (!miniMode) {
-          <button type="button" class="toolbar-btn" (click)="openCommandPalette()">⌘K</button>
-          <button type="button" class="toolbar-btn review-link" (click)="openReviewWorkspace('intelligence')">Review</button>
+        @if (!replayIsolation.isolated()) {
+          <button type="button" class="toolbar-btn discovery-link" (click)="openAutonomousDiscoveryLab()">Discovery Lab</button>
+          <button type="button" class="toolbar-btn" (click)="openExecutionConsole()">Execution Console</button>
+          <button type="button" class="toolbar-btn" (click)="openExecutionMonitor()">Monitor</button>
+          @if (!miniMode) {
+            <button type="button" class="toolbar-btn" (click)="openCommandPalette()">⌘K</button>
+            <button type="button" class="toolbar-btn review-link" (click)="openReviewWorkspace('intelligence')">Review</button>
+          }
+        } @else {
+          <a class="toolbar-btn review-link" routerLink="/execution-review">Execution Review</a>
         }
       </div>
 
-      @if (!miniMode) {
+      @if (!miniMode && !replayIsolation.isolated()) {
         <app-quick-action-bar
           [symbol]="selectedSymbol"
           [pinned]="isSelectedSymbolPinned"
@@ -149,13 +178,15 @@
       }
 
       <div class="chart-panel" [class.execution-overlay]="adaptiveLayout.executionOverlay" [style.height]="adaptiveLayout.chartHeight">
-        <app-best-setup-cta
-          [bestSetup]="bestSetup"
-          [selectedSymbol]="selectedSymbol"
-          [visible]="showBestSetupCta()"
-          (switchTo)="onSwitchToBestSetup($event)"
-          (dismiss)="dismissBestSetupCta()">
-        </app-best-setup-cta>
+        @if (!replayIsolation.isolated()) {
+          <app-best-setup-cta
+            [bestSetup]="bestSetup"
+            [selectedSymbol]="selectedSymbol"
+            [visible]="showBestSetupCta()"
+            (switchTo)="onSwitchToBestSetup($event)"
+            (dismiss)="dismissBestSetupCta()">
+          </app-best-setup-cta>
+        }
         @if (chartLoading) {
           <div class="chart-loading"><div class="spinner"></div><span>{{ loadingMessage }}</span></div>
         }
@@ -226,7 +257,7 @@
           [railSeparated]="!miniMode"
           (replayEventClick)="onChartReplayEvent($event)"
           (followLatestChange)="onFollowLatestChange($event)">
-          @if (!miniMode) {
+          @if (!miniMode && !replayIsolation.isolated()) {
             <div executionRail ngProjectAs="[executionRail]">
               <app-execution-panel
                 [symbol]="selectedSymbol" [signalType]="selectedSignalType" [source]="executionSource"
@@ -249,7 +280,7 @@
             </div>
           }
         </app-trading-chart>
-        @if (!miniMode) {
+        @if (!miniMode && !replayIsolation.isolated()) {
           <div class="execution-dock">
             @if (nextAction) {
               <app-next-action-panel [action]="nextAction" [aiHint]="aiCompactLine()" [calmMode]="calmMode" [intensityMode]="intensity.mode" [silenceActive]="gravity.silenceActive"></app-next-action-panel>
@@ -345,37 +376,53 @@
       }
     </main>
 
-    <div class="sidebar-resize" (mousedown)="startSidebarResize($event)"></div>
-
-    <app-trading-sidebar
-      [symbols]="watchlist"
-      [activeSignals]="filteredActiveSignals"
-      [bestSetup]="bestSetup"
-      [bestSetupWeak]="bestSetupWeak"
-      [emergingSetups]="emergingSetups" [focusMode]="focusMode || miniMode || activeTradeMode"
-      [radarCompact]="adaptiveLayout.sidebarCompact"
-      [sidebarLift]="gravity.sidebarLift"
-      [silenceActive]="gravity.silenceActive"
-      [temporalForget]="temporal.globalForget"
-      [intensityMode]="intensity.mode"
-      [scannerSnapshot]="scannerSnapshot"
-      [autonomousCards]="autonomousCards"
-      [topEnriched]="topEnrichedOpportunity"
-      [executionMode]="rtExecutionMode"
-      [marketTrend]="marketTrend" [status]="status" [selectedSymbol]="selectedSymbol"
-      [marketPersonality]="cognition.marketPersonality"
-      [loadingSymbols]="loadingSymbols" [symbolErrors]="symbolErrors" [searchLoading]="searchLoading"
-      [collapsed]="sidebarCollapsed" [mobileOpen]="mobileSidebarOpen"
-      (symbolSelected)="selectSymbol($event)" (symbolAdded)="onSymbolAdded($event)"
-      (symbolRemoved)="onSymbolRemoved($event)" (activeSignalSelected)="selectSymbol($event)"
-      (executionFocus)="onSidebarExecutionFocus($event)"
-      (executionModeChange)="onRtExecutionModeChange($event)"
-      (toggleCollapse)="toggleSidebar()" (closeMobile)="mobileSidebarOpen = false">
-    </app-trading-sidebar>
+    @if (!replayIsolation.isolated()) {
+      <div class="sidebar-resize" (mousedown)="startSidebarResize($event)"></div>
+      <app-trading-sidebar
+        [symbols]="watchlist"
+        [activeSignals]="filteredActiveSignals"
+        [bestSetup]="bestSetup"
+        [bestSetupWeak]="bestSetupWeak"
+        [emergingSetups]="emergingSetups" [focusMode]="focusMode || miniMode || activeTradeMode"
+        [radarCompact]="adaptiveLayout.sidebarCompact"
+        [sidebarLift]="gravity.sidebarLift"
+        [silenceActive]="gravity.silenceActive"
+        [temporalForget]="temporal.globalForget"
+        [intensityMode]="intensity.mode"
+        [scannerSnapshot]="scannerSnapshot"
+        [autonomousCards]="autonomousCards"
+        [topEnriched]="topEnrichedOpportunity"
+        [executionMode]="rtExecutionMode"
+        [marketTrend]="marketTrend" [status]="status" [selectedSymbol]="selectedSymbol"
+        [marketPersonality]="cognition.marketPersonality"
+        [loadingSymbols]="loadingSymbols" [symbolErrors]="symbolErrors" [searchLoading]="searchLoading"
+        [collapsed]="sidebarCollapsed" [mobileOpen]="mobileSidebarOpen"
+        (symbolSelected)="selectSymbol($event)" (symbolAdded)="onSymbolAdded($event)"
+        (symbolRemoved)="onSymbolRemoved($event)" (activeSignalSelected)="selectSymbol($event)"
+        (executionFocus)="onSidebarExecutionFocus($event)"
+        (executionModeChange)="onRtExecutionModeChange($event)"
+        (toggleCollapse)="toggleSidebar()" (closeMobile)="mobileSidebarOpen = false">
+      </app-trading-sidebar>
+    } @else {
+      <app-replay-review-sidebar
+        [symbol]="selectedSymbol"
+        [regime]="marketTrend?.regime ?? null"
+        [lifecycle]="replayLabLifecycleLabel()"
+        [entryQuality]="replayLabEntryQualityLabel()"
+        [exitQuality]="replayLabExitQualityLabel()"
+        [continuationCapture]="replayLabContinuationCapture()"
+        [mfe]="replayLabMfeLabel()"
+        [mae]="replayLabMaeLabel()"
+        [secondLeg]="replayLabSecondLegLabel()"
+        [persistenceQuality]="replayLabPersistenceQuality()"
+        [reviewSummary]="replayReviewSummary"
+        [coaching]="replayCoaching">
+      </app-replay-review-sidebar>
+    }
   </div>
   }
 
-  @if (workspaceMode.isReview()) {
+  @if (workspaceMode.isReview() && (!replayIsolation.isolated() || replayLabTab === 'review')) {
     <app-review-workspace
       [symbol]="selectedSymbol"
       [watchlist]="watchlistSymbolNames"

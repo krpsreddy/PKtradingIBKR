@@ -5,23 +5,26 @@
 > For session continuity, see [`SESSION_HANDOFF.md`](./SESSION_HANDOFF.md).  
 > Say **"prepare session handoff"** in Cursor to refresh the handoff doc.
 
-**Last updated:** 2026-05-25 · **Latest phase:** 169
+**Last updated:** 2026-05-25 · **Latest phase:** 212
 
 ---
 
 ## 1. System Architecture
 
-### High-level
+### High-level (dual runtime)
 
 ```
-IBKR Gateway → Spring Boot (8080) → PostgreSQL
-                    ↓ REST / snapshots
-              Angular Dashboard (4200)
-                    ↓
-         Execution workspace │ Review workspace
+                    ┌─ Spring Boot research (:8080) → Angular (:4200)
+                    │     Advisory · replay · Edge Lab · Execution Review (#/execution-review)
+IBKR Gateway ───────┤
+                    └─ Spring Boot evolution (:8180) → Angular (:4300) + Flutter mobile
+                          Auto 1-share paper · live scanner · portfolio orchestration (max 1 position)
 ```
 
-**Advisory only** — no autonomous order execution. Human trader decides all actions.
+- **Angular research platform:** decision support + post-market review; no auto broker orders.
+- **Evolution / PK Live Trader:** autonomous **paper** execution with safety gates + kill switch (human exits; no auto-exit yet).
+
+Session continuity: [`SESSION_HANDOFF.md`](./SESSION_HANDOFF.md).
 
 ### Backend modules (`src/main/java/com/tradingbot/`)
 
@@ -117,7 +120,7 @@ See §15 below.
 - **Lightweight continuous scanner** — 1s nano scan; no heavy replay rescoring during live mode
 - **Execution mode vs research mode** — `TraderOperatingModeService`: EXECUTION hides deep research tabs; RESEARCH shows full Edge Lab analytics
 - **Dual workspace** — `WorkspaceModeService`: `execution` (chart + sidebar) vs `review` (intelligence lab)
-- **Advisory only** — all scores, actions, and feed items are decision support; no order placement
+- **Advisory on Angular research** — feed/actions are decision support; **evolution profile** runs gated auto paper (see §19)
 - **Backend offload** — heavy intelligence computed server-side (Phase 164), frontend consumes snapshots
 - **Legacy adapters only** — OPEN_MOM, MOM_BUY, CONT_BUY exist in chart markers, signal table badges, HYBRID comparison path
 
@@ -140,6 +143,12 @@ See §15 below.
 | 167 | Real-time execution engine | 1s nano scan, strategy memory, live feed |
 | 168 | Review intelligence migration | Autonomous terminology, Opportunity Explorer, filters |
 | 169 | Conviction calibration + UX | Calibration engine, action dominance, lifecycle bar, theme tokens, trader operating mode |
+| 181–184 | Paper execution research | IBKR 1-share probes, exit research, assisted exit intelligence |
+| 185 | Flutter mobile | PK Live Trader operational app |
+| 187 | Live scanner | Realtime tier1 / live-scan for mobile |
+| 188 | Live trader terminal | Execution quality, lifecycle, telemetry, kill switch |
+| 189 | Portfolio orchestration | Max 1 position, queue/suppress/correlation |
+| 190 | Execution review | Angular post-market learning lab + replay launch |
 
 Phase docs: `docs/phases/PHASE_*.md`
 
@@ -478,6 +487,66 @@ When completing a new phase, append to this document:
 5. **Unresolved issues** — move to §9 and SESSION_HANDOFF
 
 Update **Last updated** date and **Latest phase** number at the top.
+
+---
+
+## 19. PK Live Trader / Evolution Stack (181–212)
+
+### Backend packages
+
+| Package | Role |
+|---------|------|
+| `com.tradingbot.paper` | Paper execution records, metrics, analytics |
+| `com.tradingbot.execution.paperintelligence` | Simulated fills, trailing, fill quality (Phase 210) |
+| `com.tradingbot.livetrader` | Snapshot, runtime, auto execution hook |
+| `com.tradingbot.livetrader.execution` | Quality, lifecycle, telemetry, safety |
+| `com.tradingbot.livetrader.portfolio` | Orchestration (max 1 position, queue) |
+| `com.tradingbot.intelligence.live` | Live scanner, rolling cache |
+| `com.tradingbot.bearish` + `bearishassist` | Long suppression, PUT assist (default LONG_PLUS_PUT_ASSIST) |
+| `com.tradingbot.executionintelligence` + `marketstructure` | Structure filter, entry quality (196–200) |
+| `com.tradingbot.sessionintelligence` | 9:00–9:30 ET premarket context only (Phase 211) |
+| `com.tradingbot.dataintegrity` | Runtime integrity, reconnect recovery (Phase 212) |
+| `com.tradingbot.broker` | IBKR profile switching |
+| `com.tradingbot.executionreview` | Post-market review APIs (Phase 190) |
+| `com.tradingbot.decisiontrace` | Operational decision traces |
+
+### Key APIs
+
+- Live trader: `/api/live-trader/*` (tier1, live-scan, portfolio-state, ops, kill-switch, **data-integrity**)
+- Session PM: `/api/session/premarket/*` (Phase 211)
+- Paper intelligence: `/api/execution/*` (Phase 210 review APIs)
+- Execution review: `/api/execution-review/*` (Phase 190 Angular)
+- Broker: `/api/broker/*`
+- Paper: `/api/paper-execution/*`
+
+### Frontend / mobile
+
+| App | Path | Route / usage |
+|-----|------|----------------|
+| Execution Review | `frontend/src/app/execution-review/` | `/execution-review` |
+| Flutter mobile | `pk-live-trader-mobile/` | Trader / Scanner / Monitor — bearish chips, integrity badge, PUT assist toggle |
+
+### Telemetry tables
+
+- `execution_telemetry` — auto paper + paper intelligence
+- `orchestration_telemetry` — portfolio decisions
+- `bearish_operational_trace` — Phase 209
+- `premarket_intelligence_snapshot` — Phase 211 summaries
+- `data_integrity_telemetry` — Phase 212 reconnect/stale/recovery events
+
+### Run
+
+```bash
+./start-evolution.sh      # dev: :8180 + :4300
+./build-production.sh && ./run-production.sh   # 24/7 JAR deploy — see docs/DEPLOY_QUICKSTART.md
+```
+
+### Execution safety (212 + policy)
+
+- `RuntimeIntegrityState`: LIVE, DELAYED, STALE, DEGRADED, RECOVERING, DISCONNECTED
+- RECOVERING blocks auto entry, adaptive exits, queue promotion until stabilization candles
+- Premarket (211): context only — no PM execution
+- No auto short / auto PUT (202 advisory only)
 
 ---
 

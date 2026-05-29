@@ -1,0 +1,197 @@
+<section class="ri60">
+  <header class="ri60-head">
+    <div>
+      <h2>60-Day Regime Intelligence</h2>
+      <p class="sub">Phase 203 · evidence from execution telemetry + decision traces · discovery only</p>
+    </div>
+    <div class="ri60-actions">
+      <div class="lookback">
+        @for (d of lookbackOptions; track d) {
+          <button type="button" class="lb-btn" [class.active]="lookbackDays === d" (click)="setLookback(d)">{{ d }}d</button>
+        }
+      </div>
+      <button type="button" class="refresh-btn" (click)="reload()" [disabled]="loading">
+        {{ loading ? 'Loading…' : 'Refresh' }}
+      </button>
+    </div>
+  </header>
+
+  @if (error) {
+    <div class="warn-banner">{{ error }}</div>
+  }
+
+  @if (report; as r) {
+    <div class="meta-row">
+      <span>{{ r.meta.fromDate }} → {{ r.meta.toDate }}</span>
+      <span>Closed trades <strong>{{ r.meta.closedTrades }}</strong></span>
+      <span>Decision traces <strong>{{ r.meta.decisionTraces }}</strong></span>
+    </div>
+
+    @if (r.insights.insights.length) {
+      <div class="insights-panel">
+        <h3>Discovery insights</h3>
+        <p class="disclaimer">{{ r.insights.disclaimer }}</p>
+        @for (line of r.insights.insights; track line) {
+          <p class="insight-line">{{ line }}</p>
+        }
+      </div>
+    }
+
+    <div class="panel">
+      <h3>Top regimes</h3>
+      <table class="ri-table">
+        <thead>
+          <tr>
+            <th>Regime</th><th>n</th><th>Win%</th><th>Avg R</th><th>Capture%</th><th>2nd leg%</th><th>Best env</th><th>Fail%</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of r.topRegimes; track row.regime) {
+            <tr>
+              <td>{{ row.regime }}</td>
+              <td>{{ row.tradeCount }}</td>
+              <td>{{ row.winRate }}%</td>
+              <td>{{ formatR(row.avgR) }}</td>
+              <td>{{ row.continuationCapturePct }}%</td>
+              <td>{{ row.secondLegSurvivalPct }}%</td>
+              <td>{{ row.bestEnvironment }}</td>
+              <td>{{ row.failureRate }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3>Market structure fit</h3>
+      <table class="ri-table compact">
+        <thead><tr><th>Regime</th><th>Structure</th><th>n</th><th>Capture%</th><th>Verdict</th></tr></thead>
+        <tbody>
+          @for (c of r.marketStructureFit; track c.regime + c.marketStructure) {
+            <tr>
+              <td>{{ c.regime }}</td><td>{{ c.marketStructure }}</td><td>{{ c.tradeCount }}</td>
+              <td>{{ c.continuationCapturePct }}%</td><td [class.weak]="c.verdict === 'WEAK'">{{ c.verdict }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3>Entry quality</h3>
+        <table class="ri-table compact">
+          <thead><tr><th>Grade</th><th>n</th><th>Win%</th><th>Capture%</th><th>Fail%</th></tr></thead>
+          <tbody>
+            @for (e of r.entryQuality; track e.entryQuality) {
+              <tr>
+                <td>{{ e.entryQuality }}</td><td>{{ e.tradeCount }}</td>
+                <td>{{ e.winRate }}%</td><td>{{ e.continuationCapturePct }}%</td><td>{{ e.failureProbability }}%</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Exit quality</h3>
+        <table class="ri-table compact">
+          <thead><tr><th>Exit</th><th>n</th><th>Capture%</th><th>Premature%</th></tr></thead>
+          <tbody>
+            @for (x of r.exitQuality; track x.exitType) {
+              <tr>
+                <td>{{ x.exitType }}</td><td>{{ x.tradeCount }}</td>
+                <td>{{ x.continuationCapturePct }}%</td><td>{{ x.prematureExitRate }}%</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Continuation capture (realized / MFE)</h3>
+      <table class="ri-table compact">
+        <thead><tr><th>Dimension</th><th>Bucket</th><th>n</th><th>Capture%</th><th>Avg R</th></tr></thead>
+        <tbody>
+          @for (c of r.continuationCapture; track c.dimension + c.bucket) {
+            <tr>
+              <td>{{ c.dimension }}</td><td>{{ c.bucket }}</td><td>{{ c.tradeCount }}</td>
+              <td>{{ c.continuationCapturePct }}%</td><td>{{ formatR(c.avgR) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h3>Session analysis</h3>
+        <table class="ri-table compact">
+          <thead><tr><th>Session</th><th>n</th><th>Win%</th><th>Capture%</th><th>Top regime</th></tr></thead>
+          <tbody>
+            @for (s of r.sessionAnalysis; track s.sessionPeriod) {
+              <tr>
+                <td>{{ s.sessionPeriod }}</td><td>{{ s.tradeCount }}</td>
+                <td>{{ s.winRate }}%</td><td>{{ s.continuationCapturePct }}%</td><td>{{ s.strongestRegime }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Sector analysis</h3>
+        <table class="ri-table compact">
+          <thead><tr><th>Sector</th><th>n</th><th>Win%</th><th>Capture%</th><th>Top regime</th></tr></thead>
+          <tbody>
+            @for (s of r.sectorAnalysis; track s.sector) {
+              <tr>
+                <td>{{ s.sector }}</td><td>{{ s.tradeCount }}</td>
+                <td>{{ s.winRate }}%</td><td>{{ s.continuationCapturePct }}%</td><td>{{ s.topRegime }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Bearish PUT assist</h3>
+      <table class="ri-table compact">
+        <thead><tr><th>State</th><th>Triggers</th><th>Avg bias</th><th>Note</th></tr></thead>
+        <tbody>
+          @for (b of r.bearishAnalysis; track b.bearishState) {
+            <tr><td>{{ b.bearishState }}</td><td>{{ b.triggerCount }}</td><td>{{ b.avgBias }}</td><td class="muted">{{ b.note }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel danger">
+      <h3>Failure clusters</h3>
+      <table class="ri-table compact">
+        <thead><tr><th>Cluster</th><th>Losses</th><th>Avg loss R</th><th>Share%</th></tr></thead>
+        <tbody>
+          @for (f of r.failureClusters; track f.clusterKey) {
+            <tr>
+              <td>{{ f.clusterKey }}</td><td>{{ f.lossCount }}</td>
+              <td>{{ formatR(f.avgLossR) }}</td><td>{{ f.shareOfLossesPct }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3>Decision trace analysis</h3>
+      <ul class="trace-list">
+        @for (t of r.decisionTraceAnalysis; track t.category) {
+          <li><strong>{{ t.category }}</strong> ({{ t.count }}) — {{ t.summary }}</li>
+        }
+      </ul>
+    </div>
+
+    <p class="arch-note muted">
+      Clustering: {{ r.clusterArchitecture.status }} — {{ r.clusterArchitecture.description }}
+    </p>
+  }
+</section>

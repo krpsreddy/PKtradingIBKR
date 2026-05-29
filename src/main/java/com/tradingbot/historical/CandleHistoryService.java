@@ -31,6 +31,18 @@ public class CandleHistoryService {
                 .findBySymbolAndTimeframeAndOpenTimeGreaterThanEqualOrderByOpenTimeAsc(sym, tf, since);
     }
 
+    /** Phase 205 — today's session bars (most recent N). */
+    public List<Candle> recentSessionCandles(String symbol, int maxBars) {
+        LocalDate today = MarketTime.nowLocal().toLocalDate();
+        List<Candle> todayBars = loadSessionCandles(symbol).stream()
+                .filter(c -> MarketTime.toMarketZoned(c.getOpenTime()).toLocalDate().equals(today))
+                .toList();
+        if (todayBars.size() <= maxBars) {
+            return todayBars;
+        }
+        return todayBars.subList(todayBars.size() - maxBars, todayBars.size());
+    }
+
     public List<Candle> loadSessionCandlesUntil(String symbol, LocalDate date) {
         return loadSessionCandles(symbol).stream()
                 .filter(c -> !MarketTime.toMarketZoned(c.getOpenTime()).toLocalDate().isAfter(date))

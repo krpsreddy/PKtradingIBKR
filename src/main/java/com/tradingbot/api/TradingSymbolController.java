@@ -1,5 +1,7 @@
 package com.tradingbot.api;
 
+import com.tradingbot.api.dto.BulkWatchlistImportRequest;
+import com.tradingbot.api.dto.BulkWatchlistImportResult;
 import com.tradingbot.api.dto.CreateTradingSymbolRequest;
 import com.tradingbot.api.dto.SymbolEnrichRequest;
 import com.tradingbot.api.dto.SymbolReorderRequest;
@@ -51,6 +53,17 @@ public class TradingSymbolController {
     public TradingSymbolDto createSymbol(@RequestBody CreateTradingSymbolRequest request) {
         TradingSymbol row = tradingSymbolService.createSymbol(request);
         return dashboardService.enrichSymbol(row);
+    }
+
+    /** One-shot bulk watchlist load — idempotent, de-duplicates symbols. */
+    @PostMapping("/bulk-watchlist")
+    public BulkWatchlistImportResult bulkWatchlist(@RequestBody BulkWatchlistImportRequest request) {
+        return tradingSymbolService.bulkImportWatchlist(
+                request.getSymbols(),
+                request.getGroupName(),
+                request.getScanEnabled(),
+                request.getSubscribeLive(),
+                request.getPreloadOnStartup());
     }
 
     @PutMapping("/{symbol}")

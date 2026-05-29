@@ -1,0 +1,217 @@
+<div class="exec-review">
+  <header class="er-header">
+    <div>
+      <a routerLink="/" class="back">← Research home</a>
+      <h1>Execution Review</h1>
+      <p class="sub">Phase 190 · post-market autonomous execution intelligence · replay-first</p>
+    </div>
+    <nav class="er-nav">
+      <a routerLink="/execution-monitor">Monitor</a>
+      <a routerLink="/execution-console">Console</a>
+      <a routerLink="/exit-research">Exit Research</a>
+    </nav>
+  </header>
+
+  <section class="filters panel">
+    <h2>Filters</h2>
+    <div class="filter-grid">
+      <label>Session date <input type="date" [(ngModel)]="filters.date" (change)="refresh()" /></label>
+      <label>Symbol <input [(ngModel)]="filters.symbol" placeholder="NVDA" /></label>
+      <label>Regime <input [(ngModel)]="filters.regime" placeholder="SHALLOW_PULLBACK" /></label>
+      <label>Lifecycle <input [(ngModel)]="filters.lifecycle" placeholder="PERSISTING" /></label>
+      <label>Outcome
+        <select [(ngModel)]="filters.outcome">
+          <option value="">All</option>
+          <option value="WIN">Win</option>
+          <option value="LOSS">Loss</option>
+          <option value="OPEN">Open</option>
+        </select>
+      </label>
+      <label>Entry quality
+        <select [(ngModel)]="filters.entryQuality">
+          <option value="">All</option>
+          <option value="IDEAL">Ideal</option>
+          <option value="EARLY">Early</option>
+          <option value="CHASED">Chased</option>
+          <option value="WEAK">Weak</option>
+        </select>
+      </label>
+      <label>Exit quality
+        <select [(ngModel)]="filters.exitQuality">
+          <option value="">All</option>
+          <option value="OPTIMAL">Optimal</option>
+          <option value="PREMATURE">Premature</option>
+          <option value="MISSED_SECOND_LEG">Missed second leg</option>
+        </select>
+      </label>
+      <button type="button" class="btn-apply" (click)="refresh()">Apply</button>
+    </div>
+  </section>
+
+  @if (loading) {
+    <p class="loading">Loading execution review…</p>
+  }
+  @if (error) {
+    <p class="error">{{ error }}</p>
+  }
+
+  @if (summary && !loading) {
+    <section class="summary panel">
+      <h2>Daily Execution Summary</h2>
+      <p class="session-tag">{{ summary.sessionDate }}</p>
+      <div class="card-row">
+        <div class="card"><span class="lbl">Trades</span><strong>{{ summary.totalTrades }}</strong></div>
+        <div class="card"><span class="lbl">Win rate</span><strong>{{ summary.winRate | number:'1.0-1' }}%</strong></div>
+        <div class="card"><span class="lbl">Realized P&amp;L</span><strong>{{ formatR(summary.realizedPnlR) }}</strong></div>
+        <div class="card"><span class="lbl">Expectancy</span><strong>{{ formatR(summary.expectancyR) }}</strong></div>
+        <div class="card"><span class="lbl">Avg R</span><strong>{{ formatR(summary.avgR) }}</strong></div>
+        <div class="card highlight"><span class="lbl">Continuation capture</span><strong>{{ summary.continuationCapturePct | number:'1.0-0' }}%</strong></div>
+        <div class="card"><span class="lbl">Best regime</span><strong class="good">{{ formatLabel(summary.bestRegime) }}</strong></div>
+        <div class="card"><span class="lbl">Worst regime</span><strong class="bad">{{ formatLabel(summary.worstRegime) }}</strong></div>
+        <div class="card"><span class="lbl">Queue miss score</span><strong>{{ summary.queueMissScore | number:'1.0-1' }}%</strong></div>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <section class="panel trades-panel">
+        <h2>Trade Review Grid</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th><th>Regime</th><th>Conv</th><th>Dom</th><th>Entry Q</th><th>Exit Q</th>
+                <th>MFE</th><th>MAE</th><th>R</th><th>Cap %</th><th>Hold</th><th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of trades; track t.telemetryId) {
+                <tr [class.selected]="selected?.telemetryId === t.telemetryId" (click)="selectTrade(t)">
+                  <td><strong>{{ t.symbol }}</strong></td>
+                  <td class="muted">{{ formatLabel(t.regime) }}</td>
+                  <td>{{ t.conviction }}</td>
+                  <td>{{ t.dominance }}</td>
+                  <td><span class="badge" [ngClass]="qualityClass(t.entryQuality)">{{ t.entryQuality }}</span></td>
+                  <td><span class="badge" [ngClass]="qualityClass(t.exitQuality)">{{ t.exitQuality }}</span></td>
+                  <td>{{ formatR(t.mfeR) }}</td>
+                  <td>{{ formatR(t.maeR) }}</td>
+                  <td [ngClass]="outcomeClass(t.outcome)">{{ formatR(t.realizedR) }}</td>
+                  <td>{{ t.continuationCapturePct | number:'1.0-0' }}%</td>
+                  <td>{{ t.holdDurationSec ?? '—' }}s</td>
+                  <td><span class="badge" [ngClass]="outcomeClass(t.outcome)">{{ t.outcome }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (!trades.length) {
+          <p class="muted empty">No closed autonomous executions for this session yet.</p>
+        }
+      </section>
+
+      @if (selected) {
+        <aside class="detail panel">
+          <h2>{{ selected.symbol }} — Review</h2>
+          <p class="narrative">{{ selected.narrative }}</p>
+          <div class="detail-actions">
+            <button type="button" class="btn-replay" (click)="openReplay(selected)">Open synchronized replay</button>
+          </div>
+
+          <h3>Execution timeline</h3>
+          <div class="timeline">
+            @for (ev of selected.timeline; track ev.phase + ev.timestampMs) {
+              <div class="tl-step">
+                <span class="tl-phase">{{ ev.phase }}</span>
+                <span class="tl-time">{{ formatTime(ev.timestampMs) }}</span>
+                <span class="tl-meta">Dom {{ ev.dominance ?? '—' }} · Pers {{ ev.persistence ?? '—' }} · Vel {{ ev.velocity ?? '—' }}</span>
+                @if (ev.note) { <span class="tl-note">{{ ev.note }}</span> }
+              </div>
+            }
+          </div>
+
+          <h3>Entry / exit quality</h3>
+          <div class="quality-row">
+            <span class="badge ideal">{{ selected.entryQuality }}</span>
+            <span class="arrow">→</span>
+            <span class="badge exit-q">{{ selected.exitQuality }}</span>
+          </div>
+        </aside>
+      }
+    </div>
+
+    <section class="panel continuation-panel">
+      <h2>Continuation Monetization</h2>
+      <div class="cap-grid">
+        @for (c of continuation; track c.telemetryId) {
+          <div class="cap-card">
+            <strong>{{ c.symbol }}</strong>
+            <span>Capture {{ c.capturePct | number:'1.0-0' }}%</span>
+            <span>MFE cap {{ c.mfeCapturePct | number:'1.0-0' }}%</span>
+            <span>2nd leg {{ c.secondLegCapturePct | number:'1.0-0' }}%</span>
+            <span>Trail {{ c.trailEfficiencyPct | number:'1.0-0' }}%</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel">
+        <h2>Regime Performance</h2>
+        @for (r of regimes; track r.regime) {
+          <div class="regime-block">
+            <h3>{{ formatLabel(r.regime) }}</h3>
+            <div class="regime-stats">
+              <span>{{ r.tradeCount }} trades</span>
+              <span>WR {{ r.winRate | number:'1.0-0' }}%</span>
+              <span>Exp {{ formatR(r.expectancyR) }}</span>
+              <span>Cont {{ r.continuationCapturePct | number:'1.0-0' }}%</span>
+              <span>Persist surv {{ r.persistenceSurvivalPct | number:'1.0-0' }}%</span>
+              <span>2nd leg {{ r.secondLegSuccessPct | number:'1.0-0' }}%</span>
+              <span class="muted">Best session: {{ r.bestSession }}</span>
+            </div>
+          </div>
+        }
+      </section>
+
+      <section class="panel">
+        <h2>Market Context (Session)</h2>
+        @for (s of sessions; track s.sessionPeriod) {
+          <div class="session-block">
+            <h3>{{ formatLabel(s.sessionPeriod) }}</h3>
+            <p class="muted">{{ s.marketContext }}</p>
+            <span>{{ s.trades }} trades · WR {{ s.winRate | number:'1.0-0' }}% · Avg {{ formatR(s.avgR) }}</span>
+          </div>
+        }
+      </section>
+    </div>
+
+    <section class="panel queue-panel">
+      <h2>Queue vs Active Analysis</h2>
+      @if (queue) {
+        <p class="muted">Queued beat active: {{ queue.queueOutperformedActive }} · Correct suppressions: {{ queue.correctSuppressions }}</p>
+        <h3>Queued</h3>
+        @for (q of queue.queuedVsActive; track q.symbol + q.recordedAtMs) {
+          <div class="queue-row" [ngClass]="q.verdict.toLowerCase()">
+            <strong>{{ q.symbol }}</strong>
+            <span>{{ q.verdict }}</span>
+            <span class="muted">{{ q.note }}</span>
+          </div>
+        }
+        <h3>Suppressed</h3>
+        @for (q of queue.suppressions; track q.symbol + q.recordedAtMs) {
+          <div class="queue-row suppressed">
+            <strong>{{ q.symbol }}</strong>
+            <span>{{ q.orchestrationState }}</span>
+            <span class="muted">{{ q.reason ?? q.note }}</span>
+          </div>
+        }
+        <h3>Replacement advisory</h3>
+        @for (q of queue.replacementAdvisories; track q.symbol + q.recordedAtMs) {
+          <div class="queue-row replacement">
+            <strong>{{ q.symbol }}</strong>
+            <span class="muted">{{ q.note }}</span>
+          </div>
+        }
+      }
+    </section>
+  }
+</div>

@@ -37,6 +37,11 @@ public interface EvaluatedSignalSnapshotRepository extends JpaRepository<Evaluat
     List<EvaluatedSignalSnapshotEntity> findBySymbolAndSessionDateGreaterThanEqualOrderByTimestampMsDesc(
             String symbol, LocalDate since);
 
+    List<EvaluatedSignalSnapshotEntity> findByTimestampMsGreaterThanEqualAndAnalyticsVersionOrderByTimestampMsDesc(
+            Long fromTs, Integer analyticsVersion, Pageable pageable);
+
+    long countByTimestampMsGreaterThanEqualAndAnalyticsVersion(Long fromTs, Integer analyticsVersion);
+
     List<EvaluatedSignalSnapshotEntity> findBySymbolAndSessionDateGreaterThanEqualAndAnalyticsVersionOrderByTimestampMsDesc(
             String symbol, LocalDate since, Integer analyticsVersion);
 

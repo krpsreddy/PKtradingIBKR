@@ -5,10 +5,17 @@ import com.ib.client.EClientSocket;
 import com.ib.client.EJavaSignal;
 import com.ib.client.EReader;
 import com.ib.client.TickType;
+import com.tradingbot.broker.connection.BrokerConnectionLifecycleListener;
+import com.tradingbot.broker.model.BrokerProfile;
 import com.tradingbot.candle.CandleAggregatorService;
 import com.tradingbot.config.IBKRProperties;
 import com.tradingbot.config.TradingProperties;
 import com.tradingbot.services.MarketTime;
+import com.tradingbot.ibkr.connection.IbkrConnectionPhase;
+import com.tradingbot.ibkr.connection.IbkrReadinessGate;
+import com.tradingbot.ibkr.connection.VerifiedStreamRegistry;
+import com.tradingbot.ibkr.diagnostics.StreamPipelineDiagnostics;
+import com.tradingbot.ibkr.stream.DynamicLiveStreamOrchestrator;
 import com.tradingbot.services.TradingSymbolService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -19,11 +26,13 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Service
@@ -39,6 +48,10 @@ public class IBKRClientService {
     private final ObjectProvider<SubscriptionManagerService> subscriptionManagerProvider;
     private final ObjectProvider<TradingSymbolService> tradingSymbolServiceProvider;
     private final ObjectProvider<com.tradingbot.paper.PaperExecutionMetricsService> paperMetricsProvider;
+    private final ObjectProvider<DynamicLiveStreamOrchestrator> dynamicStreamOrchestratorProvider;
+    private final IbkrReadinessGate readinessGate;
+    private final VerifiedStreamRegistry verifiedStreamRegistry;
+    private final StreamPipelineDiagnostics streamDiagnostics;
 
     private final EJavaSignal signal = new EJavaSignal();
     private IBKRWrapper wrapper;
@@ -50,8 +63,20 @@ public class IBKRClientService {
     private final AtomicBoolean ready = new AtomicBoolean(false);
     private final AtomicInteger nextOrderId = new AtomicInteger(0);
     private final AtomicBoolean liveSubscribed = new AtomicBoolean(false);
+    private final AtomicBoolean marketDataFallbackApplied = new AtomicBoolean(false);
+    private final AtomicInteger marketDataEntitlementErrors = new AtomicInteger(0);
     private final AtomicInteger reconnectAttempts = new AtomicInteger(0);
     private static final int MAX_RECONNECT_ATTEMPTS = 10;
+    private static final int MAX_CLIENT_ID_OFFSET = 32;
+
+    private final AtomicReference<BrokerProfile> activeProfile = new AtomicReference<>();
+    private final AtomicBoolean autoReconnectEnabled = new AtomicBoolean(true);
+    private final AtomicBoolean managerControlled = new AtomicBoolean(true);
+    private volatile BrokerConnectionLifecycleListener lifecycleListener;
+    private volatile String connectHost;
+    private volatile int connectPort;
+    private volatile int connectClientId;
+    private volatile String lastConnectProfileId;
 
     private final Map<Integer, String> tickerSymbols = new ConcurrentHashMap<>();
     private final Map<String, Integer> symbolToTickerId = new ConcurrentHashMap<>();
@@ -68,7 +93,11 @@ public class IBKRClientService {
                              HistoricalDataService historicalDataService,
                              ObjectProvider<SubscriptionManagerService> subscriptionManagerProvider,
                              ObjectProvider<TradingSymbolService> tradingSymbolServiceProvider,
-                             ObjectProvider<com.tradingbot.paper.PaperExecutionMetricsService> paperMetricsProvider) {
+                             ObjectProvider<com.tradingbot.paper.PaperExecutionMetricsService> paperMetricsProvider,
+                             ObjectProvider<DynamicLiveStreamOrchestrator> dynamicStreamOrchestratorProvider,
+                             IbkrReadinessGate readinessGate,
+                             VerifiedStreamRegistry verifiedStreamRegistry,
+                             StreamPipelineDiagnostics streamDiagnostics) {
         this.properties = properties;
         this.tradingProperties = tradingProperties;
         this.candleAggregatorService = candleAggregatorService;
@@ -76,77 +105,192 @@ public class IBKRClientService {
         this.subscriptionManagerProvider = subscriptionManagerProvider;
         this.tradingSymbolServiceProvider = tradingSymbolServiceProvider;
         this.paperMetricsProvider = paperMetricsProvider;
+        this.dynamicStreamOrchestratorProvider = dynamicStreamOrchestratorProvider;
+        this.readinessGate = readinessGate;
+        this.verifiedStreamRegistry = verifiedStreamRegistry;
+        this.streamDiagnostics = streamDiagnostics;
+    }
+
+    @PostConstruct
+    void wireIbkrReady() {
+        readinessGate.onIbkrReady(this::finalizeIbkrReady);
     }
 
     public EClientSocket getApiClient() {
         return client;
     }
 
-    @PostConstruct
-    public void start() {
-        try {
-            wrapper = new IBKRWrapper(this, historicalDataService);
-            client = new EClientSocket(wrapper, signal);
-            connect();
-        } catch (Throwable e) {
-            log.error("IBKR initial connection failed — app will continue; reconnect scheduled", e);
-            scheduleReconnect();
-        }
-    }
-
     @PreDestroy
     public void shutdown() {
-        disconnect();
+        autoReconnectEnabled.set(false);
+        gracefulDisconnectForSwitch();
+    }
+
+    public void setConnectionLifecycleListener(BrokerConnectionLifecycleListener listener) {
+        this.lifecycleListener = listener;
+    }
+
+    public void setAutoReconnectEnabled(boolean enabled) {
+        autoReconnectEnabled.set(enabled);
+    }
+
+    public BrokerProfile getActiveProfile() {
+        return activeProfile.get();
+    }
+
+    public Map<String, Integer> exportSymbolTickerMap() {
+        return new HashMap<>(symbolToTickerId);
+    }
+
+    /** Dynamic profile connect — no backend restart. */
+    public synchronized void connectWithProfile(BrokerProfile profile) {
+        activeProfile.set(profile);
+        connectHost = profile.host();
+        connectPort = profile.port();
+        boolean profileChanged = lastConnectProfileId == null || !profile.id().equals(lastConnectProfileId);
+        lastConnectProfileId = profile.id();
+        if (profileChanged || connectClientId <= 0) {
+            connectClientId = profile.clientId();
+        }
+        managerControlled.set(true);
+        ready.set(false);
+        liveSubscribed.set(false);
+        readinessGate.reset();
+
+        if (client == null) {
+            wrapper = new IBKRWrapper(this, historicalDataService);
+            client = new EClientSocket(wrapper, signal);
+        }
+        connectSocket();
     }
 
     public synchronized void connect() {
-        if (connected.get()) {
+        if (activeProfile.get() == null) {
+            BrokerProfile fallback = new BrokerProfile(
+                    "default", "IBKR Default",
+                    properties.getHost(), properties.getPort(), properties.getClientId(),
+                    properties.getPort() == properties.getLivePort()
+                            ? com.tradingbot.broker.model.BrokerMode.LIVE
+                            : com.tradingbot.broker.model.BrokerMode.PAPER,
+                    true, true, "IBKR");
+            connectWithProfile(fallback);
             return;
         }
-        log.info("Connecting to IB Gateway at {}:{} clientId={}",
-                properties.getHost(), properties.getPort(), properties.getClientId());
-        client.eConnect(properties.getHost(), properties.getPort(), properties.getClientId());
+        connectSocket();
+    }
+
+    private synchronized void connectSocket() {
+        if (connected.get() && client != null && client.isConnected()) {
+            return;
+        }
+        teardownReader();
+        wrapper = new IBKRWrapper(this, historicalDataService);
+        client = new EClientSocket(wrapper, signal);
+
+        String host = connectHost != null ? connectHost : properties.getHost();
+        int port = connectPort > 0 ? connectPort : properties.getPort();
+        int clientId = connectClientId > 0 ? connectClientId : properties.getClientId();
+
+        log.info("Connecting to IBKR at {}:{} clientId={} profile={}",
+                host, port, clientId,
+                activeProfile.get() != null ? activeProfile.get().id() : "default");
+        client.eConnect(host, port, clientId);
         if (!client.isConnected()) {
-            scheduleReconnect();
+            if (!managerControlled.get()) {
+                scheduleReconnect();
+            }
             return;
         }
         startReader();
         connected.set(true);
         reconnectAttempts.set(0);
+        readinessGate.onSocketConnected();
+        streamDiagnostics.recordPhase(IbkrConnectionPhase.SOCKET_CONNECTED);
+        streamDiagnostics.recordLifecycle("SOCKET", "connected");
         log.info("IBKR socket connected");
-        addConnectionLog("Connected to IB Gateway at " + properties.getHost() + ":" + properties.getPort());
+        addConnectionLog("Connected to IBKR at " + host + ":" + port);
+        BrokerConnectionLifecycleListener listener = lifecycleListener;
+        if (listener != null && activeProfile.get() != null) {
+            listener.onSocketConnected(activeProfile.get());
+        }
     }
 
     private void startReader() {
         reader = new EReader(client, signal);
         reader.start();
-        readerThread = new Thread(() -> {
-            while (client.isConnected()) {
-                signal.waitForSignal();
-                try {
-                    reader.processMsgs();
-                } catch (Exception e) {
-                    log.error("Error processing IBKR messages", e);
-                }
-            }
-        }, "ibkr-reader");
+        readerThread = new Thread(this::runReaderLoop, "ibkr-reader");
         readerThread.setDaemon(true);
         readerThread.start();
     }
 
-    public synchronized void disconnect() {
+    private void runReaderLoop() {
+        while (!Thread.currentThread().isInterrupted()) {
+            EReader activeReader = reader;
+            EClientSocket activeClient = client;
+            if (activeReader == null || activeClient == null || !activeClient.isConnected()) {
+                break;
+            }
+            signal.waitForSignal();
+            activeReader = reader;
+            activeClient = client;
+            if (activeReader == null || activeClient == null || !activeClient.isConnected()) {
+                break;
+            }
+            try {
+                activeReader.processMsgs();
+            } catch (Exception e) {
+                if (activeReader != reader || activeClient != client || !activeClient.isConnected()) {
+                    break;
+                }
+                log.error("Error processing IBKR messages", e);
+            }
+        }
+    }
+
+    /** Profile switch — keeps subscription registry; clears local maps only. */
+    public synchronized void gracefulDisconnectForSwitch() {
         connected.set(false);
         ready.set(false);
         liveSubscribed.set(false);
+        readinessGate.reset();
+        streamDiagnostics.recordPhase(IbkrConnectionPhase.DISCONNECTED);
+        verifiedStreamRegistry.clearAll();
+        teardownReader();
         if (client != null && client.isConnected()) {
-            for (Integer tickerId : tickerSymbols.keySet()) {
-                client.cancelMktData(tickerId);
+            for (Integer tickerId : new ArrayList<>(tickerSymbols.keySet())) {
+                try {
+                    client.cancelMktData(tickerId);
+                } catch (Exception ignored) {
+                    /* socket may already be closing */
+                }
             }
             tickerSymbols.clear();
             symbolToTickerId.clear();
+            lastPrices.clear();
+            lastVolumes.clear();
+            lastTickEpochMs.clear();
             subscriptionManagerProvider.ifAvailable(SubscriptionManagerService::clearAll);
             client.eDisconnect();
-            log.info("Disconnected from IB Gateway");
+            log.info("IBKR graceful disconnect for profile switch");
+            addConnectionLog("Disconnected (profile switch)");
+        }
+    }
+
+    public synchronized void disconnect() {
+        gracefulDisconnectForSwitch();
+    }
+
+    private void teardownReader() {
+        reader = null;
+        Thread t = readerThread;
+        readerThread = null;
+        if (t != null && t.isAlive()) {
+            t.interrupt();
+            try {
+                t.join(1500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -156,16 +300,77 @@ public class IBKRClientService {
 
     void onNextValidId(int orderId) {
         nextOrderId.set(orderId);
+        readinessGate.onNextValidId();
+        streamDiagnostics.recordPhase(readinessGate.phase());
         log.info("IBKR next order id baseline={}", orderId);
     }
 
-    void onReady() {
+    void onManagedAccounts() {
+        readinessGate.onManagedAccounts();
+        streamDiagnostics.recordPhase(readinessGate.phase());
+    }
+
+    void onMarketDataFarmHealthy() {
+        readinessGate.onMarketDataFarmHealthy();
+        streamDiagnostics.recordPhase(readinessGate.phase());
+    }
+
+    /**
+     * IBKR 10168 — live/delayed API quotes unavailable (entitlement or TWS delayed-data disabled).
+     */
+    void onMarketDataEntitlementError(int tickerId, String errorMsg) {
+        int n = marketDataEntitlementErrors.incrementAndGet();
+        streamDiagnostics.recordMarketDataEntitlementError();
+        if (n == 1) {
+            log.error(
+                    "IBKR market data entitlement missing (code 10168). "
+                            + "Enable 'Delayed market data' in TWS API settings, or set ibkr.market-data-type=3, "
+                            + "or add live API subscriptions. Detail: {}",
+                    errorMsg
+            );
+            streamDiagnostics.recordLifecycle("MD_ENTITLEMENT", errorMsg != null ? errorMsg : "10168");
+        } else if (n % 20 == 0) {
+            log.warn("IBKR 10168 entitlement errors count={}", n);
+        }
+        if (properties.getMarketDataType() == 1 && marketDataFallbackApplied.compareAndSet(false, true)) {
+            log.warn("Falling back to delayed market data type 3 after 10168 (requires delayed enabled in TWS)");
+            if (client != null && client.isConnected()) {
+                client.reqMarketDataType(3);
+                addConnectionLog("Market data type fallback 1→3 (10168 entitlement)");
+            }
+        }
+    }
+
+    public int marketDataEntitlementErrorCount() {
+        return marketDataEntitlementErrors.get();
+    }
+
+    private void finalizeIbkrReady() {
         if (!ready.compareAndSet(false, true)) {
             return;
         }
+        streamDiagnostics.recordPhase(IbkrConnectionPhase.IBKR_READY);
+        streamDiagnostics.recordLifecycle("IBKR_READY", "market data bootstrap");
         int dataType = properties.getMarketDataType();
         client.reqMarketDataType(dataType);
-        log.info("IBKR market data type set to {} (1=live, 3=delayed)", dataType);
+        log.info("IBKR_READY — market data type {} (1=live, 3=delayed)", dataType);
+
+        if (managerControlled.get()) {
+            BrokerConnectionLifecycleListener listener = lifecycleListener;
+            BrokerProfile profile = activeProfile.get();
+            if (listener != null && profile != null) {
+                listener.onReady(profile);
+            }
+            return;
+        }
+        requestHistoricalThenLive();
+    }
+
+    /** First connect when registry empty — bootstrap watchlist streams. */
+    public void bootstrapDefaultSubscriptions() {
+        if (!liveSubscribed.compareAndSet(false, true)) {
+            return;
+        }
         requestHistoricalThenLive();
     }
 
@@ -197,10 +402,7 @@ public class IBKRClientService {
     private List<String> resolveLiveSubscribeSymbols() {
         TradingSymbolService tradingSymbolService = tradingSymbolServiceProvider.getIfAvailable();
         if (tradingSymbolService != null) {
-            List<String> live = tradingSymbolService.findSubscribeLive().stream()
-                    .map(s -> s.getSymbol().toUpperCase())
-                    .distinct()
-                    .toList();
+            List<String> live = tradingSymbolService.resolveLiveSubscribeSymbols(properties.getMaxLiveStreams());
             if (!live.isEmpty()) {
                 return live;
             }
@@ -235,16 +437,30 @@ public class IBKRClientService {
         if (!liveSubscribed.compareAndSet(false, true)) {
             return;
         }
+        var orchestrator = dynamicStreamOrchestratorProvider.getIfAvailable();
+        if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+            orchestrator.bootstrapLiveStreams();
+            addConnectionLog("Dynamic live streams allocated (max "
+                    + properties.getMaxLiveStreams() + " realtime slots)");
+            return;
+        }
         List<String> symbols = resolveLiveSubscribeSymbols();
-        int tickerId = TICKER_ID_BASE;
+        var mgr = subscriptionManagerProvider.getIfAvailable();
+        if (mgr == null) {
+            return;
+        }
+        int subscribed = 0;
         for (String symbol : symbols) {
-            final int id = tickerId;
-            subscribeToSymbol(symbol, id);
-            subscriptionManagerProvider.ifAvailable(mgr -> mgr.registerSubscription(symbol, id));
-            tickerId++;
+            if (mgr.subscribeIfNeeded(symbol)) {
+                subscribed++;
+            }
             pause(HISTORICAL_PACING_MS);
         }
-        addConnectionLog("Live streaming enabled for " + symbols.size() + " symbols");
+        addConnectionLog("Live streaming enabled for " + subscribed + "/" + symbols.size() + " symbols");
+    }
+
+    void onMaxTickersReached() {
+        subscriptionManagerProvider.ifAvailable(SubscriptionManagerService::onTickerCapReached);
     }
 
     void onHistoricalBar(int reqId, com.ib.client.Bar bar) {
@@ -274,10 +490,45 @@ public class IBKRClientService {
         connected.set(false);
         ready.set(false);
         liveSubscribed.set(false);
-        scheduleReconnect();
+        streamDiagnostics.recordReconnect("DISCONNECTED", "socket closed");
+        teardownReader();
+        BrokerConnectionLifecycleListener listener = lifecycleListener;
+        if (listener != null) {
+            listener.onDisconnected();
+            return;
+        }
+        if (autoReconnectEnabled.get()) {
+            scheduleReconnect();
+        }
+    }
+
+    /** IBKR error 326 — client id already in use (stale session or duplicate connect). */
+    void onClientIdInUse() {
+        int base = com.tradingbot.config.IbkrClientIdResolver.baseClientId(properties);
+        int current = connectClientId > 0 ? connectClientId : base;
+        if (current >= base + MAX_CLIENT_ID_OFFSET) {
+            log.error(
+                    "IBKR client id {} still in use after {} retries — stop other API clients or change ibkr.clientId",
+                    current, MAX_CLIENT_ID_OFFSET
+            );
+            return;
+        }
+        connectClientId = current + 1;
+        log.warn(
+                "IBKR client id {} in use — next connect will use clientId={} (base ibkr.clientId={})",
+                current, connectClientId, base
+        );
+    }
+
+    /** Effective client id for this socket (may differ from profile after 326 recovery). */
+    public int effectiveClientId() {
+        return connectClientId > 0 ? connectClientId : properties.getClientId();
     }
 
     private void scheduleReconnect() {
+        if (managerControlled.get() && !autoReconnectEnabled.get()) {
+            return;
+        }
         int attempt = reconnectAttempts.incrementAndGet();
         if (attempt > MAX_RECONNECT_ATTEMPTS) {
             log.error("Max IBKR reconnect attempts reached");
@@ -287,11 +538,13 @@ public class IBKRClientService {
         Thread reconnectThread = new Thread(() -> {
             try {
                 Thread.sleep(5000L * attempt);
-                wrapper = new IBKRWrapper(this, historicalDataService);
-                client = new EClientSocket(wrapper, signal);
                 ready.set(false);
                 liveSubscribed.set(false);
-                connect();
+                if (activeProfile.get() != null) {
+                    connectWithProfile(activeProfile.get());
+                } else {
+                    connect();
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Throwable e) {
@@ -302,8 +555,18 @@ public class IBKRClientService {
         reconnectThread.start();
     }
 
-    public void subscribeToSymbol(String symbol, int tickerId) {
+    public boolean subscribeToSymbol(String symbol, int tickerId) {
         String sym = symbol.toUpperCase();
+        if (!isConnected()) {
+            log.warn("Cannot subscribe {} — not connected", sym);
+            streamDiagnostics.recordSubscriptionAttempt(sym, false, "not connected");
+            return false;
+        }
+        if (!isIbkrReady()) {
+            log.warn("Cannot subscribe {} — IBKR handshake incomplete", sym);
+            streamDiagnostics.recordSubscriptionAttempt(sym, false, "not ready");
+            return false;
+        }
         Contract contract = historicalDataService.buildStockContract(sym);
         tickerSymbols.put(tickerId, sym);
         symbolToTickerId.put(sym, tickerId);
@@ -311,18 +574,32 @@ public class IBKRClientService {
         client.reqMktData(tickerId, contract, "", false, false, null);
         log.info("Subscribed to live market data: {} (tickerId={})", sym, tickerId);
         addConnectionLog("Subscribed live stream for " + sym);
+        streamDiagnostics.recordSubscriptionAttempt(sym, true, "reqMktData");
+        return true;
+    }
+
+    public int activeMarketDataLineCount() {
+        return tickerSymbols.size();
     }
 
     public void fireHistoricalRequest(HistoricalDataService.HistoricalPreloadJob job) {
+        fireRecoveryHistoricalRequest(job, -1);
+    }
+
+    /** Phase 212 — recovery backfill with short duration (minutes → IBKR seconds string). */
+    public void fireRecoveryHistoricalRequest(HistoricalDataService.HistoricalPreloadJob job, int durationMinutes) {
         if (!isConnected()) {
             log.warn("Cannot request historical for {} — not connected", job.symbol());
             return;
         }
+        String duration = durationMinutes > 0
+                ? historicalDataService.recoveryDurationForReqId(job.reqId())
+                : tradingProperties.getIbkrHistoricalDuration();
         client.reqHistoricalData(
                 job.reqId(),
                 job.contract(),
                 "",
-                tradingProperties.getIbkrHistoricalDuration(),
+                duration,
                 "5 mins",
                 "TRADES",
                 1,
@@ -330,7 +607,7 @@ public class IBKRClientService {
                 false,
                 null
         );
-        log.info("Requested on-demand historical 5m bars for {} (reqId={})", job.symbol(), job.reqId());
+        log.info("Requested historical 5m bars for {} (reqId={}, duration={})", job.symbol(), job.reqId(), duration);
         addConnectionLog("Historical load started: " + job.symbol());
     }
 
@@ -347,10 +624,15 @@ public class IBKRClientService {
             return;
         }
 
-        if (isLastPriceField(field)) {
+        if (isStreamPriceField(field)) {
+            long tickMs = System.currentTimeMillis();
             lastPrices.put(tickerId, price);
-            lastTickEpochMs.put(tickerId, System.currentTimeMillis());
-            log.debug("Tick price {} LAST={}", symbol, price);
+            lastTickEpochMs.put(tickerId, tickMs);
+            verifiedStreamRegistry.recordTick(symbol, price, tickMs);
+            streamDiagnostics.recordTick(symbol, price);
+            liveSubscribed.set(true);
+            readinessGate.markStreamActive();
+            log.debug("Tick price {} field={} price={}", symbol, field, price);
             candleAggregatorService.onTick(symbol, price, lastVolumes.getOrDefault(tickerId, 0L));
         } else if (field == TickType.CLOSE.index() || field == TickType.DELAYED_CLOSE.index()) {
             referenceClosePrices.put(tickerId, price);
@@ -369,6 +651,7 @@ public class IBKRClientService {
                 || field == TickType.VOLUME.index()) {
             long volume = (long) size;
             lastVolumes.put(tickerId, volume);
+            verifiedStreamRegistry.recordVolume(symbol, System.currentTimeMillis());
             Double lastPrice = lastPrices.get(tickerId);
             if (lastPrice != null) {
                 candleAggregatorService.onTick(symbol, lastPrice, volume);
@@ -376,11 +659,14 @@ public class IBKRClientService {
         }
     }
 
-    private static boolean isLastPriceField(int field) {
+    private static boolean isStreamPriceField(int field) {
         return field == TickType.LAST.index()
                 || field == TickType.DELAYED_LAST.index()
-                || field == TickType.CLOSE.index()
-                || field == TickType.DELAYED_CLOSE.index();
+                || field == TickType.BID.index()
+                || field == TickType.ASK.index()
+                || field == TickType.DELAYED_BID.index()
+                || field == TickType.DELAYED_ASK.index()
+                || field == TickType.MARK_PRICE.index();
     }
 
     private static void pause(long ms) {
@@ -407,8 +693,12 @@ public class IBKRClientService {
         paperMetricsProvider.ifAvailable(m -> m.onOrderFilled(orderId, avgFillPrice));
     }
 
+    public boolean isIbkrReady() {
+        return readinessGate.isIbkrReady() && isConnected();
+    }
+
     public boolean isLiveStreaming() {
-        return liveSubscribed.get() && isConnected();
+        return isConnected() && (readinessGate.isStreamHealthy() || verifiedStreamRegistry.verifiedCount() > 0);
     }
 
     public Double getLastPrice(String symbol) {

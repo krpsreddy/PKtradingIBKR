@@ -1,0 +1,56 @@
+<div class="broker-panel">
+  <div class="broker-head">IBKR STATUS</div>
+  <div class="broker-row">
+    <span class="dot" [ngClass]="dotClass()"></span>
+    <span class="state">{{ status?.connected ? 'CONNECTED' : 'DISCONNECTED' }}</span>
+  </div>
+  <div class="broker-meta">
+    <span>Mode: <strong [class.live-badge]="status?.mode === 'LIVE'">{{ status?.mode || '—' }}</strong></span>
+    <span>Profile: {{ status?.profile || '—' }}</span>
+    @if (status?.latencyMs != null) {
+      <span>Latency: {{ status?.latencyMs }}ms</span>
+    }
+    <span>Subs: {{ status?.subscriptionCount ?? 0 }}</span>
+  </div>
+  <button type="button" class="switch-btn" (click)="openSwitch()" [disabled]="switching">SWITCH</button>
+</div>
+
+@if (switchOpen) {
+  <div class="modal-backdrop" (click)="closeSwitch()"></div>
+  <div class="modal" role="dialog" aria-label="Switch IBKR profile">
+    <header class="modal-head">
+      <h3>Switch IBKR Connection</h3>
+      <button type="button" class="close" (click)="closeSwitch()">×</button>
+    </header>
+    @if (confirmLive) {
+      <div class="live-warn">
+        <span class="live-badge">LIVE</span>
+        <p><strong>LIVE trading enabled</strong></p>
+        <p>You are connecting to {{ confirmLive.name }} on port {{ confirmLive.port }}.</p>
+        <p class="warn">Real account market data and orders may apply.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="confirmLive = null">Back</button>
+          <button type="button" class="btn-live" (click)="confirmLiveSwitch()">Connect LIVE</button>
+        </div>
+      </div>
+    } @else {
+      <ul class="profile-list">
+        @for (p of profiles; track p.id) {
+          <li>
+            <button type="button" class="profile-btn" (click)="selectProfile(p)" [disabled]="switching">
+              <span class="p-name">{{ p.name }}</span>
+              <span class="p-meta">{{ p.host }}:{{ p.port }} · client {{ p.clientId }}</span>
+              <span class="p-mode" [class.live-badge]="p.mode === 'LIVE'">{{ p.mode }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+      @if (error) {
+        <p class="err">{{ error }}</p>
+      }
+      @if (switching) {
+        <p class="switching">Connecting…</p>
+      }
+    }
+  </div>
+}

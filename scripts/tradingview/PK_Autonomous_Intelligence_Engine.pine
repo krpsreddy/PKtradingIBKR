@@ -1,0 +1,404 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PKtradingIBKR — Phase 218: Autonomous Intelligence Engine → POST /api/tradingview/webhook
+// Discovery-derived structural intelligence (NOT generic EMA/RSI signals).
+// Pair with PK backend evolution + PK Live Trader **TV** tab.
+//@version=6
+indicator("PK Autonomous Intelligence Engine", "PK Intel", overlay=true, max_labels_count=80, max_lines_count=30)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INPUTS — discovery-derived thresholds (defaults from Autonomous Discovery export)
+// ═══════════════════════════════════════════════════════════════════════════════
+groupDisc   = "Discovery Thresholds"
+groupCore   = "Core Engine"
+groupBear   = "Bearish Intelligence"
+groupPm     = "PM Intelligence (9:00-9:30)"
+groupHook   = "Webhook Bridge"
+groupVis    = "Visuals"
+groupAlert  = "Alerts"
+
+discRvolMin         = input.float(2.4, "Bullish RVOL min", minval=1.0, maxval=6, step=0.1, group=groupDisc)
+discPersistMin      = input.int(70, "Bullish persistence min", minval=40, maxval=95, group=groupDisc)
+discAccelMin        = input.int(65, "Bullish acceleration min", minval=40, maxval=95, group=groupDisc)
+discReclaimFailMin  = input.int(58, "Reclaim failure min", minval=35, maxval=90, group=groupDisc)
+discRejectMin       = input.int(55, "Rejection persistence min", minval=35, maxval=90, group=groupDisc)
+discBreakdownMin    = input.int(52, "Breakdown acceleration min", minval=35, maxval=90, group=groupDisc)
+discDownRvolMin     = input.float(1.35, "Downside RVOL min", minval=0.8, maxval=4, step=0.05, group=groupDisc)
+discSqueezeMax      = input.int(45, "PUT max squeeze risk", minval=20, maxval=80, group=groupDisc)
+
+rvolLen         = input.int(20, "RVOL baseline length", minval=5, group=groupCore)
+emaFastLen      = input.int(9, "EMA fast", minval=3, group=groupCore)
+emaSlowLen      = input.int(20, "EMA slow", minval=5, group=groupCore)
+atrLen          = input.int(14, "ATR length", minval=5, group=groupCore)
+persistMinBars  = input.int(8, "Persistence min bars above VWAP", minval=3, group=groupCore)
+dominantThresh  = input.int(72, "Dominance rank threshold", minval=50, maxval=95, group=groupCore)
+sessTz          = input.string("America/New_York", "Session timezone", group=groupCore)
+earlyWindowEnd  = input.int(45, "Early window end (min from open)", minval=15, group=groupCore)
+
+enableBearIntel     = input.bool(true, "Enable bearish layer", group=groupBear)
+bearSqueezeAvoidTh  = input.int(70, "Squeeze AVOID threshold", minval=50, maxval=90, group=groupBear)
+putAplusRejectTh    = input.int(70, "PUT A+ rejection min", minval=55, maxval=90, group=groupBear)
+putAplusBreakTh     = input.int(65, "PUT A+ breakdown min", minval=45, maxval=90, group=groupBear)
+putDownRvolTh       = input.float(2.0, "PUT A+ downside RVOL", minval=1.2, maxval=5, step=0.1, group=groupBear)
+
+enablePmIntel       = input.bool(true, "9:00-9:30 PM context", group=groupPm)
+enableWebhook       = input.bool(true, "Push JSON via alert() on intelligence edges", group=groupHook)
+webhookMinDomChange = input.int(8, "Min dominance change to re-push", minval=3, maxval=25, group=groupHook)
+
+showVwap            = input.bool(true, "Show VWAP", group=groupVis)
+showSparseTags      = input.bool(true, "Sparse operational tags", group=groupVis)
+showDashboard       = input.bool(true, "Intel dashboard", group=groupVis)
+eventCooldown       = input.int(6, "Tag cooldown (bars)", minval=2, group=groupVis)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE SERIES
+// ═══════════════════════════════════════════════════════════════════════════════
+vwapVal = ta.vwap(hlc3)
+vwapDist = close > 0 ? (close - vwapVal) / close : 0.0
+vwapDistAbs = math.abs(vwapDist)
+vwapSupport = close >= vwapVal * 0.998
+
+volBase = ta.sma(volume, rvolLen)
+rvol = volBase > 0 ? volume / volBase : 1.0
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+atrVal = ta.atr(atrLen)
+
+structureScore = math.max(0.0, math.min(100.0,
+     (close > emaFast ? 22.0 : 0.0) + (close > emaSlow ? 22.0 : 0.0) +
+     (emaFast > emaSlow ? 28.0 : 0.0) + (close > vwapVal ? 18.0 : 0.0) + math.min(10.0, rvol * 4.0)))
+
+sessHour   = hour(time, sessTz)
+sessMinute = minute(time, sessTz)
+minsFromMidnight = sessHour * 60 + sessMinute
+rthOpenMins = 9 * 60 + 30
+sessionTimeMinutes = math.max(0, minsFromMidnight - rthOpenMins)
+inEarlyWindow = sessionTimeMinutes <= earlyWindowEnd
+inContinuationWindow = sessionTimeMinutes >= 5 and sessionTimeMinutes <= 90
+
+rangeHigh20 = ta.highest(high, 20)
+extended = close >= rangeHigh20 * 0.995 and sessionTimeMinutes > 15
+extensionPenalty = extended and rvol < 1.8
+
+atrPct = close > 0 ? atrVal / close : 0.0
+chopRegime = atrPct < 0.008 and vwapDistAbs > 0.012 and rvol < 1.4
+
+range10 = ta.highest(high, 10) - ta.lowest(low, 10)
+rangePct = close > 0 ? range10 / close : 0.0
+compressionEnergy = math.max(0.0, math.min(100.0,
+     30.0 + (atrPct < 0.015 ? 22.0 : 0.0) + (rangePct < 0.012 ? 20.0 : 0.0) + (rvol >= 2.0 ? 15.0 : 0.0)))
+
+continuationPersistence = math.max(0.0, math.min(100.0,
+     25.0 + (vwapDist >= 0 ? 18.0 : 0.0) + (vwapDist >= 0.005 and vwapDist < 0.025 ? 12.0 : 0.0) +
+     (rvol >= discRvolMin ? 22.0 : rvol >= 1.5 ? 12.0 : 0.0) + (structureScore >= 60 ? 18.0 : structureScore >= 48 ? 10.0 : 0.0) +
+     (vwapSupport ? 10.0 : -8.0) + (extensionPenalty ? -14.0 : 0.0)))
+
+accelerationIntegrity = math.max(0.0, math.min(100.0,
+     30.0 + (rvol >= 4 ? 28.0 : rvol >= 2.5 ? 22.0 : rvol >= 1.8 ? 15.0 : rvol >= 1.3 ? 8.0 : 0.0) +
+     (structureScore >= 70 ? 22.0 : structureScore >= 55 ? 14.0 : 0.0) + (extended and rvol >= 2 ? 8.0 : 0.0)))
+
+institutionalParticipation = math.max(0.0, math.min(100.0,
+     35.0 + (structureScore >= 70 ? 25.0 : structureScore >= 55 ? 18.0 : 0.0) + (not chopRegime ? 12.0 : -18.0)))
+
+continuationQuality = math.max(0.0, math.min(100.0,
+     continuationPersistence * 0.4 + accelerationIntegrity * 0.35 + institutionalParticipation * 0.25 +
+     (rvol >= discRvolMin and vwapSupport ? 8.0 : 0.0) + (extensionPenalty ? -12.0 : 0.0)))
+
+var int barsAboveVwap = 0
+if close > vwapVal
+    barsAboveVwap += 1
+else
+    barsAboveVwap := 0
+
+var float peakPersistence = 0.0
+peakPersistence := math.max(peakPersistence, continuationPersistence)
+persistenceSurvival = peakPersistence > 0 ? continuationPersistence / peakPersistence * 100.0 : continuationPersistence
+if barsAboveVwap == 0
+    peakPersistence := continuationPersistence
+
+persistencePassed = barsAboveVwap >= persistMinBars
+structuralPassed = close > vwapVal and emaFast > emaSlow and structureScore >= 48
+
+anomalyScore = math.max(0.0, math.min(100.0,
+     accelerationIntegrity * 0.45 + continuationPersistence * 0.35 + (structuralPassed ? 12.0 : 0.0)))
+persistenceBoost = persistencePassed ? math.min(25, barsAboveVwap * 2) : 0
+conviction = math.max(0.0, math.min(100.0, anomalyScore + persistenceBoost + (structuralPassed ? 12.0 : 0.0)))
+
+var float convictionPrev = conviction
+convictionVelocity = math.round(conviction - convictionPrev)
+convictionPrev := conviction
+
+triggerIntegrity = math.max(0.0, math.min(1.0, (structuralPassed ? 0.55 : 0.25) + (persistencePassed ? 0.25 : 0.0) + rvol * 0.05))
+dominanceScore = math.round(conviction + triggerIntegrity * 20.0 + math.min(30.0, barsAboveVwap * 1.5) + convictionVelocity * 2.0)
+
+exhaustionProbability = math.max(0.0, math.min(100.0,
+     20.0 + (extended and rvol < 1.5 ? 25.0 : 0.0) + (accelerationIntegrity < 40 and continuationPersistence < 45 ? 20.0 : 0.0) +
+     (chopRegime ? 18.0 : 0.0) + (vwapDist > 0.045 ? 15.0 : 0.0)))
+
+exhaustionDrift = math.max(0.0, math.min(100.0,
+     18.0 + (extended and rvol < 1.5 ? 28.0 : 0.0) + (vwapDist > 0.045 ? 20.0 : 0.0) + (chopRegime ? 15.0 : 0.0)))
+
+// Trend maturity
+trendMaturity =
+     exhaustionProbability >= 65 or persistenceSurvival < 55 ? "EXHAUSTED" :
+     extended and continuationPersistence >= discPersistMin ? "MATURE" :
+     continuationPersistence >= discPersistMin and accelerationIntegrity >= discAccelMin ? "HEALTHY" : "EARLY"
+
+// Regime detection
+failedExpansion = chopRegime and continuationPersistence < 45
+exhaustionRegime = exhaustionProbability >= 72 or exhaustionDrift >= 72
+compressionRegime = compressionEnergy >= 62
+institutionalRegime = institutionalParticipation >= 62 and continuationPersistence >= 60
+healthyExtension = extended and continuationPersistence >= 58 and not exhaustionRegime
+
+regimeCode =
+     failedExpansion ? 8 :
+     exhaustionRegime ? 7 :
+     compressionRegime and compressionEnergy >= 62 ? 5 :
+     institutionalRegime ? 2 :
+     healthyExtension ? 6 :
+     continuationPersistence >= 50 ? 4 : 8
+
+regimeName =
+     regimeCode == 5 ? "COMPRESSION_BREAKOUT" :
+     regimeCode == 2 ? "INSTITUTIONAL_PERSISTENCE" :
+     regimeCode == 4 ? "VWAP_ACCEPTANCE" :
+     regimeCode == 6 ? "HEALTHY_EXTENSION" :
+     regimeCode == 7 ? "EXHAUSTION_DRIFT" : "FAILED_EXPANSION"
+
+// Phase 218 lifecycle
+secondLegActive = regimeCode == 5 and compressionEnergy >= 65 and rvol >= 2
+collapsingSignal = exhaustionDrift >= 72 or (continuationPersistence < continuationPersistence[3] - 12 and convictionVelocity < -5)
+
+lifecycleCode =
+     collapsingSignal ? 7 :
+     exhaustionRegime or exhaustionProbability >= 65 ? 6 :
+     secondLegActive ? 4 :
+     conviction >= 85 and barsAboveVwap >= 20 ? 5 :
+     persistencePassed and conviction >= 70 ? 3 :
+     conviction >= 62 and structuralPassed ? 2 : 1
+
+lifecycleName =
+     lifecycleCode == 1 ? "DEVELOPING" :
+     lifecycleCode == 2 ? "CONFIRMED" :
+     lifecycleCode == 3 ? "PERSISTING" :
+     lifecycleCode == 4 ? "SECOND_LEG" :
+     lifecycleCode == 5 ? "EXTENDED" :
+     lifecycleCode == 6 ? "EXHAUSTING" : "COLLAPSING"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BEARISH INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════════════════
+rsiVal = ta.rsi(close, 14)
+bodyRange = high - low
+bodyPct = close > 0 ? bodyRange / close : 0.0
+avgBodyPct = ta.sma(bodyPct, 10)
+lowerWick = math.min(open, close) - low
+
+vwapRejected = close < vwapVal * 0.998
+vwapLost = ta.crossunder(close, vwapVal) or (close < vwapVal and close[1] >= vwapVal[1])
+weakReclaimAttempt = high[1] >= vwapVal[1] and close < vwapVal and volume < volBase * 1.1
+lowerHighFormed = high < high[1] and high[1] <= high[2]
+failedReclaimCore = vwapRejected and (vwapLost or weakReclaimAttempt) and lowerHighFormed
+
+var int lowerHighStreak = 0
+if high < high[1]
+    lowerHighStreak += 1
+else
+    lowerHighStreak := 0
+var int vwapRejectStreak = 0
+if close < vwapVal and close[1] >= vwapVal[1]
+    vwapRejectStreak += 1
+else if close >= vwapVal
+    vwapRejectStreak := 0
+
+rejectionPersistenceScore = enableBearIntel ? math.min(100.0,
+     math.min(40.0, lowerHighStreak * 8.0) + math.min(25.0, vwapRejectStreak * 6.0) +
+     (close < emaSlow ? 15.0 : 0.0)) : 0.0
+
+pmStartMins = 9 * 60
+pmEndMins = 9 * 60 + 30
+inPmWindow = enablePmIntel and minsFromMidnight >= pmStartMins and minsFromMidnight < pmEndMins and minsFromMidnight < rthOpenMins
+pmVwapReject = inPmWindow and close < vwapVal * 0.997
+pmFailedGap = inPmWindow and open < close[1] * 0.995 and close < open
+pmStrong = inPmWindow and close > vwapVal and continuationPersistence >= 55 and not pmFailedGap
+pmState =
+     not inPmWindow ? "NONE" :
+     pmFailedGap ? "PM_FAILED_GAP" :
+     pmStrong ? "PM_STRONG" :
+     pmVwapReject ? "PM_DISTRIBUTION" : "PM_NEUTRAL"
+
+failedReclaimActive = enableBearIntel and (failedReclaimCore or pmFailedGap)
+
+priceVel = close - close[3]
+downsideVel = priceVel < 0 ? math.abs(priceVel) / math.max(close, syminfo.mintick) * 10000.0 : 0.0
+downRvol = close < open ? rvol : rvol * 0.6
+breakdownAccelerationScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     math.min(35.0, downsideVel * 4.0) + (downRvol >= discDownRvolMin ? 22.0 : downRvol >= 1.2 ? 10.0 : 0.0) +
+     (failedReclaimActive ? 15.0 : 0.0) + (convictionVelocity < -4 ? 12.0 : 0.0))) : 0.0
+
+reclaimFailureScore = failedReclaimActive ? math.min(100.0, rejectionPersistenceScore * 0.6 + breakdownAccelerationScore * 0.4) : math.max(0.0, rejectionPersistenceScore * 0.3)
+
+var int downVolStreak = 0
+if close < open and volume > volBase
+    downVolStreak += 1
+else
+    downVolStreak := 0
+distributionPersistenceScore = enableBearIntel ? math.min(30.0, downVolStreak * 7.0) + (rejectionPersistenceScore >= 45 ? 18.0 : 0.0) : 0.0
+
+squeezeRiskScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     (rsiVal < 32 ? 22.0 : 0.0) + (rvol < 0.9 ? 12.0 : 0.0) + (ta.atr(atrLen) < ta.atr(atrLen)[5] ? 10.0 : 0.0))) : 0.0
+
+bearishBiasScore = enableBearIntel ? math.max(0.0, math.min(100.0,
+     (failedReclaimActive ? 28.0 : 0.0) + rejectionPersistenceScore * 0.22 + breakdownAccelerationScore * 0.20 +
+     distributionPersistenceScore * 0.14 + downRvol * 6.0 - squeezeRiskScore * 0.35)) : 0.0
+
+putGrade =
+     not enableBearIntel ? "NONE" :
+     squeezeRiskScore >= bearSqueezeAvoidTh ? "AVOID" :
+     failedReclaimActive and rejectionPersistenceScore >= putAplusRejectTh and downRvol >= putDownRvolTh and squeezeRiskScore <= discSqueezeMax and breakdownAccelerationScore >= putAplusBreakTh ? "PUT_A_PLUS" :
+     failedReclaimActive and rejectionPersistenceScore >= discRejectMin ? "PUT_A" :
+     rejectionPersistenceScore >= discRejectMin and breakdownAccelerationScore >= discBreakdownMin ? "PUT_B" : "NONE"
+
+longSuppressionLevel =
+     not enableBearIntel ? "NONE" :
+     failedReclaimActive and rejectionPersistenceScore >= discRejectMin and distributionPersistenceScore >= 40 ? "LONG_BLOCKED" :
+     failedReclaimActive and rejectionPersistenceScore >= discRejectMin ? "DOWNGRADE" :
+     rejectionPersistenceScore >= discRejectMin - 8 ? "WARNING" : "NONE"
+
+longBlocked = longSuppressionLevel == "LONG_BLOCKED"
+
+// Conflict
+bullishContinuationActive = (lifecycleCode >= 2 and lifecycleCode <= 4) and continuationPersistence >= discPersistMin - 10 and rvol >= 1.5 and structuralPassed
+bearishStructureActive = failedReclaimActive or rejectionPersistenceScore >= discRejectMin or reclaimFailureScore >= discReclaimFailMin
+conflictScore = bullishContinuationActive and bearishStructureActive ? (failedReclaimActive ? 3 : 2) : bullishContinuationActive and rejectionPersistenceScore >= 40 ? 1 : 0
+conflictLevel = conflictScore >= 3 ? "HIGH" : conflictScore == 2 ? "MODERATE" : conflictScore == 1 ? "LOW" : "NONE"
+
+// Deterioration
+persistenceDecay = continuationPersistence < continuationPersistence[2] - 8
+flattening = math.abs(convictionVelocity) <= 2 and continuationPersistence <= continuationPersistence[1]
+deteriorationLevel =
+     collapsingSignal ? "COLLAPSE_RISK" :
+     vwapLost ? "VWAP_FAILURE" :
+     persistenceDecay ? "PERSISTENCE_DECAY" :
+     flattening ? "FLATTENING" :
+     exhaustionProbability >= 60 ? "EXHAUSTION_RISK" : "NONE"
+
+// Execution quality
+executionQuality =
+     longBlocked or conflictLevel == "HIGH" or deteriorationLevel == "COLLAPSE_RISK" ? "POOR" :
+     continuationQuality >= 82 and rvol >= discRvolMin and persistencePassed and conflictLevel == "NONE" ? "ELITE" :
+     continuationQuality >= 70 and rvol >= 2.0 and not extensionPenalty ? "HIGH" :
+     continuationQuality >= 55 ? "MEDIUM" :
+     continuationQuality >= 40 ? "WEAK" : "POOR"
+
+// Explainable reasoning (compact)
+explainBull = "RVOL " + str.tostring(rvol, "#.#") + " + pers " + str.tostring(math.round(continuationPersistence)) + (vwapSupport ? " + VWAP support" : "") + (extensionPenalty ? " + extension risk" : "")
+explainBear = (failedReclaimActive ? "FAILED_RECLAIM + " : "") + "reject " + str.tostring(math.round(rejectionPersistenceScore)) + " + breakdown " + str.tostring(math.round(breakdownAccelerationScore))
+explainReason = putGrade != "NONE" and putGrade != "AVOID" ? explainBear : explainBull
+
+// Push direction for webhook
+pushDirection =
+     putGrade == "PUT_A_PLUS" or putGrade == "PUT_A" or bearishBiasScore >= 58 ? "BEARISH" :
+     bullishContinuationActive and not longBlocked ? "BULLISH" : "NEUTRAL"
+
+persistenceScore = math.round(continuationPersistence)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEBHOOK JSON + THROTTLED alert()
+// ═══════════════════════════════════════════════════════════════════════════════
+f_webhookPayload(string dir, string life, string det) =>
+    "{" + "\"symbol\":\"" + syminfo.ticker + "\"," + "\"direction\":\"" + dir + "\"," + "\"dominance\":" + str.tostring(dominanceScore) + "," + "\"conviction\":" + str.tostring(math.round(conviction)) + "," + "\"persistence\":" + str.tostring(persistenceScore) + "," + "\"rvol\":" + str.tostring(rvol, "#.##") + "," + "\"lifecycle\":\"" + life + "\"," + "\"regime\":\"" + regimeName + "\"," + "\"executionQuality\":\"" + executionQuality + "\"," + "\"bearishBias\":" + str.tostring(math.round(bearishBiasScore)) + "," + "\"putGrade\":\"" + putGrade + "\"," + "\"deterioration\":\"" + det + "\"," + "\"conflictLevel\":\"" + conflictLevel + "\"," + "\"pmState\":\"" + pmState + "\"," + "\"timestamp\":" + str.tostring(time) + "}"
+
+lifecycleEdge = lifecycleName != lifecycleName[1]
+putGradeEdge = putGrade != putGrade[1]
+conflictEdge = conflictLevel != conflictLevel[1] and (conflictLevel == "HIGH" or conflictLevel == "MODERATE")
+deteriorationEdge = deteriorationLevel != deteriorationLevel[1] and deteriorationLevel != "NONE"
+domChange = math.abs(dominanceScore - dominanceScore[1]) >= webhookMinDomChange
+
+bullishEdge = bullishContinuationActive and not bullishContinuationActive[1] and not longBlocked
+putAplusEdge = putGrade == "PUT_A_PLUS" and putGrade[1] != "PUT_A_PLUS"
+longBlockedEdge = longBlocked and not longBlocked[1]
+collapseEdge = lifecycleCode == 7 and lifecycleCode[1] != 7
+pmStrongEdge = pmState == "PM_STRONG" and pmState[1] != "PM_STRONG"
+pmFailedGapEdge = pmState == "PM_FAILED_GAP" and pmState[1] != "PM_FAILED_GAP"
+failedReclaimEdge = failedReclaimActive and not failedReclaimActive[1]
+
+webhookFire = enableWebhook and barstate.isconfirmed and (lifecycleEdge or putGradeEdge or conflictEdge or deteriorationEdge or domChange or bullishEdge or putAplusEdge or longBlockedEdge or collapseEdge or pmStrongEdge or pmFailedGapEdge or failedReclaimEdge)
+
+if webhookFire
+    alert(f_webhookPayload(pushDirection, lifecycleName, deteriorationLevel), alert.freq_once_per_bar_close)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPARSE VISUALS
+// ═══════════════════════════════════════════════════════════════════════════════
+plot(showVwap ? vwapVal : na, "VWAP", color=color.new(#58a6ff, 50), linewidth=2)
+
+var int lastTagBar = -1000
+tagOk = bar_index - lastTagBar >= eventCooldown
+
+if showSparseTags and tagOk and putAplusEdge
+    label.new(bar_index, na, "PUT A+", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(#bc8cff, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and longBlockedEdge
+    label.new(bar_index, na, "LONG BLOCKED", xloc=xloc.bar_index, yloc=yloc.price, style=label.style_label_down, color=color.new(#d29922, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and collapseEdge
+    label.new(bar_index, na, "COLLAPSING", xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#f85149, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and conflictEdge and conflictLevel == "HIGH"
+    label.new(bar_index, na, "HIGH CONFLICT", xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#d29922, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and failedReclaimEdge
+    label.new(bar_index, na, "FAILED RECLAIM", xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#f85149, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and pmStrongEdge
+    label.new(bar_index, na, "PM STRONG", xloc=xloc.bar_index, yloc=yloc.belowbar, style=label.style_label_up, color=color.new(#3fb950, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+else if showSparseTags and tagOk and pmFailedGapEdge
+    label.new(bar_index, na, "FAILED GAP", xloc=xloc.bar_index, yloc=yloc.abovebar, style=label.style_label_down, color=color.new(#f85149, 12), textcolor=color.new(#ffffff, 0), size=size.tiny)
+    lastTagBar := bar_index
+
+// Hidden plots for optional TV alert placeholders
+plot(dominanceScore, "dominance", display=display.none)
+plot(math.round(conviction), "conviction", display=display.none)
+plot(persistenceScore, "persistence", display=display.none)
+plot(rvol, "rvol", display=display.none)
+plot(bearishBiasScore, "bearishBias", display=display.none)
+
+// Dashboard
+var table dash = table.new(position.top_right, 2, 10, bgcolor=color.new(#0d1117, 35), border_width=1)
+if showDashboard and barstate.islast
+    table.cell(dash, 0, 0, "PK Intel", text_color=color.new(#58a6ff, 0), text_size=size.small)
+    table.cell(dash, 1, 0, pushDirection, text_color=pushDirection == "BULLISH" ? color.lime : pushDirection == "BEARISH" ? color.red : color.gray, text_size=size.small)
+    table.cell(dash, 0, 1, "Dom", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 1, str.tostring(dominanceScore), text_size=size.tiny)
+    table.cell(dash, 0, 2, "Life", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 2, lifecycleName, text_size=size.tiny)
+    table.cell(dash, 0, 3, "EQ", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 3, executionQuality, text_size=size.tiny)
+    table.cell(dash, 0, 4, "PUT", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 4, putGrade, text_size=size.tiny)
+    table.cell(dash, 0, 5, "Conflict", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 5, conflictLevel, text_size=size.tiny)
+    table.cell(dash, 0, 6, "Det", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 6, deteriorationLevel, text_size=size.tiny)
+    table.cell(dash, 0, 7, "PM", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 7, pmState, text_size=size.tiny)
+    table.cell(dash, 0, 8, "Maturity", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 8, trendMaturity, text_size=size.tiny)
+    table.cell(dash, 0, 9, "Reason", text_size=size.tiny, text_color=color.gray)
+    table.cell(dash, 1, 9, str.substring(explainReason, 0, 28), text_size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERTCONDITIONS (TradingView alert dialog — paste webhook URL + use alert() message)
+// ═══════════════════════════════════════════════════════════════════════════════
+alertcondition(bullishEdge, "BULLISH_CONTINUATION", "PK Intel BULLISH {{ticker}}")
+alertcondition(putAplusEdge, "PUT_A_PLUS", "PK Intel PUT A+ {{ticker}}")
+alertcondition(longBlockedEdge, "LONG_BLOCKED", "PK Intel LONG BLOCKED {{ticker}}")
+alertcondition(conflictEdge and conflictLevel == "HIGH", "HIGH_CONFLICT", "PK Intel HIGH CONFLICT {{ticker}}")
+alertcondition(collapseEdge, "COLLAPSING", "PK Intel COLLAPSING {{ticker}}")
+alertcondition(failedReclaimEdge, "FAILED_RECLAIM", "PK Intel FAILED RECLAIM {{ticker}}")
+alertcondition(pmStrongEdge, "PM_STRONG", "PK Intel PM STRONG {{ticker}}")
+alertcondition(pmFailedGapEdge, "PM_FAILED_GAP", "PK Intel FAILED GAP {{ticker}}")
+alertcondition(webhookFire, "WEBHOOK_PUSH", "PK Intel webhook edge {{ticker}}")

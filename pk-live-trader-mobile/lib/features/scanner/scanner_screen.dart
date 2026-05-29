@@ -5,6 +5,7 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/pk_theme.dart';
 import '../../models/ranked_opportunity.dart';
 import '../../services/polling/live_trader_repository.dart';
+import '../../widgets/connection_banner.dart';
 import '../../widgets/opportunity_row.dart';
 
 /// Live scanner — dominance-ranked rows only (no research UI).
@@ -13,7 +14,8 @@ class ScannerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t1 = ref.watch(liveTerminalProvider).tier1;
+    final terminal = ref.watch(liveTerminalProvider);
+    final t1 = terminal.liveScan ?? terminal.tier1;
     final all = <RankedOpportunity>[
       if (t1?.dominant != null) t1!.dominant!,
       ...?t1?.topRanked,
@@ -29,10 +31,21 @@ class ScannerScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
+        const ConnectionBanner(),
         const Text('LIVE SCANNER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: PkTheme.muted, letterSpacing: 1.2)),
         const SizedBox(height: 8),
         if (list.isEmpty)
-          const Center(child: Text('Scanner idle', style: TextStyle(color: PkTheme.muted)))
+          Center(
+            child: Text(
+              terminal.runtime?.scanningEnabled == false
+                  ? 'Scanning OFF — enable SCAN on Trader tab'
+                  : terminal.error != null
+                      ? 'Cannot reach backend'
+                      : 'Scanner idle — waiting for live rankings',
+              style: const TextStyle(color: PkTheme.muted),
+              textAlign: TextAlign.center,
+            ),
+          )
         else
           ...list.asMap().entries.map((e) => OpportunityRow(opp: e.value, rank: e.key + 1)),
       ],

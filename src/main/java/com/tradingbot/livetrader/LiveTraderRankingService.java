@@ -1,14 +1,32 @@
 package com.tradingbot.livetrader;
 
 import com.tradingbot.intelligence.execution.realtime.dto.RealTimeExecutionDtos.ExecutionFeedItemDto;
+import com.tradingbot.intelligence.live.LiveScannerRollingCache;
 import com.tradingbot.intelligence.snapshot.dto.IntelligenceSnapshotDtos.ScannerOpportunityDto;
+import com.tradingbot.livetrader.execution.LiveTraderOpportunityEnricher;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class LiveTraderRankingService {
+
+    private final LiveScannerRollingCache rollingCache;
+    private final LiveTraderOpportunityEnricher enricher;
+
+    public List<LiveTraderDtos.RankedOpportunityDto> rankLiveScanner(
+            List<ScannerOpportunityDto> scanner,
+            int limit
+    ) {
+        return scanner.stream()
+                .map(this::fromScanner)
+                .sorted(Comparator.comparingInt(LiveTraderDtos.RankedOpportunityDto::dominanceScore).reversed())
+                .limit(Math.max(1, limit))
+                .toList();
+    }
 
     public List<LiveTraderDtos.RankedOpportunityDto> rank(
             List<ExecutionFeedItemDto> feed,
@@ -41,6 +59,7 @@ public class LiveTraderRankingService {
             LiveTraderDtos.RankedOpportunityDto b
     ) {
         if (b.dominanceScore() > a.dominanceScore()) return b;
+        if (a.putAssist() == null && b.putAssist() != null) return b;
         return a;
     }
 
@@ -49,7 +68,7 @@ public class LiveTraderRankingService {
                 + (int) (item.triggerIntegrity() * 20)
                 + Math.min(30, item.persistenceSeconds() / 10)
                 + item.convictionVelocity() * 2;
-        return new LiveTraderDtos.RankedOpportunityDto(
+        return enricher.enrichFromFeed(
                 item.symbol(),
                 item.opportunityType(),
                 item.action(),
@@ -72,19 +91,20 @@ public class LiveTraderRankingService {
     }
 
     private LiveTraderDtos.RankedOpportunityDto fromScanner(ScannerOpportunityDto card) {
-        int dominance = card.convictionScore()
+        int liveDominance = rollingCache.stateFor(card.symbol()).dominanceScore();
+        int dominance = liveDominance > 0 ? liveDominance : card.convictionScore()
                 + card.institutionalPressure() / 2
                 + card.continuationPersistence() / 3
                 + card.triggerIntegrity() / 2;
-        return new LiveTraderDtos.RankedOpportunityDto(
+        int velocity = rollingCache.stateFor(card.symbol()).convictionVelocity();
+        return enricher.enrichFromScanner(
                 card.symbol(),
                 card.opportunityType(),
                 card.action(),
                 card.tone(),
                 card.badge(),
-                "CONFIRMED",
                 card.convictionScore(),
-                0,
+                velocity,
                 card.continuationPersistence(),
                 card.institutionalPressure(),
                 card.expansionProbability(),
@@ -94,7 +114,7 @@ public class LiveTraderRankingService {
                 card.riskLabel(),
                 card.expansionProbability() > 60,
                 card.exhaustionProbability() > 55 || card.tone().equals("RED"),
-                System.currentTimeMillis()
+                card
         );
     }
 

@@ -1,0 +1,23 @@
+<div class="replay-lab-header">
+  <app-global-symbol-switcher
+    [symbol]="symbol"
+    [watchlist]="watchlist"
+    [recentSymbols]="recentSymbols"
+    [hotMomentum]="[]"
+    [emergingSetups]="[]"
+    [activeSignals]="[]"
+    (symbolSelected)="symbolSelected.emit($event)"
+    (symbolAdded)="symbolAdded.emit($event)">
+  </app-global-symbol-switcher>
+  <div class="metric"><span class="lbl">Price</span><span class="val">${{ price != null ? (price | number:'1.2-2') : '—' }}</span></div>
+  <div class="metric"><span class="lbl">Regime</span><span class="val regime">{{ regime || '—' }}</span></div>
+  <div class="metric"><span class="lbl">Lifecycle</span><span class="val">{{ lifecycle || '—' }}</span></div>
+  <div class="metric"><span class="lbl">Replay</span><span class="val">{{ replayTimestamp || '—' }}</span></div>
+  <div class="metric"><span class="lbl">Speed</span><span class="val">{{ replaySpeed }}x</span></div>
+  @if (dominance != null) {
+    <div class="metric"><span class="lbl">Dominance</span><span class="val">{{ dominance }}</span></div>
+  }
+  @if (persistence != null) {
+    <div class="metric"><span class="lbl">Persistence</span><span class="val">{{ persistence }}s</span></div>
+  }
+</div>

@@ -5,6 +5,7 @@
     align-items: flex-start;
     gap: 12px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
     h2 {
       margin: 0 0 4px;
       font-size: 0.8rem;
@@ -14,6 +15,176 @@
     }
     .sub { margin: 0; font-size: 0.625rem; color: #6e7681; }
   }
+
+  .head-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mode-tab {
+    padding: 4px 10px;
+    font-size: 0.625rem;
+    border: 1px solid rgba(63, 185, 80, 0.35);
+    background: transparent;
+    color: #8b949e;
+    border-radius: 4px;
+    cursor: pointer;
+    &.active {
+      background: rgba(63, 185, 80, 0.15);
+      color: #3fb950;
+      font-weight: 600;
+    }
+    &.bearish.active {
+      border-color: rgba(248, 81, 73, 0.45);
+      background: rgba(248, 81, 73, 0.12);
+      color: #f85149;
+    }
+  }
+
+  &.bearish-mode .explainer-head h2 {
+    color: #f85149;
+  }
+
+  .bridge-note {
+    font-size: 0.625rem;
+    color: #d29922;
+    margin: 0 0 10px;
+  }
+
+  .bearish-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    .badge {
+      font-size: 0.625rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .squeeze {
+      background: rgba(210, 153, 34, 0.2);
+      color: #d29922;
+      &.high, &.critical { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+    }
+    .put { background: rgba(163, 113, 247, 0.2); color: #a371f7; }
+    .regime { background: rgba(248, 81, 73, 0.12); color: #ff7b72; }
+  }
+
+  .lifecycle {
+    font-size: 0.625rem;
+    color: #8b949e;
+    padding-left: 18px;
+    margin: 6px 0 0;
+    li { margin-bottom: 4px; }
+  }
+
+  .regime-table .neg { color: #f85149; }
+  .summary-cell { max-width: 280px; color: #8b949e; line-height: 1.35; }
+  .eng-cell { color: #79c0ff; white-space: nowrap; }
+
+  &.bearish-mode .regime-row.active {
+    background: rgba(248, 81, 73, 0.08);
+  }
+
+  .layered-panel {
+    padding: 14px;
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    border-radius: 6px;
+    background: rgba(13, 17, 23, 0.6);
+    .cluster-title {
+      margin: 0 0 14px;
+      font-size: 0.75rem;
+      color: #3fb950;
+      letter-spacing: 0.04em;
+    }
+  }
+
+  &.bearish-mode .layered-panel {
+    border-color: rgba(248, 81, 73, 0.35);
+    .cluster-title { color: #ff7b72; }
+  }
+
+  .layer-section {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(48, 54, 61, 0.35);
+    h4 {
+      margin: 0 0 8px;
+      font-size: 0.625rem;
+      color: #79c0ff;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .hint { margin: 0 0 6px; font-size: 0.5625rem; color: #484f58; }
+    ul { margin: 0; padding-left: 16px; font-size: 0.625rem; color: #8b949e; }
+    li { margin-bottom: 4px; }
+  }
+
+  .summary-block .summary-text {
+    margin: 0;
+    font-size: 0.6875rem;
+    color: #c9d1d9;
+    line-height: 1.45;
+  }
+
+  .trigger-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.625rem;
+    li {
+      padding: 4px 8px;
+      margin-bottom: 4px;
+      border-radius: 3px;
+      background: rgba(22, 27, 34, 0.8);
+      &.pass { color: #3fb950; border-left: 2px solid #3fb950; }
+      &.fail { color: #8b949e; border-left: 2px solid #484f58; }
+    }
+  }
+
+  &.bearish-mode .trigger-list li.pass {
+    color: #ff7b72;
+    border-left-color: #f85149;
+  }
+
+  .contrib-list li.neg { color: #f85149; }
+  .invalid-block { border-left: 2px solid rgba(248, 81, 73, 0.5); padding-left: 10px; }
+
+  .collapse-toggle {
+    width: 100%;
+    text-align: left;
+    padding: 6px 0;
+    font-size: 0.625rem;
+    color: #8b949e;
+    background: none;
+    border: none;
+    cursor: pointer;
+    &:hover { color: #c9d1d9; }
+  }
+
+  .formula-panel, .raw-stats ul {
+    font-size: 0.625rem;
+    color: #8b949e;
+  }
+
+  .json-block {
+    margin-top: 8px;
+    font-size: 0.5625rem;
+    overflow-x: auto;
+    color: #6e7681;
+  }
+
+  .muted { color: #484f58; }
+  .conviction-line { font-size: 0.625rem; margin: 0 0 6px; }
 
   .debug-toggle {
     padding: 5px 10px;
@@ -54,6 +225,11 @@
       strong { color: #c9d1d9; }
     }
     .pos { color: #3fb950; }
+  }
+
+  &.bearish-mode .why-panel {
+    border-color: rgba(248, 81, 73, 0.25);
+    h3 { color: #ff7b72; }
   }
 
   .why-panel {

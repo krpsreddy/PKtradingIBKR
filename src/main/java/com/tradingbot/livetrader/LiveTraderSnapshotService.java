@@ -4,9 +4,10 @@ import com.tradingbot.api.dto.PaperExecutionDtos;
 import com.tradingbot.api.dto.probabilistic.ProbabilisticExecutionDtos.MarketHeartbeatDto;
 import com.tradingbot.intelligence.execution.realtime.RealTimeExecutionEngine;
 import com.tradingbot.intelligence.execution.realtime.dto.RealTimeExecutionDtos.ExecutionFeedSnapshotDto;
-import com.tradingbot.intelligence.snapshot.IntelligenceSnapshotService;
+import com.tradingbot.intelligence.live.LiveScannerService;
 import com.tradingbot.intelligence.snapshot.dto.IntelligenceSnapshotDtos.ScannerSnapshotDto;
 import com.tradingbot.intelligence.situational.MarketHeartbeatService;
+import com.tradingbot.bearish.TopBearishOpportunitySelector;
 import com.tradingbot.config.IBKRProperties;
 import com.tradingbot.ibkr.IBKRClientService;
 import com.tradingbot.paper.*;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 public class LiveTraderSnapshotService {
 
     private final RealTimeExecutionEngine executionEngine;
-    private final IntelligenceSnapshotService intelligenceSnapshotService;
+    private final LiveScannerService liveScannerService;
     private final TradingSymbolService tradingSymbolService;
     private final MarketHeartbeatService marketHeartbeatService;
     private final LiveTraderRankingService rankingService;
@@ -38,18 +39,20 @@ public class LiveTraderSnapshotService {
     private final PaperExecutionAnalyticsService paperAnalyticsService;
     private final LiveTraderTelegramService telegramService;
     private final LiveTraderAutoExecutionHook autoExecutionHook;
+    private final TopBearishOpportunitySelector topBearishSelector;
 
     public LiveTraderDtos.Tier1SnapshotDto tier1() {
         if (!runtimeState.isScanningEnabled()) {
             return emptyTier1();
         }
+        liveScannerService.ensureFresh();
         ExecutionFeedSnapshotDto feed = executionEngine.snapshot();
-        List<String> symbols = new ArrayList<>(tradingSymbolService.getScanSymbolSet());
-        ScannerSnapshotDto scanner = symbols.isEmpty()
-                ? new ScannerSnapshotDto(true, System.currentTimeMillis(), List.of(), List.of(), List.of())
-                : intelligenceSnapshotService.scannerOpportunities(symbols, 5);
+        ScannerSnapshotDto scanner = liveScannerService.currentSnapshot();
 
         List<LiveTraderDtos.RankedOpportunityDto> ranked = rankingService.rank(feed.feed(), scanner.opportunities());
+        if (ranked.isEmpty() && !scanner.opportunities().isEmpty()) {
+            ranked = rankingService.rankLiveScanner(scanner.opportunities(), 8);
+        }
         LiveTraderDtos.RankedOpportunityDto dominant = ranked.isEmpty() ? null : ranked.get(0);
         return new LiveTraderDtos.Tier1SnapshotDto(
                 dominant,
@@ -75,6 +78,9 @@ public class LiveTraderSnapshotService {
                 .collect(Collectors.toList());
         var analytics = paperAnalyticsService.buildAnalytics();
 
+        List<LiveTraderDtos.BearishOpportunityMobileDto> topBearish =
+                topBearishSelector.selectTop(tier1.topRanked(), 5);
+
         return new LiveTraderDtos.LiveTraderSnapshotDto(
                 tier1,
                 marketHeartbeatService.heartbeat(),
@@ -82,7 +88,8 @@ public class LiveTraderSnapshotService {
                 active,
                 buildPnl(active, analytics),
                 buildAdvisories(tier1),
-                runtimeState.snapshot()
+                runtimeState.snapshot(),
+                topBearish
         );
     }
 
@@ -149,6 +156,25 @@ public class LiveTraderSnapshotService {
         for (var d : tier1.degrading()) {
             telegramService.maybeAlert("EXHAUSTION_RISK", d, 50);
         }
+    }
+
+    /** Mobile scanner tab — realtime rankings only (Phase 187). */
+    public LiveTraderDtos.Tier1SnapshotDto liveScanTier1(int limit) {
+        if (!runtimeState.isScanningEnabled()) {
+            return emptyTier1();
+        }
+        liveScannerService.ensureFresh(2_000);
+        ScannerSnapshotDto scanner = liveScannerService.currentSnapshot();
+        List<LiveTraderDtos.RankedOpportunityDto> ranked =
+                rankingService.rankLiveScanner(scanner.opportunities(), limit);
+        LiveTraderDtos.RankedOpportunityDto dominant = ranked.isEmpty() ? null : ranked.get(0);
+        return new LiveTraderDtos.Tier1SnapshotDto(
+                dominant,
+                ranked,
+                rankingService.degrading(ranked),
+                scanner.generatedAt(),
+                liveScannerService.generation()
+        );
     }
 
     private LiveTraderDtos.Tier1SnapshotDto emptyTier1() {

@@ -36,6 +36,10 @@ public class PaperExecutionRecord {
     @Column(name = "execution_mode", nullable = false, length = 32)
     private PaperExecutionMode executionMode;
 
+    /** Phase 221 — PAPER vs LIVE JVM isolation tag for future DB split. */
+    @Column(name = "runtime_profile", length = 16)
+    private String runtimeProfile;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private PaperExecutionStatus status;
@@ -111,6 +115,24 @@ public class PaperExecutionRecord {
 
     @Column(name = "exit_suggestion", length = 256)
     private String exitSuggestion;
+
+    @Column(name = "limit_entry_price", precision = 18, scale = 6)
+    private BigDecimal limitEntryPrice;
+
+    @Column(name = "structural_stop_price", precision = 18, scale = 6)
+    private BigDecimal structuralStopPrice;
+
+    @Column(name = "trailing_stop_price", precision = 18, scale = 6)
+    private BigDecimal trailingStopPrice;
+
+    @Column(name = "fill_quality", length = 16)
+    private String fillQuality;
+
+    @Column(name = "entry_style", length = 32)
+    private String entryStyle;
+
+    @Column(name = "simulated_fill")
+    private Boolean simulatedFill;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

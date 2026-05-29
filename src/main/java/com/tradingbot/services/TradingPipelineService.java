@@ -9,6 +9,7 @@ import com.tradingbot.repository.CandleRepository;
 import com.tradingbot.signals.ImbalanceSignalService;
 import com.tradingbot.signals.OpenFailSignalService;
 import com.tradingbot.signals.OpenMomentumSignalService;
+import com.tradingbot.sessionintelligence.PremarketIntelligenceService;
 import com.tradingbot.signals.PremarketTrackerService;
 import com.tradingbot.signals.RecoveryFailSignalService;
 import com.tradingbot.signals.SignalEngineService;
@@ -36,6 +37,7 @@ public class TradingPipelineService {
     private final RecoveryFailSignalService recoveryFailSignalService;
     private final ImbalanceSignalService imbalanceSignalService;
     private final PremarketTrackerService premarketTrackerService;
+    private final PremarketIntelligenceService premarketIntelligenceService;
     private final TradingSymbolService tradingSymbolService;
 
     private final AtomicBoolean liveSignalsEnabled = new AtomicBoolean(false);
@@ -86,6 +88,7 @@ public class TradingPipelineService {
 
         indicatorCalculationService.persistSnapshot(symbol, result);
         premarketTrackerService.updateFromCandles(symbol, candles);
+        premarketIntelligenceService.ingestCandles(symbol, candles);
         openMomentumSignalService.evaluateOpenMomentum(symbol, result);
         openFailSignalService.evaluateOpenFail(symbol, result);
         recoveryFailSignalService.evaluateRecoveryFail(symbol, result);

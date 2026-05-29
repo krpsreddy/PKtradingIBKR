@@ -25,6 +25,7 @@ import {
 } from './replay-workstation.models';
 import { ReplayContextMode } from '../replay-decision-visualization/replay-decision-visualization.models';
 import { ReplayMultiDayContextEngine } from '../replay-decision-visualization/replay-multi-day-context.engine';
+import { ResearchModeService } from '../research-mode.service';
 import { ReplayProfessionalReviewService } from '../replay-decision-visualization/replay-professional-review.service';
 
 const EXIT_TYPES = new Set(['EXIT', 'OPEN_FAIL', 'RECOVERY_FAIL']);
@@ -59,7 +60,8 @@ export class ReplayWorkstationSynthesisService {
     private persistence: ReplaySessionPersistenceService,
     private selector: ReplaySessionSelectorService,
     private multiDay: ReplayMultiDayContextEngine,
-    private review: ReplayProfessionalReviewService
+    private review: ReplayProfessionalReviewService,
+    private researchMode: ResearchModeService
   ) {}
 
   get state$() {
@@ -102,10 +104,11 @@ export class ReplayWorkstationSynthesisService {
       startMode: persisted?.startMode,
       displayMode: persisted?.displayMode,
       workstationMode: persisted?.workstationMode,
-      contextMode: persisted?.contextMode,
+      contextMode: persisted?.contextMode ?? (this.researchMode.isResearch() ? 'INTRADAY_ONLY' : undefined),
       cursorIndex: persisted?.cursorIndex,
       visibility: persisted?.visibility,
-      sessions
+      sessions,
+      loadPriorContext: !this.researchMode.isResearch()
     });
   }
 
@@ -120,6 +123,8 @@ export class ReplayWorkstationSynthesisService {
       cursorIndex?: number;
       visibility?: ReplaySignalVisibility;
       sessions?: ReplaySessionCatalogEntry[];
+      /** Phase 193 — skip loading prior-session candles (expensive waterfall). */
+      loadPriorContext?: boolean;
     }
   ): Promise<ReplayHistory | null> {
     const sym = symbol.toUpperCase();
@@ -138,10 +143,15 @@ export class ReplayWorkstationSynthesisService {
     const startMode = opts?.startMode ?? this.store.snapshot().startMode;
     const displayMode = opts?.displayMode ?? this.store.snapshot().displayMode;
     const workstationMode = opts?.workstationMode ?? this.store.snapshot().workstationMode;
-    const contextMode = opts?.contextMode ?? this.store.snapshot().contextMode ?? 'PREVIOUS_DAY';
+    const contextMode = opts?.contextMode
+      ?? this.store.snapshot().contextMode
+      ?? (this.researchMode.isResearch() ? 'INTRADAY_ONLY' : 'PREVIOUS_DAY');
     const sessions = opts?.sessions ?? this.store.snapshot().sessions;
 
-    const priorDates = this.multiDay.priorSessionDates(sessionDate, sessions, contextMode);
+    const loadPrior = opts?.loadPriorContext ?? !this.researchMode.isResearch();
+    const priorDates = loadPrior
+      ? this.multiDay.priorSessionDates(sessionDate, sessions, contextMode)
+      : [];
     const priorSessions: ReplayHistory[] = [];
     for (const d of priorDates) {
       const prior = await this.preload.loadSession(sym, d);

@@ -33,7 +33,9 @@ import { IndicatorService } from '../indicator.service';
 import { WorkspaceModeService } from '../workspace-mode.service';
 import { HttpRequestManagerService } from '../network/http-request-manager.service';
 import { RealTimeExecutionService } from '../real-time-execution/real-time-execution.service';
-import { bindScanEnabled, DashboardTaskId } from './dashboard-scheduler.config';
+import { bindLiveRuntimeEnabled, bindScanEnabled, DashboardTaskId } from './dashboard-scheduler.config';
+import { ResearchModeService } from '../research-mode.service';
+import { ReplayIsolationModeService } from '../replay-isolation-mode.service';
 import { RuntimeScanControlService } from '../runtime-scan/runtime-scan-control.service';
 import { NanoPulseService } from '../runtime-scan/nano-pulse.service';
 import { TradingSymbol } from '../../models/trading-symbol.model';
@@ -109,14 +111,37 @@ export class DashboardOrchestratorService implements OnDestroy {
     private requestManager: HttpRequestManagerService,
     private rtExecution: RealTimeExecutionService,
     private scanControl: RuntimeScanControlService,
-    private nanoPulse: NanoPulseService
+    private nanoPulse: NanoPulseService,
+    private researchMode: ResearchModeService,
+    private replayIsolation: ReplayIsolationModeService
   ) {
     bindScanEnabled(() => this.scanControl.isScanningEnabled());
+    bindLiveRuntimeEnabled(() => this.researchMode.allowsLiveRuntime() && !this.replayIsolation.blocksLivePolling());
   }
 
   start(): void {
     if (this.running) return;
     this.running = true;
+    if (this.researchMode.allowsLiveRuntime()) {
+      this.startLiveRuntime();
+    } else {
+      this.startResearchRuntime();
+    }
+  }
+
+  /** Phase 192 — on-demand enrich for replay/review symbol only. */
+  requestOnDemandEnrich(symbols: string[]): void {
+    const vis = [this.store.selectedSymbol()];
+    this.enrichQueue.scheduleOnDemand(symbols, vis);
+  }
+
+  private startResearchRuntime(): void {
+    this.scanControl.setEnabled(false, 'MANUAL');
+    this.rtExecution.disconnect();
+    this.runResearchBootstrap();
+  }
+
+  private startLiveRuntime(): void {
     this.scheduler.start();
     if (this.scanControl.isScanningEnabled()) {
       this.rtExecution.connect();
@@ -161,11 +186,18 @@ export class DashboardOrchestratorService implements OnDestroy {
   }
 
   requestSymbolContextRefresh(): void {
+    if (!this.researchMode.allowsLiveRuntime()) {
+      return;
+    }
     this.scheduler.trigger('symbolContext');
   }
 
   requestActiveSymbolRefresh(): void {
-    this.scheduler.trigger('activeSymbol');
+    if (this.researchMode.allowsLiveRuntime()) {
+      this.scheduler.trigger('activeSymbol');
+    } else {
+      this.refreshActiveSymbol();
+    }
   }
 
   stop(): void {
@@ -179,6 +211,23 @@ export class DashboardOrchestratorService implements OnDestroy {
   ngOnDestroy(): void {
     this.stop();
     this.lifecycle$.complete();
+  }
+
+  private runResearchBootstrap(): void {
+    this.enrichQueue.loadBaseSymbols().subscribe(symbols => {
+      this.store.patchWatchlist(symbols);
+      this.lightPollSubject.next({
+        symbols,
+        status: null,
+        debug: null,
+        hot: [],
+        continuation: [],
+        opening: [],
+        failed: [],
+        market: null,
+        emerging: []
+      });
+    });
   }
 
   private runInitialBootstrap(): void {
@@ -270,6 +319,9 @@ export class DashboardOrchestratorService implements OnDestroy {
   }
 
   private scheduleEnrichmentIfNeeded(symbols: string[], visible: string[] = []): void {
+    if (!this.researchMode.allowsLiveRuntime()) {
+      return;
+    }
     const vis = visible.length ? visible : [this.store.selectedSymbol()];
     const key = [...symbols].sort().join(',');
     if (key === this.lastWatchlistKey) return;

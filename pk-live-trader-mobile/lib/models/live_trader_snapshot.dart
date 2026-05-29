@@ -1,3 +1,4 @@
+import 'bearish_opportunity.dart';
 import 'paper_position.dart';
 import 'runtime_controls.dart';
 import 'tier1_snapshot.dart';
@@ -60,6 +61,7 @@ class LiveTraderSnapshot {
     required this.pnl,
     required this.advisories,
     required this.runtime,
+    this.topBearishOpportunities = const [],
   });
 
   final Tier1Snapshot tier1;
@@ -69,6 +71,7 @@ class LiveTraderSnapshot {
   final PnlSummary pnl;
   final List<String> advisories;
   final RuntimeControls runtime;
+  final List<BearishOpportunity> topBearishOpportunities;
 
   factory LiveTraderSnapshot.fromJson(Map<String, dynamic> j) {
     List<PaperPosition> pos(dynamic raw) {
@@ -84,6 +87,14 @@ class LiveTraderSnapshot {
       return raw.map((e) => e.toString()).toList();
     }
 
+    List<BearishOpportunity> bearish(dynamic raw) {
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(BearishOpportunity.fromJson)
+          .toList();
+    }
+
     return LiveTraderSnapshot(
       tier1: Tier1Snapshot.fromJson(
           j['tier1'] as Map<String, dynamic>? ?? {}),
@@ -97,6 +108,7 @@ class LiveTraderSnapshot {
       advisories: adv(j['advisories']),
       runtime: RuntimeControls.fromJson(
           j['runtime'] as Map<String, dynamic>? ?? {}),
+      topBearishOpportunities: bearish(j['topBearishOpportunities']),
     );
   }
 }

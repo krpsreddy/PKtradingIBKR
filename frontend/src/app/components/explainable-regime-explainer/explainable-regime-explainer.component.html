@@ -1,145 +1,180 @@
-<section class="explainer">
+<section class="explainer" [class.bearish-mode]="mode === 'bearish'">
   <header class="explainer-head">
     <div>
       <h2>Explainable Regime Intelligence</h2>
-      <p class="sub">Phase 170 · exact thresholds, formulas, and numeric contributions — no vague bucket labels</p>
+      <p class="sub">
+        Phase 208 · layered reasoning — structural summary + exact engineering gates + formula debug (collapsed)
+      </p>
     </div>
-    <button type="button" class="debug-toggle" [class.on]="debugMode" (click)="toggleDebug()">
-      {{ debugMode ? 'Explainable debug ON' : 'Explainable debug' }}
-    </button>
+    <div class="head-actions">
+      <nav class="mode-tabs">
+        <button type="button" class="mode-tab" [class.active]="mode === 'bullish'" (click)="setMode('bullish')">
+          Bullish Explainability
+        </button>
+        <button type="button" class="mode-tab bearish" [class.active]="mode === 'bearish'" (click)="setMode('bearish')">
+          Bearish Explainability
+        </button>
+      </nav>
+      <button type="button" class="debug-toggle" [class.on]="debugMode" (click)="toggleDebug()">
+        {{ debugMode ? 'Engineering debug ON' : 'Engineering debug' }}
+      </button>
+    </div>
   </header>
 
-  @if (!rows.length) {
-    <p class="empty">Re-mine patterns to generate explainable regime breakdowns.</p>
+  @if (bridgeNote) {
+    <p class="bridge-note">{{ bridgeNote }}</p>
+  }
+
+  @if (loadingBearish) {
+    <p class="empty">Loading bearish discovery bridge…</p>
+  } @else if (!rows.length) {
+    <p class="empty">
+      {{ mode === 'bearish'
+        ? 'Re-mine patterns or open Bearish Discovery — few bearish clusters in sample.'
+        : 'Re-mine patterns to generate explainable regime breakdowns.' }}
+    </p>
   } @else {
     <table class="regime-table">
       <thead>
         <tr>
           <th>Cluster</th>
-          <th>Pre-expansion (numeric)</th>
+          <th>Summary</th>
+          <th>Engineering</th>
           <th>Avg R</th>
-          <th>Symbols</th>
           <th>Regime</th>
-          <th>Conviction</th>
+          <th>Score</th>
         </tr>
       </thead>
       <tbody>
         @for (row of rows; track row.strategy.id) {
           <tr
             class="regime-row"
-            [class.active]="activeExplanation?.strategySpec?.strategyId === row.strategy.id"
+            [class.active]="activeLayer?.clusterName === row.layer.clusterName"
             (click)="selectStrategy(row.strategy)">
-            <td class="name">{{ row.strategy.name }}</td>
-            <td class="cond-cell">
-              @for (c of row.numericConditions; track c.dimension) {
-                <span class="cond-chip"><strong>{{ c.label }}:</strong> {{ c.value }}</span>
-              }
-            </td>
-            <td class="pos">{{ formatR(row.strategy.avgR) }}</td>
-            <td>{{ (row.strategy.topSymbols ?? []).join(', ') }}</td>
-            <td>{{ row.explanation.regimeLabel }}</td>
-            <td>{{ row.explanation.finalConviction }}</td>
+            <td class="name">{{ row.displayName }}</td>
+            <td class="summary-cell">{{ row.layer.structuralSummary }}</td>
+            <td class="eng-cell">{{ triggerPreview(row) }}</td>
+            <td [class]="row.strategy.avgR >= 0 ? 'pos' : 'neg'">{{ formatR(row.strategy.avgR) }}</td>
+            <td>{{ row.layer.regimeLabel }}</td>
+            <td>{{ row.layer.finalScore }}</td>
           </tr>
         }
       </tbody>
     </table>
 
-    @if (activeExplanation; as ex) {
-      <div class="why-panel">
-        <h3>WHY THIS ENTRY? — {{ ex.strategySpec?.strategyName ?? ex.regimeLabel }}</h3>
+    @if (activeLayer; as L) {
+      <div class="layered-panel">
+        <h3 class="cluster-title">{{ L.clusterName }}</h3>
 
-        <div class="why-grid">
-          <div class="why-block">
-            <h4>Triggered because</h4>
-            <ul>
-              @for (line of ex.whyEntryValid; track line) {
-                <li>{{ line }}</li>
-              }
-              @for (t of ex.entryConditions; track t.feature) {
-                <li class="check" [class.pass]="t.passed">
-                  {{ t.feature }}: {{ t.actual }} {{ t.operator }} {{ t.threshold }}
-                  <span class="formula">{{ t.formula }}</span>
-                </li>
-              }
-            </ul>
-          </div>
+        <section class="layer-section summary-block">
+          <h4>1 · Structural summary</h4>
+          <p class="summary-text">{{ L.structuralSummary }}</p>
+        </section>
 
-          <div class="why-block invalid">
-            <h4>Invalidates if</h4>
-            <ul>
-              @for (rule of ex.exhaustionRules; track rule) {
-                <li>{{ rule }}</li>
-              }
-              @for (t of ex.invalidationConditions; track t.feature) {
-                @if (!t.passed) {
-                  <li>{{ t.feature }}: actual {{ t.actual }} fails {{ t.operator }} {{ t.threshold }}</li>
+        <section class="layer-section triggers-block">
+          <h4>2 · Exact trigger conditions</h4>
+          <p class="hint">Raw engineering thresholds — for regime tuning &amp; cluster validation</p>
+          <ul class="trigger-list">
+            @for (t of L.exactTriggers; track t.engineeringKey ?? t.label) {
+              <li [class.pass]="t.passed" [class.fail]="!t.passed">{{ formatTrigger(t) }}</li>
+            }
+          </ul>
+        </section>
+
+        <section class="layer-section">
+          <h4>3 · Structural interpretation</h4>
+          <ul>
+            @for (line of L.structuralInterpretation; track line) {
+              <li>{{ line }}</li>
+            }
+          </ul>
+        </section>
+
+        <section class="layer-section">
+          <h4>4 · Confidence contributors</h4>
+          <p class="conviction-line">Final score <strong>{{ L.finalScore }}</strong></p>
+          <ul class="contrib-list">
+            @for (c of L.confidenceContributors; track c.label + c.delta) {
+              <li [class.neg]="c.delta < 0">
+                {{ c.label }} {{ c.delta >= 0 ? '+' : '' }}{{ c.delta }}
+                @if (c.runningTotal != null) { <span class="muted">→ {{ c.runningTotal }}</span> }
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="layer-section">
+          <h4>5 · Lifecycle evolution</h4>
+          <ol class="lifecycle">
+            @for (step of L.lifecycleEvolution; track step.phase) {
+              <li>
+                <strong>{{ step.phase }}</strong>
+                @if (step.detail) { <span class="muted"> — {{ step.detail }}</span> }
+              </li>
+            }
+          </ol>
+        </section>
+
+        <section class="layer-section invalid-block">
+          <h4>6 · Invalidates if</h4>
+          <ul>
+            @for (rule of L.invalidatesIf; track rule) {
+              <li>{{ rule }}</li>
+            }
+          </ul>
+        </section>
+
+        <section class="layer-section collapsible">
+          <button type="button" class="collapse-toggle" (click)="showFormulaDebug = !showFormulaDebug">
+            7 · Formula debug {{ showFormulaDebug ? '▾' : '▸' }}
+          </button>
+          @if (showFormulaDebug) {
+            <div class="formula-panel">
+              <p class="formula-head">{{ L.formulaDebug.headline }} (base {{ L.formulaDebug.base }})</p>
+              <ul>
+                @for (line of L.formulaDebug.lines; track line.term) {
+                  <li [class.neg]="line.delta < 0">
+                    {{ line.delta >= 0 ? '+' : '' }}{{ line.delta }} · {{ line.term }}
+                    @if (line.note) { <span class="muted">{{ line.note }}</span> }
+                  </li>
                 }
+              </ul>
+              @if (debugMode) {
+                <pre class="json-block">{{ L.formulaDebug.formulas | json }}</pre>
               }
-            </ul>
-          </div>
+            </div>
+          }
+        </section>
 
-          <div class="why-block">
-            <h4>Confidence contributors</h4>
-            <p class="conviction-line">Base {{ ex.convictionBase }} → Final <strong>{{ ex.finalConviction }}</strong></p>
-            <ul>
-              @for (c of ex.featureContributions; track c.feature + c.runningTotal) {
-                <li [class.neg]="c.delta < 0">
-                  {{ c.feature }}: {{ c.delta >= 0 ? '+' : '' }}{{ c.delta }} → {{ c.runningTotal }}
-                  <span class="formula">{{ c.formula }}</span>
+        @if (L.rawDiscoveryStats.length) {
+          <section class="layer-section collapsible raw-stats">
+            <button type="button" class="collapse-toggle" (click)="showRawStats = !showRawStats">
+              Raw discovery statistics {{ showRawStats ? '▾' : '▸' }}
+            </button>
+            @if (showRawStats) {
+              <p class="hint">Percentiles, z-scores, miner internals — not part of main explainability flow</p>
+              <ul>
+                @for (s of L.rawDiscoveryStats; track s.dimension + s.label) {
+                  <li><strong>{{ s.label }}:</strong> {{ s.value }}</li>
+                }
+              </ul>
+            }
+          </section>
+        }
+
+        @if (L.triggerSequence.length) {
+          <section class="layer-section timeline-block">
+            <h4>Trigger sequence (replay)</h4>
+            <ol class="timeline">
+              @for (ev of L.triggerSequence; track ev.time + ev.event) {
+                <li>
+                  <span class="time">{{ ev.time }}</span>
+                  <span class="evt">{{ ev.event }}</span>
+                  @if (ev.detail) { <span class="detail">{{ ev.detail }}</span> }
                 </li>
               }
-            </ul>
-            @if (ex.whyConfidenceIncreased.length) {
-              <h4 class="sub-h">Why confidence increased</h4>
-              <ul>
-                @for (l of ex.whyConfidenceIncreased; track l) { <li>{{ l }}</li> }
-              </ul>
-            }
-            @if (ex.whyConfidenceDropped.length) {
-              <h4 class="sub-h">Why confidence dropped</h4>
-              <ul>
-                @for (l of ex.whyConfidenceDropped; track l) { <li class="warn">{{ l }}</li> }
-              </ul>
-            }
-          </div>
-
-          <div class="why-block">
-            <h4>Persistence logic</h4>
-            <ul>
-              @for (l of ex.persistenceLogic; track l) { <li>{{ l }}</li> }
-            </ul>
-            <h4 class="sub-h">Extension / exhaustion</h4>
-            <ul>
-              @for (l of ex.whyExtensionHealthy; track l) { <li class="pos">{{ l }}</li> }
-              @for (l of ex.whyExhaustionDetected; track l) { <li class="warn">{{ l }}</li> }
-            </ul>
-          </div>
-        </div>
-
-        <h4>Trigger sequence (replay)</h4>
-        <ol class="timeline">
-          @for (ev of ex.triggerSequence; track ev.timestampMs) {
-            <li>
-              <span class="time">{{ ev.time }}</span>
-              <span class="evt">{{ ev.event }}</span>
-              @if (ev.detail || ev.actual != null) {
-                <span class="detail">{{ ev.detail ?? (ev.actual + ' vs ' + ev.threshold) }}</span>
-              }
-            </li>
-          }
-        </ol>
-
-        @if (ex.strategySpec && debugMode) {
-          <div class="debug-panel">
-            <h4>Developer mode — raw metrics + thresholds live</h4>
-            <pre>{{ ex.rawMetrics | json }}</pre>
-            <h4>Formulas</h4>
-            <pre>{{ ex.formulas | json }}</pre>
-            <h4>Threshold refs</h4>
-            <pre>{{ ex.strategySpec.thresholdRefs | json }}</pre>
-            <h4>Feature weights</h4>
-            <pre>{{ ex.strategySpec.featureWeights | json }}</pre>
-          </div>
+            </ol>
+          </section>
         }
       </div>
     }

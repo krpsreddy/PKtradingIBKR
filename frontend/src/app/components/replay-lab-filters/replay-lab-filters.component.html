@@ -1,0 +1,23 @@
+<div class="replay-lab-filters">
+  <span class="filter-label">Research filters</span>
+  @for (chip of primary; track chip.key) {
+    <button type="button" class="filter-chip" [class.active]="filters[chip.key]" (click)="toggle(chip.key)">
+      {{ chip.label }}
+    </button>
+  }
+  <button type="button" class="advanced-toggle" (click)="toggleAdvanced()">
+    {{ advancedOpen() ? '▾ Advanced' : '▸ Advanced Research Filters' }}
+  </button>
+  @if (anyActive()) {
+    <button type="button" class="clear-btn" (click)="clear()">Clear</button>
+  }
+</div>
+@if (advancedOpen()) {
+  <div class="replay-lab-filters advanced">
+    @for (chip of advanced; track chip.key) {
+      <button type="button" class="filter-chip" [class.active]="filters[chip.key]" (click)="toggle(chip.key)">
+        {{ chip.label }}
+      </button>
+    }
+  </div>
+}

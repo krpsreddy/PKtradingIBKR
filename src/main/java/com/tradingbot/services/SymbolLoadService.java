@@ -5,11 +5,13 @@ import com.tradingbot.config.TradingProperties;
 import com.tradingbot.ibkr.HistoricalDataService;
 import com.tradingbot.ibkr.IBKRClientService;
 import com.tradingbot.ibkr.SubscriptionManagerService;
+import com.tradingbot.ibkr.stream.DynamicLiveStreamOrchestrator;
 import com.tradingbot.repository.CandleRepository;
 import com.tradingbot.symbol.SymbolContext;
 import com.tradingbot.symbol.SymbolContextRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -23,12 +25,20 @@ public class SymbolLoadService {
     private final SubscriptionManagerService subscriptionManager;
     private final IBKRClientService ibkrClientService;
     private final HistoricalDataService historicalDataService;
+    private final ObjectProvider<DynamicLiveStreamOrchestrator> streamOrchestratorProvider;
 
     public SymbolSubscribeDto activateSymbol(String symbol) {
         String sym = symbol.toUpperCase();
         SymbolContext ctx = symbolContextRegistry.getOrCreate(sym);
 
-        subscriptionManager.subscribeIfNeeded(sym);
+        if (ibkrClientService.isConnected()) {
+            DynamicLiveStreamOrchestrator orchestrator = streamOrchestratorProvider.getIfAvailable();
+            if (orchestrator != null && orchestrator.isDynamicEnabled()) {
+                orchestrator.onSymbolTouched(sym);
+            } else {
+                subscriptionManager.subscribeIfNeeded(sym);
+            }
+        }
 
         long count = candleRepository.countBySymbolAndTimeframe(sym, tradingProperties.getTimeframe());
         int minRequired = Math.min(10, tradingProperties.getMinCandlesForSignals());
@@ -90,7 +100,7 @@ public class SymbolLoadService {
 
     private void requestHistoricalAsync(String symbol) {
         if (!ibkrClientService.isConnected()) {
-            log.warn("IBKR not connected — cannot load historical for {}", symbol);
+            log.debug("IBKR not connected — cannot load historical for {}", symbol);
             SymbolContext ctx = symbolContextRegistry.getOrCreate(symbol);
             ctx.setLoadingHistorical(false);
             return;

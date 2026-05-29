@@ -5,6 +5,7 @@ import { PaperProbeRequest } from '../models/paper-execution.model';
 import { ExecutionModeService } from './execution-mode.service';
 import { PaperExecutionApiService } from './paper-execution-api.service';
 import { RealTimeExecutionService } from './real-time-execution/real-time-execution.service';
+import { ResearchModeService } from './research-mode.service';
 import { ExecutionFeedItem } from './real-time-execution/real-time-execution.models';
 
 const BLOCKED_REGIME = /EXHAUSTION|FAILED|DEGRADING/i;
@@ -27,11 +28,13 @@ export class PaperExecutionResearchHookService {
   constructor(
     private modeService: ExecutionModeService,
     private api: PaperExecutionApiService,
-    private rtExecution: RealTimeExecutionService
+    private rtExecution: RealTimeExecutionService,
+    private researchMode: ResearchModeService
   ) {}
 
   connect(): void {
     if (this.feedSub || !this.modeService.researchInfrastructureEnabled) return;
+    if (this.researchMode.isResearch()) return;
     this.feedSub = this.rtExecution.feed$
       .pipe(
         filter(() => this.modeService.isPaperResearch),

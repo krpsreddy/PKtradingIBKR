@@ -6,14 +6,18 @@ import { AutonomousDiscoveryLabComponent } from './autonomous-discovery/autonomo
 import { ExecutionMonitorComponent } from './execution-monitor/execution-monitor.component';
 import { ExecutionConsoleComponent } from './execution-console/execution-console.component';
 import { AutonomousExitResearchComponent } from './autonomous-exit-research/autonomous-exit-research.component';
+import { ExecutionReviewComponent } from './execution-review/execution-review.component';
+import { ResearchHomeComponent } from './research-home/research-home.component';
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-  { path: 'dashboard', component: DashboardComponent },
+  { path: '', component: ResearchHomeComponent },
+  { path: 'replay-lab', component: DashboardComponent },
+  { path: 'dashboard', redirectTo: 'replay-lab', pathMatch: 'full' },
   { path: 'symbols', component: SymbolsManagementComponent },
   { path: 'signal-lab', component: SignalLabComponent },
   { path: 'autonomous-discovery', component: AutonomousDiscoveryLabComponent },
   { path: 'execution-monitor', component: ExecutionMonitorComponent },
   { path: 'execution-console', component: ExecutionConsoleComponent },
-  { path: 'exit-research', component: AutonomousExitResearchComponent }
+  { path: 'exit-research', component: AutonomousExitResearchComponent },
+  { path: 'execution-review', component: ExecutionReviewComponent }
 ];

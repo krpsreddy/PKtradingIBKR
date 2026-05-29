@@ -36,16 +36,46 @@ public class HistoricalReplayEngine {
     private final CandleHistoryService candleHistoryService;
     private final SymbolLoadService symbolLoadService;
     private final TradingSymbolService tradingSymbolService;
+    private final ReplaySessionMemoryCache sessionMemoryCache;
+    private final ReplayRuntimeMode replayRuntimeMode;
 
     public record ReplaySessionResult(ReplayHistoryDto session, IndicatorResult lastIndicator) {}
 
     public ReplayHistoryDto replay(String symbol, LocalDate date, String timeframe) {
         String sym = symbol.toUpperCase();
-        List<Candle> all = candleHistoryService.loadSessionCandlesUntil(sym, date);
-        Long avgDailyVol = tradingSymbolService.findActive(sym)
-                .map(TradingSymbol::getAvgDailyVolume)
-                .orElse(null);
-        return replaySession(sym, date, timeframe, all, avgDailyVol).session();
+        String tf = timeframe != null ? timeframe : tradingProperties.getTimeframe();
+        String dateKey = date.toString();
+        var cached = sessionMemoryCache.get(sym, dateKey, tf);
+        if (cached.isPresent()) {
+            log.debug("Replay memory cache HIT {} {}", sym, dateKey);
+            return cached.get();
+        }
+        try (var ignored = replayRuntimeMode.enter()) {
+            long t0 = System.nanoTime();
+            List<Candle> all = candleHistoryService.loadSessionCandlesUntil(sym, date);
+            long dbMs = (System.nanoTime() - t0) / 1_000_000;
+            Long avgDailyVol = tradingSymbolService.findActive(sym)
+                    .map(TradingSymbol::getAvgDailyVolume)
+                    .orElse(null);
+            long t1 = System.nanoTime();
+            ReplayHistoryDto dto = replaySession(sym, date, tf, all, avgDailyVol).session();
+            long computeMs = (System.nanoTime() - t1) / 1_000_000;
+            sessionMemoryCache.put(sym, dateKey, tf, dto);
+            long totalMs = (System.nanoTime() - t0) / 1_000_000;
+            if (totalMs > 500) {
+                log.warn(
+                        "Replay build SLOW symbol={} date={} totalMs={} dbLoadMs={} computeMs={} bars={}",
+                        sym, dateKey, totalMs, dbMs, computeMs,
+                        dto.getSessionCandles() != null ? dto.getSessionCandles().size() : 0
+                );
+            } else {
+                log.info(
+                        "Replay build symbol={} date={} totalMs={} dbLoadMs={} computeMs={}",
+                        sym, dateKey, totalMs, dbMs, computeMs
+                );
+            }
+            return dto;
+        }
     }
 
     /**
@@ -162,6 +192,12 @@ public class HistoricalReplayEngine {
      * Replay every available session — legacy full replay (prefer incremental via ReplayCacheController).
      */
     public BulkReplayHistoryDto bulkReplay(String symbol, int days, String timeframe) {
+        try (var ignored = replayRuntimeMode.enter()) {
+            return bulkReplayInner(symbol, days, timeframe);
+        }
+    }
+
+    private BulkReplayHistoryDto bulkReplayInner(String symbol, int days, String timeframe) {
         String sym = symbol.toUpperCase();
         String tf = timeframe != null ? timeframe : tradingProperties.getTimeframe();
         int window = days > 0 ? days : tradingProperties.getHistoricalLookbackDays();

@@ -12,5 +12,8 @@ export const environment = {
   /** Real-time execution feed poll fallback (SSE preferred). */
   feedPollMs: 2_000,
   /** Show dev network diagnostics overlay. */
-  showNetworkDiagnostics: true
+  showNetworkDiagnostics: true,
+  /** Phase 192 — stable build may still use live dashboard until migrated. */
+  researchModeDefault: false,
+  liveDebugAllowed: true
 };

@@ -26,11 +26,13 @@ Future<ResolveResult?> resolveReachableEndpoint({required bool preferRemote}) as
     return null;
   }
 
-  if (await probeBackend(AppConfig.defaultLocalBase) == null) {
-    return ResolveResult(
-      apiBase: AppConfig.defaultLocalBase,
-      useRemote: false,
-    );
+  for (final base in AppConfig.localProbeBases) {
+    if (await probeBackend(base) == null) {
+      return ResolveResult(
+        apiBase: base,
+        useRemote: false,
+      );
+    }
   }
 
   // LAN failed (common on iOS with Tailscale ON — errno 65 no route to host)

@@ -144,9 +144,21 @@ export class IntelligenceSnapshotApiService {
     );
   }
 
-  scannerOpportunities(symbols: string[], lookbackDays?: number): Observable<ScannerSnapshotDto> {
+  /** Phase 187 — full watchlist live scan (no per-symbol URL limit). */
+  liveScannerSnapshot(): Observable<ScannerSnapshotDto> {
+    return this.http.get<ScannerSnapshotDto>(`${this.base}/api/live-scanner/snapshot`);
+  }
+
+  scannerOpportunities(
+    symbols?: string[],
+    lookbackDays?: number,
+    mode: 'live' | 'historical' = 'live'
+  ): Observable<ScannerSnapshotDto> {
     const params = new URLSearchParams();
-    for (const s of symbols) params.append('symbols', s.toUpperCase());
+    params.set('mode', mode);
+    if (symbols?.length) {
+      for (const s of symbols) params.append('symbols', s.toUpperCase());
+    }
     if (lookbackDays != null) params.set('lookbackDays', String(lookbackDays));
     return this.http.get<ScannerSnapshotDto>(`${this.base}/api/scanner/opportunities?${params}`);
   }
